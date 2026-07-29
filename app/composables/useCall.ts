@@ -42,7 +42,7 @@ export default function useCall() {
   const localScreen = ref<{ srcObject: MediaStream } | null>(null);
   const localStreamTypes = ref<{ id: string; type: TrackType }[]>([]);
   const userId = computed(() => `${profileStore.userId}:${nanoid()}`);
-  const remoteRefs = ref<Record<string, { srcObject: MediaStream }>>({});
+  const remoteRefs = ref<Record<string, HTMLVideoElement | null>>({});
   const remoteScreenRefs = ref<Record<string, HTMLVideoElement | undefined>>(
     {},
   );
@@ -816,7 +816,14 @@ export default function useCall() {
       await nextTick();
       for (const [id, stream] of Object.entries(videos)) {
         const video = remoteScreenRefs.value[id];
-        if (video) video.srcObject = stream.stream;
+        if (video && stream.stream) {
+          if (video.srcObject !== stream.stream) {
+            video.srcObject = stream.stream;
+            video.play().catch((err) => {
+              console.warn(`Autoplay prevented for remote screen ${id}:`, err);
+            });
+          }
+        }
       }
     },
     { immediate: true, deep: true },
@@ -832,7 +839,14 @@ export default function useCall() {
       await nextTick();
       for (const [id, stream] of Object.entries(videos)) {
         const video = remoteRefs.value[id];
-        if (video) video.srcObject = stream.stream;
+        if (video && stream.stream) {
+          if (video.srcObject !== stream.stream) {
+            video.srcObject = stream.stream;
+            video.play().catch((err) => {
+              console.warn(`Autoplay prevented for remote video ${id}:`, err);
+            });
+          }
+        }
       }
     },
     { immediate: true, deep: true },

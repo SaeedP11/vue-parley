@@ -20,9 +20,7 @@ const constraintsRef = ref();
 
 const minimizedRef = useDomRef();
 const bodyRef = ref<HTMLElement | null>(null);
-const cameraPopup = ref<{ open: () => void; close: () => void } | null>(
-  null,
-);
+const cameraPopup = ref<{ open: () => void; close: () => void } | null>(null);
 const { t, locale } = useLocalI18n(chat);
 const { dir } = useDirection();
 const dragging = ref(false);
@@ -310,9 +308,7 @@ const transition: ValueAnimationTransition = {
             class="absolute inset-0 z-0 h-full w-full object-cover"
           />
 
-          <div
-            class="absolute bottom-3 left-3 z-20 flex items-center gap-x-2"
-          >
+          <div class="absolute bottom-3 left-3 z-20 flex items-center gap-x-2">
             <div
               class="rounded bg-black-500 px-2 py-1 text-label-sm text-white select-none"
             >
@@ -347,21 +343,22 @@ const transition: ValueAnimationTransition = {
           v-for="(stream, remoteUserId) in remoteVideos"
           :key="`remote-${remoteUserId}`"
           :ref="
-            (el) =>
-              (remoteParents[`remote_video_${remoteUserId}`] = el as any)
+            (el) => (remoteParents[`remote_video_${remoteUserId}`] = el as any)
           "
           class="group relative flex aspect-video h-full w-full flex-col items-center justify-center overflow-hidden rounded-2xl border-2 border-chat-primary/0 bg-black-600 p-2"
         >
           <video
-            :ref="(el) => (remoteRefs[remoteUserId] = el as any)"
+            :ref="
+              (el) => {
+                if (el) remoteRefs[remoteUserId] = el as any;
+              }
+            "
             autoplay
             playsinline
             class="absolute inset-0 z-0 h-full w-full object-cover"
           />
 
-          <div
-            class="absolute bottom-2 left-2 z-20 flex items-center gap-x-1"
-          >
+          <div class="absolute bottom-2 left-2 z-20 flex items-center gap-x-1">
             <div
               class="rounded bg-black-500 px-1.5 py-0.5 text-label-sm text-white select-none"
             >
@@ -401,22 +398,23 @@ const transition: ValueAnimationTransition = {
           v-for="(stream, remoteUserId) in remoteScreens"
           :key="`remote-screen-${remoteUserId}`"
           :ref="
-            (el) =>
-              (remoteParents[`remote_screen_${remoteUserId}`] = el as any)
+            (el) => (remoteParents[`remote_screen_${remoteUserId}`] = el as any)
           "
           class="group relative flex aspect-video h-full w-full flex-col items-center justify-center overflow-hidden rounded-2xl border-2 border-chat-primary/0 bg-black-600 p-2"
         >
           <video
-            :ref="(el) => (remoteScreenRefs[remoteUserId] = el as any)"
+            :ref="
+              (el) => {
+                if (el) remoteScreenRefs[remoteUserId] = el as any;
+              }
+            "
             autoplay
             muted
             playsinline
             class="absolute inset-0 z-0 h-full w-full object-cover"
           />
 
-          <div
-            class="absolute bottom-3 left-3 z-20 flex items-center gap-x-2"
-          >
+          <div class="absolute bottom-3 left-3 z-20 flex items-center gap-x-2">
             <div
               class="rounded bg-black-500 px-2 py-1 text-label-sm text-white select-none"
             >
@@ -492,9 +490,7 @@ const transition: ValueAnimationTransition = {
             class="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"
           />
 
-          <div
-            class="absolute bottom-3 left-3 z-20 flex items-center gap-x-2"
-          >
+          <div class="absolute bottom-3 left-3 z-20 flex items-center gap-x-2">
             <div
               class="rounded bg-black-500 px-2 py-1 text-label-sm text-white select-none"
             >
