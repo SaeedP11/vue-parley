@@ -16,6 +16,14 @@
   scrollbar-width: none;
 }
 
+.emoji-glyph {
+  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji",
+    "Twemoji Mozilla", "EmojiOne Color", "Android Emoji", sans-serif;
+  font-variant-emoji: emoji;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
 .border-diamond {
   border-color: transparent !important;
   background-image:
@@ -24,3 +32,4 @@
   background-origin: border-box !important;
   background-clip: padding-box, border-box !important;
 }
+

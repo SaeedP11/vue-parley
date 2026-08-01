@@ -29,19 +29,7 @@ export function useRichTextEditor(inputRef: Ref<HTMLDivElement | null>) {
 
   const handleContentInput = () => {
     if (!inputRef.value) return;
-    let rawText = "";
-
-    inputRef.value.childNodes.forEach((node: Node) => {
-      if (node.nodeType === Node.TEXT_NODE) {
-        rawText += node.textContent;
-      } else if (node.nodeName === "IMG") {
-        rawText += (node as HTMLImageElement).alt;
-      } else if (node.nodeName === "DIV" || node.nodeName === "BR") {
-        rawText += "\n";
-      }
-    });
-
-    messageText.value = rawText;
+    messageText.value = inputRef.value.innerText;
     adjustHeight();
   };
 
@@ -51,7 +39,7 @@ export function useRichTextEditor(inputRef: Ref<HTMLDivElement | null>) {
 
     inputRef.value.focus();
     const selection = window.getSelection();
-    let range;
+    let range: Range;
 
     if (savedRange.value) {
       range = savedRange.value;
@@ -70,14 +58,14 @@ export function useRichTextEditor(inputRef: Ref<HTMLDivElement | null>) {
     const parsed = parseEmojiArray(emoji);
     if (parsed.length > 0 && parsed[0].type === "emoji") {
       const chunk = parsed[0];
-      const img = document.createElement("img");
-      img.src = `/emojis/apple/webp/${chunk.hex}.webp`;
-      img.alt = chunk.content;
-      img.className =
-        "inline-block h-5 w-5 mx-0.5 align-middle select-text pointer-events-none";
+      const span = document.createElement("span");
+      span.textContent = chunk.content;
+      span.className =
+        "emoji-glyph inline-block h-5 w-5 mx-0.5 leading-5 text-xl align-middle select-text pointer-events-none";
+      span.setAttribute("contenteditable", "false");
 
-      range.insertNode(img);
-      range.setStartAfter(img);
+      range.insertNode(span);
+      range.setStartAfter(span);
       range.collapse(true);
       selection?.removeAllRanges();
       selection?.addRange(range);

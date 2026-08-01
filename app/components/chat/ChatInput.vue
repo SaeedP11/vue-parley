@@ -147,7 +147,7 @@
                 />
               </template>
               <div class="">
-                <BEmojiPicker @select="handleEmojiSelect" />
+                <BEmojiPicker :native="true" @select="handleEmojiSelect" />
               </div>
             </BMenu>
           </div>
@@ -230,11 +230,12 @@ import { useChatRecording } from "~/composables/chat/useChatRecording";
 import VideoRecordDisplay from "./chat-input/VideoRecordDisplay.vue";
 import { useRichTextEditor } from "~/composables/useRichTextEditor";
 import { useMessagesStore } from "~/stores/messageStores.js";
-import SafeEmojiText from "../general/SafeEmojiText.vue";
 import { useProfileStore } from "~/stores/profileStore.js";
+import SafeEmojiText from "../general/SafeEmojiText.vue";
 import useLocalI18n from "~/composables/useLocalI18n";
 import { useChatStore } from "~/stores/chatStore.js";
 import { useCallStore } from "~/stores/callStore.js";
+import { type EmojiExt } from "vue3-emoji-picker";
 import { chatInput } from "@i18n/locales";
 
 const props = withDefaults(
@@ -499,8 +500,8 @@ const toggleMobileEmoji = () => {
   }
 };
 
-const handleEmojiSelect = (emoji: string) => {
-  editor.handleEmojiSelect(emoji, showMobileEmojiPicker.value);
+const handleEmojiSelect = (emoji: EmojiExt) => {
+  editor.handleEmojiSelect(emoji.i, showMobileEmojiPicker.value);
 };
 
 // Cleaned up pointer/click handlers

@@ -26,13 +26,10 @@ const parsedText = computed(() => parseEmojiArray(props.text));
     ]"
   >
     <template v-for="(chunk, index) in parsedText" :key="index">
-      <img
+      <span
         v-if="chunk.type === 'emoji'"
-        :src="`/emojis/apple/webp/${chunk.hex}.webp`"
-        :alt="chunk.content"
-        class="inline-block h-4.5 w-4.5 align-middle select-text pointer-events-none"
-        loading="lazy"
-      />
+        class="emoji-glyph inline-block h-5 w-5 leading-5 text-xl align-middle select-text"
+      >{{ chunk.content }}</span>
       <span v-else>{{ chunk.content }}</span>
     </template>
   </component>
