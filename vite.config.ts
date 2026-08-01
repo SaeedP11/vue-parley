@@ -1,3 +1,4 @@
+import { nodePolyfills } from "vite-plugin-node-polyfills";
 import Components from "unplugin-vue-components/vite";
 import AutoImport from "unplugin-auto-import/vite";
 import { fileURLToPath, URL } from "node:url";
@@ -9,6 +10,7 @@ import dts from "vite-plugin-dts";
 export default defineConfig({
   plugins: [
     vue(),
+    nodePolyfills(),
     AutoImport({
       imports: ["vue", "@vueuse/core"],
       dts: fileURLToPath(new URL("./auto-imports.d.ts", import.meta.url)),
