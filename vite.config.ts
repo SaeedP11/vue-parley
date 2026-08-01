@@ -32,6 +32,8 @@ export default defineConfig({
     },
   },
   build: {
+    minify: false,
+    sourcemap: true,
     lib: {
       name: "VueChat",
       entry: resolve(__dirname, "app/index.ts"),
@@ -40,6 +42,9 @@ export default defineConfig({
     },
     rollupOptions: {
       external: ["vue", "vue-i18n", "pinia", "@vueuse/core"],
+      output: {
+        compact: false,
+      },
     },
   },
 });

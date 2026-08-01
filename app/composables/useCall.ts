@@ -14,7 +14,16 @@ export default function useCall() {
   const profileStore = useProfileStore();
   const callHandlers = useCallHandlers();
   const callStore = useCallStore();
-  const { t } = useLocalI18n(chat);
+  const { t: _t } = useLocalI18n(chat);
+  const t = (key: string, ...args: any[]) => {
+    try {
+      return typeof _t === "function"
+        ? (_t as any)(key, ...args)
+        : key;
+    } catch {
+      return key;
+    }
+  };
   const { openToast } = useAppToast();
   const chatStore = useChatStore();
 
@@ -58,6 +67,10 @@ export default function useCall() {
   const remoteScreens = ref<
     Record<string, { name: string; stream: MediaStream }>
   >({});
+  const pendingPeerRequests = ref<
+    Record<string, { initiator: boolean | undefined; name: string }>
+  >({});
+  const pendingSignals = ref<Record<string, any>>({});
 
   const generateIceUrl = (
     url: string,
@@ -116,6 +129,10 @@ export default function useCall() {
       showControls.value = false;
     }, 3000);
   };
+
+  function shouldBeInitiator(remoteId: string) {
+    return userId.value > remoteId;
+  }
 
   async function checkPermissions() {
     try {
@@ -293,6 +310,8 @@ export default function useCall() {
     }
     Reflect.deleteProperty(remoteVideos.value, remoteUserId);
     Reflect.deleteProperty(remoteScreens.value, remoteUserId);
+    Reflect.deleteProperty(pendingPeerRequests.value, remoteUserId);
+    Reflect.deleteProperty(pendingSignals.value, remoteUserId);
 
     connectionData.value[remoteUserId] = undefined;
   }
@@ -302,25 +321,56 @@ export default function useCall() {
     initiator: boolean | undefined,
     name: string,
   ) {
+    if (!localStream.value) {
+      console.warn(
+        "[useCall] localStream not ready, deferring peer creation for",
+        remoteUserId,
+      );
+      pendingPeerRequests.value[remoteUserId] = { initiator, name };
+      return;
+    }
+
+    if (
+      !credential.value ||
+      !credential.value.urls ||
+      !credential.value.urls.length
+    ) {
+      console.warn(
+        "[useCall] No TURN credentials available, cannot create peer for",
+        remoteUserId,
+      );
+      return;
+    }
+
     if (!peers.value[remoteUserId]) {
-      const peer = new Peer({
+      console.log(
+        "[useCall] Creating peer for",
+        remoteUserId,
+        "initiator:",
         initiator,
-        trickle: false,
-        stream: localStream.value!,
-        config: {
-          iceTransportPolicy: "relay",
-          iceServers: [
-            {
-              urls: credential.value!.urls.map((url) => generateIceUrl(url)),
-              username: credential.value!.user,
-              credential: credential.value!.pass,
-            },
-            // {
-            //   urls: 'stun:turn.wenex.org:3478',
-            // },
-          ],
-        },
-      });
+      );
+      let peer: Peer.Instance;
+      try {
+        peer = new Peer({
+          initiator,
+          trickle: false,
+          stream: localStream.value!,
+          config: {
+            iceTransportPolicy: "relay",
+            iceServers: [
+              {
+                urls: credential.value!.urls.map((url) => generateIceUrl(url)),
+                username: credential.value!.user,
+                credential: credential.value!.pass,
+              },
+            ],
+          },
+        });
+      } catch (err) {
+        console.error("[useCall] Peer constructor threw:", err, (err as any)?.stack);
+        return;
+      }
+      console.log("[useCall] Peer created successfully for", remoteUserId);
 
       if (screenStream.value)
         screenStream.value.getVideoTracks().forEach((track) => {
@@ -328,6 +378,11 @@ export default function useCall() {
         });
 
       peer.on("signal", async (signal) => {
+        console.log(
+          "[useCall] Peer signal emitted for",
+          remoteUserId,
+          (signal as any).type || "candidate",
+        );
         await publisher(
           JSON.stringify({
             type: CallMessageType.Signal,
@@ -335,17 +390,23 @@ export default function useCall() {
               from: userId.value,
               to: remoteUserId,
               signal,
-              name: `${profile.value?.first_name ?? ""} ${profile.value?.last_name ?? ""}`,
+              name: `${profileStore.userName ?? ""}`,
             },
           } as CallMessageSchema),
         );
       });
 
       peer.on("stream", (stream) => {
-        const types = remoteStreamTypes.value[remoteUserId];
-        const type = types?.find((i) => i.id === stream.id);
-
-        if (type && type.type === "screen") {
+        console.log(
+          "[useCall] Peer stream received from",
+          remoteUserId,
+          "tracks:",
+          stream.getTracks().map((t) => t.kind),
+        );
+        const announced = remoteStreamTypes.value[remoteUserId] ?? [];
+        const isScreen = announced.some((t) => t.type === "screen");
+        const hasVideo = stream.getVideoTracks().length > 0;
+        if (isScreen && hasVideo) {
           remoteScreens.value[remoteUserId] = { name, stream };
         } else {
           remoteVideos.value[remoteUserId] = { name, stream };
@@ -353,25 +414,32 @@ export default function useCall() {
       });
 
       peer.on("error", (err) => {
-        console.error("Peer error:", err);
+        console.error("[useCall] Peer error for", remoteUserId, err);
         cleanupPeer(remoteUserId);
 
         publisher(
           JSON.stringify({
             type: CallMessageType.Join,
             payload: {
-              from: userId.value!,
-              name: `${profile.value?.first_name ?? ""} ${profile.value?.last_name ?? ""}`,
+              from: userId.value,
+              name: `${profileStore.userName ?? ""}`,
             },
           } as CallMessageSchema),
         );
       });
 
       peer.on("close", () => {
+        console.log("[useCall] Peer closed for", remoteUserId);
         cleanupPeer(remoteUserId);
       });
 
       peers.value[remoteUserId] = peer;
+
+      if (pendingSignals.value[remoteUserId]) {
+        console.log("[useCall] Applying pending signal for", remoteUserId);
+        peer.signal(pendingSignals.value[remoteUserId]);
+        delete pendingSignals.value[remoteUserId];
+      }
     }
   }
 
@@ -390,7 +458,7 @@ export default function useCall() {
         type: CallMessageType.Call,
         payload: {
           from: userId.value!,
-          name: `${profile.value?.first_name ?? ""} ${profile.value?.last_name ?? ""}`,
+          name: `${profileStore.userName ?? ""}`,
           channel: _roomId.value,
           avatar: avatarImage,
         },
@@ -399,6 +467,15 @@ export default function useCall() {
   };
 
   onMounted(async () => {
+    window.addEventListener("unhandledrejection", (event) => {
+      console.error(
+        "[useCall] Unhandled rejection:",
+        event.reason,
+        "stack:",
+        (event as any).reason?.stack || event.reason,
+      );
+    });
+
     if (window.process)
       Object.assign(window.process, { nextTick: ProcessNextTick });
     else {
@@ -410,12 +487,21 @@ export default function useCall() {
 
       if (fromId === userId.value) return;
 
+      console.log("[useCall] Received message:", message.type, "from:", fromId);
+
       if (
         message.type === CallMessageType.Signal &&
         message.payload.signal &&
         message.payload.to === userId.value &&
-        connectionData.value[fromId]?.signal !== message.payload.signal.sdp
+        connectionData.value[fromId]?.signal !==
+          message.payload.signal.sdp
       ) {
+        console.log(
+          "[useCall] Processing Signal from",
+          fromId,
+          "peer exists:",
+          !!peers.value[fromId],
+        );
         if (peers.value[fromId]) {
           connectionData.value[fromId] = {
             signal: message.payload.signal.sdp,
@@ -423,10 +509,27 @@ export default function useCall() {
           peers.value[fromId].signal(message.payload.signal);
         } else {
           await nextTick();
-          _addPeer(fromId, undefined, message.payload.name);
-          (peers.value[fromId] as any)?.signal(message.payload.signal);
+          _addPeer(fromId, shouldBeInitiator(fromId), message.payload.name);
+          if (peers.value[fromId]) {
+            connectionData.value[fromId] = {
+              signal: message.payload.signal.sdp,
+            };
+            peers.value[fromId].signal(message.payload.signal);
+          } else {
+            console.log(
+              "[useCall] Peer still deferred, storing pending signal for",
+              fromId,
+            );
+            pendingSignals.value[fromId] = message.payload.signal;
+          }
         }
       } else if (message.type === CallMessageType.Join) {
+        console.log(
+          "[useCall] Join from",
+          fromId,
+          "name:",
+          message.payload.name,
+        );
         publisher(
           JSON.stringify({
             type: CallMessageType.TrackType,
@@ -437,15 +540,36 @@ export default function useCall() {
           } as CallMessageSchema),
         );
 
-        _addPeer(fromId, true, message.payload.name);
+        _addPeer(fromId, shouldBeInitiator(fromId), message.payload.name);
       } else if (message.type === CallMessageType.TrackType) {
+        console.log(
+          "[useCall] TrackType from",
+          fromId,
+          "types:",
+          message.payload.types,
+        );
         remoteStreamTypes.value[fromId] = message.payload.types;
       }
     });
 
     await callHandlers.handleGenerateCred();
+    console.log(
+      "[useCall] Credential after handleGenerateCred:",
+      credential.value
+        ? {
+            urls: credential.value.urls?.length,
+            user: !!credential.value.user,
+          }
+        : "null",
+    );
     await checkPermissions();
     await initializeMedia();
+    console.log(
+      "[useCall] localStream ready:",
+      !!localStream.value,
+      "tracks:",
+      localStream.value?.getTracks().map((t) => t.kind),
+    );
 
     void callOtherSide();
 
@@ -464,7 +588,7 @@ export default function useCall() {
         type: CallMessageType.Join,
         payload: {
           from: userId.value!,
-          name: `${profile.value?.first_name ?? ""} ${profile.value?.last_name ?? ""}`,
+          name: `${profileStore.userName ?? ""}`,
         },
       } as CallMessageSchema),
     );
@@ -787,6 +911,26 @@ export default function useCall() {
   // };
 
   watch(
+    () => localStream.value,
+    (newStream) => {
+      if (newStream && Object.keys(pendingPeerRequests.value).length > 0) {
+        const pending = { ...pendingPeerRequests.value };
+        pendingPeerRequests.value = {};
+        console.log(
+          "[useCall] localStream ready, processing deferred peers:",
+          Object.keys(pending),
+        );
+        for (const [remoteUserId, { initiator, name }] of Object.entries(
+          pending,
+        )) {
+          _addPeer(remoteUserId, initiator, name);
+        }
+      }
+    },
+    { immediate: true },
+  );
+
+  watch(
     () => [localStream.value, callStore.isMinimized] as [MediaStream, boolean],
     async ([video]) => {
       await nextTick();
@@ -837,16 +981,13 @@ export default function useCall() {
       ],
     async ([videos]) => {
       await nextTick();
-      for (const [id, stream] of Object.entries(videos)) {
-        const video = remoteRefs.value[id];
-        if (video && stream.stream) {
-          if (video.srcObject !== stream.stream) {
-            video.srcObject = stream.stream;
-            video.play().catch((err) => {
-              console.warn(`Autoplay prevented for remote video ${id}:`, err);
-            });
-          }
+      for (const [id, { stream }] of Object.entries(videos)) {
+        const el = remoteRefs.value[id];
+        if (!el || !stream) continue;
+        if (el.srcObject !== stream) {
+          el.srcObject = stream;
         }
+        el.play().catch(() => {});
       }
     },
     { immediate: true, deep: true },
