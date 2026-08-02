@@ -1,29 +1,19 @@
 <script setup lang="ts">
 import { useCallStore } from "~/stores/callStore";
-import {
-  animate,
-  motion,
-  useDomRef,
-  useMotionValue,
-  type ValueAnimationTransition,
-} from "motion-v";
 import useLocalI18n, { useDirection } from "~/composables/useLocalI18n";
 import { chat } from "@i18n/locales";
 import useCall from "~/composables/useCall";
+import { useDraggable, useWindowSize } from "@vueuse/core";
+import { ref, computed, watch, onMounted, nextTick } from "vue";
 
 const callStore = useCallStore();
 
-const x = useMotionValue(0);
-const y = useMotionValue(0);
-const minimizedWebcamRef = useDomRef();
-const constraintsRef = ref();
-
-const minimizedRef = useDomRef();
+// ارجاع به المان مینیمایز شده برای VueUse
+const minimizedRef = ref<HTMLElement | null>(null);
 const bodyRef = ref<HTMLElement | null>(null);
 const cameraPopup = ref<{ open: () => void; close: () => void } | null>(null);
 const { t, locale } = useLocalI18n(chat);
 const { dir } = useDirection();
-const dragging = ref(false);
 
 const {
   toggleVideoPause,
@@ -47,6 +37,7 @@ const {
   resetControlsTimeout,
   cameras,
   videoPaused,
+  localStream,
   localVideo,
   localScreen,
   remoteParents,
@@ -56,103 +47,149 @@ const {
   remoteVideos,
 } = useCall();
 
-onMounted(() => {
-  bodyRef.value = document.body;
+// --- PIP BACKGROUND VIDEO ---
+// در حالت مینیمایز، پس‌زمینه PIP یک ویدیوی زنده است: اگر کاربر ریموت فعال باشد
+// استریم آن کاربر نمایش داده می‌شود؛ در غیر این صورت استریم محلی کاربر.
+const pipVideoRef = ref<HTMLVideoElement | null>(null);
+const activeRemoteIndex = ref(0);
+
+const remoteVideoEntries = computed(() => Object.entries(remoteVideos.value));
+const hasRemoteVideos = computed(() => remoteVideoEntries.value.length > 0);
+const activeRemoteUserId = computed<string | null>(() => {
+  const entries = remoteVideoEntries.value;
+  if (entries.length === 0) return null;
+  return entries[activeRemoteIndex.value % entries.length][0];
 });
 
-async function handleDragEnd(parent: any, el: any, margin: number = 0) {
-  if (!parent || !el) return;
-
-  const p = parent.getBoundingClientRect();
-  const r = el.getBoundingClientRect();
-
-  const cx = r.left + r.width / 2;
-  const cy = r.top + r.height / 2;
-
-  const corners = [
-    { name: "tl", x: p.left, y: p.top },
-    { name: "tr", x: p.right, y: p.top },
-    { name: "bl", x: p.left, y: p.bottom },
-    { name: "br", x: p.right, y: p.bottom },
-  ];
-
-  const nearest = corners.reduce((a, b) =>
-    Math.hypot(cx - b.x, cy - b.y) < Math.hypot(cx - a.x, cy - a.y) ? b : a,
-  );
-
-  const isRtl = dir.value === "rtl";
-
-  let targetX =
-    nearest.x -
-    (isRtl ? p.right : p.left) -
-    (nearest.name.includes(isRtl ? "l" : "r") ? r.width * (isRtl ? -1 : 1) : 0);
-
-  let targetY = nearest.y - p.top - (nearest.name.includes("b") ? r.height : 0);
-
-  if (margin !== 0) {
-    if (nearest.name === "tl") {
-      targetX += margin;
-      targetY += margin;
-    } else if (nearest.name === "tr") {
-      targetX -= margin;
-      targetY += margin;
-    } else if (nearest.name === "bl") {
-      targetX += margin;
-      targetY -= margin;
-    } else if (nearest.name === "br") {
-      targetX -= margin;
-      targetY -= margin;
-    }
+const pipStream = computed<MediaStream | null>(() => {
+  if (hasRemoteVideos.value) {
+    const id = activeRemoteUserId.value;
+    return id ? (remoteVideos.value[id]?.stream ?? null) : null;
   }
+  return localStream.value ?? null;
+});
 
-  animate(x, targetX, { duration: 0.28 });
-  animate(y, targetY, { duration: 0.28 });
+function cycleRemote() {
+  const count = remoteVideoEntries.value.length;
+  if (count === 0) return;
+  activeRemoteIndex.value = (activeRemoteIndex.value + 1) % count;
 }
 
 watch(
-  () => callStore.isMinimized,
-  (isMinimized) => {
-    if (!isMinimized) {
-      animate(x, 0);
-      animate(y, 0);
-    } else
-      nextTick(() => {
-        handleDragEnd(bodyRef.value, minimizedRef.value, 16);
-      });
+  [pipStream, () => callStore.isMinimized],
+  async () => {
+    await nextTick();
+    const el = pipVideoRef.value;
+    if (!el) return;
+    const stream = pipStream.value;
+    if (stream && el.srcObject !== stream) {
+      el.srcObject = stream;
+      el.play().catch(() => {});
+    } else if (!stream && el.srcObject) {
+      el.srcObject = null;
+    }
   },
   { immediate: true },
 );
 
-const transition: ValueAnimationTransition = {
-  type: "spring",
-  bounce: 0,
-  duration: 0.5,
-};
+onMounted(() => {
+  bodyRef.value = document.body;
+});
+
+// --- DRAG LOGIC WITH BOUNDARIES & CORNER SNAPPING ---
+const { width: windowWidth, height: windowHeight } = useWindowSize();
+
+const PIP_WIDTH = 280; // معادل w-70 در Tailwind
+const PIP_HEIGHT = 160; // معادل h-40 در Tailwind
+const PADDING = 16;
+
+// ۱. راه‌اندازی Draggable روی عنصر minimizedRef
+const { x, y, isDragging } = useDraggable(minimizedRef, {
+  initialValue: {
+    x:
+      typeof window !== "undefined"
+        ? window.innerWidth - PIP_WIDTH - PADDING
+        : PADDING,
+    y:
+      typeof window !== "undefined"
+        ? window.innerHeight - PIP_HEIGHT - PADDING
+        : PADDING,
+  },
+  // غیرفعال کردن درگ در صورتی که کامپوننت مینیمایز نباشد
+  disabled: computed(() => !callStore.isMinimized),
+});
+
+// ۲. اسنپ شدن به نزدیک‌ترین گوشه بعد از رها کردن کلیک/لمس
+watch(isDragging, (dragging) => {
+  if (!dragging && callStore.isMinimized) {
+    const maxX = windowWidth.value - PIP_WIDTH - PADDING;
+    const maxY = windowHeight.value - PIP_HEIGHT - PADDING;
+
+    // جهت RTL روی گوشه پیش‌فرض اولیه تاثیر می‌گذارد
+    const isRtl = dir.value === "rtl";
+
+    // پیدا کردن نزدیک‌ترین گوشه بر اساس موقعیت فعلی درگ شده
+    const targetX = x.value < windowWidth.value / 2 ? PADDING : maxX;
+    const targetY = y.value < windowHeight.value / 2 ? PADDING : maxY;
+
+    x.value = targetX;
+    y.value = targetY;
+  }
+});
+
+// بازنشانی موقعیت به گوشه مناسب در هنگام مینیمایز شدن مجدد
+watch(
+  () => callStore.isMinimized,
+  (isMinimized) => {
+    if (isMinimized) {
+      nextTick(() => {
+        const isRtl = dir.value === "rtl";
+        x.value = isRtl ? PADDING : windowWidth.value - PIP_WIDTH - PADDING;
+        y.value = windowHeight.value - PIP_HEIGHT - PADDING;
+      });
+    }
+  },
+  { immediate: true },
+);
+
+// ۳. محدود کردن مختصات در محدوده مانیتور و خروجی استایل
+const clampedStyle = computed(() => {
+  if (!callStore.isMinimized) return {};
+
+  const maxX = windowWidth.value - PIP_WIDTH - PADDING;
+  const maxY = windowHeight.value - PIP_HEIGHT - PADDING;
+
+  const safeX = Math.max(PADDING, Math.min(x.value, maxX));
+  const safeY = Math.max(PADDING, Math.min(y.value, maxY));
+
+  return {
+    left: `${safeX}px`,
+    top: `${safeY}px`,
+  };
+});
 </script>
 
 <template>
-  <motion.div
+  <!-- استفاده از div معمولی به جای motion.div و اعمال پوزیشن با clampedStyle -->
+  <div
     v-if="callStore.isActive && callStore.isMinimized"
     ref="minimizedRef"
-    :style="{ x, y }"
-    layout
-    layout-id="webcam"
-    :transition="transition"
-    drag
-    :drag-constraints="bodyRef!"
-    :drag-elastic="0.2"
-    class="absolute z-[60] flex h-40 w-70 cursor-move flex-col items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-black-600 shadow-floating touch-none"
-    @drag-end="
-      () => {
-        dragging = false;
-        handleDragEnd(bodyRef, minimizedRef, 16);
-      }
-    "
-    @drag-start="() => (dragging = true)"
-    @click="() => !dragging && callStore.maximize()"
+    :style="clampedStyle"
+    class="fixed w-70 h-40 bg-black-600 rounded-2xl shadow-floating z-9999 overflow-hidden border border-white/10 flex flex-col items-center justify-center cursor-move touch-none"
+    :class="[!isDragging ? 'transition-all duration-300 ease-out' : '']"
   >
+    <video
+      ref="pipVideoRef"
+      muted
+      autoplay
+      playsinline
+      class="pointer-events-none absolute inset-0 z-0 h-full w-full object-cover"
+    />
     <div
       class="pointer-events-none absolute inset-0 bg-gradient-to-br from-blue-500/5 via-purple-500/5 to-pink-500/5 opacity-0 transition-opacity duration-500 group-hover:opacity-100"
+    />
+    <div
+      class="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-black/20"
     />
 
     <div class="relative h-full w-full">
@@ -202,7 +239,9 @@ const transition: ValueAnimationTransition = {
       >
         <div class="flex items-center gap-2">
           <div
-            class="flex items-center gap-x-1.5 rounded-full bg-black/50 px-2.5 py-1 backdrop-blur-sm"
+            class="flex items-center gap-x-1.5 rounded-full bg-black/50 px-2.5 py-1 backdrop-blur-sm transition-colors"
+            :class="hasRemoteVideos ? 'cursor-pointer hover:bg-black/70' : ''"
+            @click.stop="cycleRemote"
           >
             <BIcon icon="PhUsers" class="h-3 w-3 fill-white/70" />
             <span class="text-label-sm text-white/90 select-none">{{
@@ -234,7 +273,7 @@ const transition: ValueAnimationTransition = {
         </div>
       </div>
     </div>
-  </motion.div>
+  </div>
 
   <div
     v-show="callStore.isActive && !callStore.isMinimized"
@@ -456,27 +495,14 @@ const transition: ValueAnimationTransition = {
         </div>
       </div>
 
-      <div
-        ref="constraintsRef"
-        class="flex min-h-0"
-        :class="[tileCount && 'absolute inset-0 m-4']"
-      >
-        <motion.div
-          ref="minimizedWebcamRef"
-          :style="{ x, y }"
-          layout
-          layout-id="webcam"
-          :transition="transition"
-          :drag="!!tileCount"
-          :drag-constraints="tileCount && constraintsRef!"
-          :drag-elastic="0.2"
+      <!-- وب‌کم محلی (وقتی هنوز کارهای دیگر در صفحه فعال است) -->
+      <div class="flex min-h-0" :class="[tileCount && 'absolute inset-0 m-4']">
+        <div
+          v-if="!callStore.isMinimized"
           class="relative flex flex-col items-center justify-center overflow-hidden rounded-2xl border-2 border-chat-primary/0 bg-black-600 p-2"
           :class="[
-            tileCount
-              ? 'absolute z-10 h-[132px] w-[236px] cursor-move'
-              : 'h-full w-full',
+            tileCount ? 'absolute z-10 h-[132px] w-[236px]' : 'h-full w-full',
           ]"
-          @drag-end="handleDragEnd(constraintsRef, minimizedWebcamRef)"
         >
           <video
             ref="localVideo"
@@ -513,7 +539,7 @@ const transition: ValueAnimationTransition = {
             </div>
             <div
               class="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-black-500 transition-all duration-200 ease-in-out"
-              @click="toggleRemote('self_cam', minimizedWebcamRef)"
+              @click="toggleRemote('self_cam')"
             >
               <BIcon
                 :icon="isFullscreen ? 'PhCornersIn' : 'PhFrameCorners'"
@@ -535,7 +561,7 @@ const transition: ValueAnimationTransition = {
               <p class="text-label-md">{{ t("Camera is off") }}</p>
             </div>
           </div>
-        </motion.div>
+        </div>
       </div>
     </div>
 

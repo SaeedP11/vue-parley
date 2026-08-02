@@ -200,7 +200,7 @@ import { ref, computed, watch, nextTick, onBeforeUnmount } from "vue";
 import useLocalI18n from "~/composables/useLocalI18n";
 import { chatMessages } from "@i18n/locales";
 import ChatBubble from "./ChatBubble.vue";
-import type { Contact, Message } from "~/types";
+import type { Contact } from "~/types";
 import loading from "~/assets/lottie/loading.json";
 import NoDataDisplay from "../general/NoDataDisplay.vue";
 import NoMessages from "~/assets/lib-images/chat/no-messages.webp";

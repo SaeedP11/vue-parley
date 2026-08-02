@@ -48,10 +48,9 @@ import ChatPageBar from "~/components/chat/ChatPageBar.vue";
 import ChatInput from "~/components/chat/ChatInput.vue";
 import useLocalI18n from "~/composables/useLocalI18n";
 import { useChatStore } from "~/stores/chatStore";
-import { useCallStore } from "~/stores/callStore";
 import { chatView } from "@i18n/locales";
+
 const chatStore = useChatStore();
-const callStore = useCallStore();
 const { width } = useWindowSize();
 const { t } = useLocalI18n(chatView);
 // Template Refs
@@ -61,7 +60,6 @@ const isMobile = computed(() => width.value < 768);
 
 const chatId = computed(() => chatStore.activeConversationId);
 const isProfile = computed(() => chatStore.profileViewOpen);
-const isCallMode = computed(() => callStore.isActive);
 
 const selectedChat = computed(() => {
   if (!chatId.value) return null;
@@ -69,7 +67,6 @@ const selectedChat = computed(() => {
 });
 
 const canShowMessagingSection = computed(() => {
-  if (isCallMode.value) return false;
   if (isMobile.value) return !isProfile.value;
   return true;
 });
@@ -84,12 +81,6 @@ const medicOptions = computed<MenuOption[]>(() => [
     label: t("barOptions.endChat"),
     icon: "PhXSquare",
     key: "end-chat",
-  },
-  {
-    label: t("barOptions.deleteMessages"),
-    icon: "PhTrash",
-    key: "delete-all",
-    color: "error",
   },
 ]);
 

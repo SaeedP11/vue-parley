@@ -896,8 +896,9 @@ export default function useCall() {
   });
 
   const participantCount = computed(() => {
-    // Only count actual participants (users), not screen shares
-    return Object.keys(remoteVideos.value).length + 1;
+    // Count connected peers (one per remote user) + local user.
+    // Screen shares reuse the same peer, so they don't inflate the count.
+    return Object.keys(peers.value).length + 1;
   });
 
   // const failedPlay = ref<HTMLVideoElement[]>([]);
@@ -1046,6 +1047,7 @@ export default function useCall() {
     resetControlsTimeout,
     cameras,
     videoPaused,
+    localStream,
     localVideo,
     localScreen,
     remoteParents,

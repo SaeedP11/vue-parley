@@ -135,8 +135,6 @@ const chatStore = useChatStore();
 
 const currentConversationId = computed(() => chatStore.activeConversationId);
 const isSelectMode = computed(() => messagesStore.isSelectMode);
-const canDelete = computed(() => messagesStore.canDelete);
-const isInCall = computed(() => callStore.isActive);
 const selectedChat = computed(() => props.contact);
 const callData = computed(() => ({
   show: callStore.isActive,
@@ -149,15 +147,6 @@ const openProfile = () => {
 
 const goBack = () => {
   chatStore.setSelectedChat(null);
-};
-
-const copy = () => {
-  messagesStore.copyMessageText();
-};
-
-const deleteMessages = () => {
-  if (!canDelete.value) return;
-  messagesStore.triggerDelete();
 };
 
 const initCall = () => {

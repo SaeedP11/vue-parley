@@ -4,6 +4,7 @@ import { computed } from "vue";
 export default function useLocalI18n(messages: Record<string, any>) {
   return useI18n({
     useScope: "local",
+    inheritLocale: true,
     messages,
   });
 }
