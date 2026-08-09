@@ -24,7 +24,17 @@
             :options="medicOptions"
           />
         </div>
-        <ChatInput ref="chatInput" :is-active="selectedChat?.isActive" />
+        <ChatInput
+          v-if="selectedChat?.isActive"
+          ref="chatInput"
+          :is-active="true"
+        />
+        <div
+          v-else
+          class="flex w-full items-center justify-center py-6"
+        >
+          <NoDataDisplay :image-path="ChatEnded" :title="t('chatEnded')" />
+        </div>
       </div>
 
       <div
@@ -46,6 +56,8 @@ import type { MenuOption } from "~/types/components/menu-options";
 import ChatMessages from "~/components/chat/ChatMessages.vue";
 import ChatPageBar from "~/components/chat/ChatPageBar.vue";
 import ChatInput from "~/components/chat/ChatInput.vue";
+import NoDataDisplay from "~/components/general/NoDataDisplay.vue";
+import ChatEnded from "~/assets/lib-images/chat/no-messages.webp";
 import useLocalI18n from "~/composables/useLocalI18n";
 import { useChatStore } from "~/stores/chatStore";
 import { chatView } from "@i18n/locales";

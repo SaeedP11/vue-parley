@@ -2,5 +2,6 @@
   "barOptions": {
     "endChat": "خاتمه مکالمه",
     "deleteMessages": "حذف پیام ها"
-  }
+  },
+  "chatEnded": "این گفتگو به پایان رسیده است"
 }

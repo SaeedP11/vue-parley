@@ -2,5 +2,6 @@
   "barOptions": {
     "endChat": "End conversation",
     "deleteMessages": "Delete messages"
-  }
+  },
+  "chatEnded": "This conversation has ended"
 }

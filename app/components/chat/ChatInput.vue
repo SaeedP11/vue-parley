@@ -236,7 +236,7 @@ import useLocalI18n from "~/composables/useLocalI18n";
 import { useChatStore } from "~/stores/chatStore.js";
 import { useCallStore } from "~/stores/callStore.js";
 import { type EmojiExt } from "vue3-emoji-picker";
-import { chatInput } from "@i18n/locales";
+import { chat, chatInput } from "@i18n/locales";
 
 const props = withDefaults(
   defineProps<{
@@ -250,7 +250,7 @@ const emit = defineEmits<{
   edit: [];
 }>();
 
-const { t } = useLocalI18n(chatInput);
+const { t } = useLocalI18n(chatInput, chat);
 const { requestWithPopup, checkMediaStatus } = useAppPermissions();
 const messagesStore = useMessagesStore();
 const chatStore = useChatStore();
@@ -343,6 +343,7 @@ const recording = useChatRecording(inputWidth, {
     if (secondaryMessageType.value === "video") videoDisplayRef.value?.close();
   },
   requestPermission: async () => await ensurePermissions(),
+  getMode: () => secondaryMessageType.value,
 });
 
 const {

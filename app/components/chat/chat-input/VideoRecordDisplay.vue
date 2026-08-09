@@ -8,7 +8,7 @@
     ]"
   >
     <div
-      class="pointer-events-none flex h-full flex-col items-center justify-between py-26 md:h-auto md:translate-y-full md:items-end md:pr-4 md:py-4"
+      class="pointer-events-none flex h-full flex-col items-center justify-between py-26 md:h-auto md:-translate-y-full md:items-end md:pr-4 md:py-4"
     >
       <!-- Spacer for mobile layout to push video up -->
       <div class="md:hidden" />

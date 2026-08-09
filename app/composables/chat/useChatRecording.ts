@@ -9,6 +9,7 @@ export function useChatRecording(
     onCancel: () => void;
     onSend?: (mediaUrl?: string) => void;
     requestPermission: () => Promise<boolean>;
+    getMode?: () => "video" | "voice";
   },
 ) {
   const isRecording = ref(false);
@@ -18,7 +19,80 @@ export function useChatRecording(
   let timerInterval: ReturnType<typeof setInterval> | null = null;
 
   const mediaStream = ref<MediaStream | null>(null);
+  let mediaRecorder: MediaRecorder | null = null;
+  const recordedChunks: Blob[] = [];
   const currentFacingMode = ref<"user" | "environment">("user");
+
+  const pickRecorderMime = (isVideo: boolean) => {
+    const candidates = isVideo
+      ? [
+          "video/webm;codecs=vp9,opus",
+          "video/webm;codecs=vp8,opus",
+          "video/webm",
+          "video/mp4",
+        ]
+      : ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"];
+    for (const c of candidates) {
+      if (
+        typeof MediaRecorder !== "undefined" &&
+        MediaRecorder.isTypeSupported(c)
+      )
+        return c;
+    }
+    return isVideo ? "video/webm" : "audio/webm";
+  };
+
+  const startRecorder = () => {
+    const stream = mediaStream.value;
+    if (!stream || typeof MediaRecorder === "undefined") return;
+    recordedChunks.length = 0;
+    const isVideo = stream.getVideoTracks().length > 0;
+    let recorder: MediaRecorder;
+    try {
+      recorder = new MediaRecorder(stream, {
+        mimeType: pickRecorderMime(isVideo),
+      });
+    } catch {
+      try {
+        recorder = new MediaRecorder(stream);
+      } catch (err) {
+        console.error("Failed to create MediaRecorder:", err);
+        return;
+      }
+    }
+    recorder.ondataavailable = (event) => {
+      if (event.data && event.data.size > 0) recordedChunks.push(event.data);
+    };
+    recorder.start(250);
+    mediaRecorder = recorder;
+  };
+
+  const stopStream = () => {
+    if (mediaStream.value) {
+      mediaStream.value.getTracks().forEach((t) => t.stop());
+      mediaStream.value = null;
+    }
+  };
+
+  const finalizeAndSend = () => {
+    const chunks = recordedChunks.slice();
+    const mimeType =
+      (mediaRecorder && mediaRecorder.mimeType) ||
+      (chunks.length ? chunks[0].type : "video/webm");
+    mediaRecorder = null;
+    recordedChunks.length = 0;
+    stopStream();
+    if (chunks.length === 0) {
+      callbacks.onCancel();
+      return;
+    }
+    const blob = new Blob(chunks, { type: mimeType });
+    if (blob.size === 0) {
+      callbacks.onCancel();
+      return;
+    }
+    callbacks.onSend?.(URL.createObjectURL(blob));
+  };
 
   const toggleCamera = async () => {
     if (!mediaStream.value || !isRecording.value) return;
@@ -75,6 +149,14 @@ export function useChatRecording(
 
   const togglePause = () => {
     isPaused.value = !isPaused.value;
+    if (mediaRecorder && mediaRecorder.state !== "inactive") {
+      try {
+        if (isPaused.value) mediaRecorder.pause();
+        else mediaRecorder.resume();
+      } catch {
+        // ignore — recorder pause/resume best-effort
+      }
+    }
     if (!isPaused.value) {
       timerInterval = setInterval(() => recordingTime.value++, 1000);
     } else if (timerInterval) {
@@ -84,19 +166,33 @@ export function useChatRecording(
 
   const stopRecording = (triggerSend = false) => {
     if (timerInterval) clearInterval(timerInterval);
-
-    if (mediaStream.value) {
-      mediaStream.value.getTracks().forEach((t) => t.stop());
-      mediaStream.value = null;
-    }
     isRecording.value = false;
     isLocked.value = false;
     isPaused.value = false;
     recordingTime.value = 0;
     resetDrag();
 
-    if (triggerSend) callbacks.onSend();
-    else callbacks.onCancel();
+    const recorder = mediaRecorder;
+    if (triggerSend && recorder && recorder.state !== "inactive") {
+      recorder.onstop = finalizeAndSend;
+      try {
+        recorder.stop();
+      } catch {
+        finalizeAndSend();
+      }
+      return;
+    }
+    if (recorder && recorder.state !== "inactive") {
+      try {
+        recorder.stop();
+      } catch {
+        // ignore
+      }
+    }
+    mediaRecorder = null;
+    recordedChunks.length = 0;
+    stopStream();
+    callbacks.onCancel();
   };
 
   const onPointerDown = (event: PointerEvent) => {
@@ -126,10 +222,12 @@ export function useChatRecording(
         timerInterval = setInterval(() => recordingTime.value++, 1000);
 
         try {
+          const isVideo = !callbacks.getMode || callbacks.getMode() === "video";
           mediaStream.value = await navigator.mediaDevices.getUserMedia({
-            video: { facingMode: currentFacingMode.value },
+            video: isVideo ? { facingMode: currentFacingMode.value } : false,
             audio: true,
           });
+          startRecorder();
         } catch (err) {
           console.error("Stream failed", err);
         }
