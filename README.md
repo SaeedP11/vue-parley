@@ -17,7 +17,7 @@ The package ships a single composed page component (`<ChatPage />`) plus the hos
 - [Usage](#usage-💡)
   - [Plain Vue + Vite](#plain-vue--vite)
   - [Nuxt 3 / 4](#nuxt-3--4)
-- [What `BehayandChat.install` does](#what-behayandchatinstall-does-✅)
+- [What `Chat.install` does](#what-chatinstall-does-✅)
 - [i18n Keys](#i18n-keys-🌍)
 - [Styles](#styles-💅)
 - [Build](#build-🔧)
