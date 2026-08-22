@@ -1,6 +1,6 @@
 # Vue Chat 🚀
 
-Reusable Vue 3 chat dashboard component extracted from the Behayand frontend.
+Reusable Vue 3 chat component designed for integration into modern web applications.
 
 The package ships a single composed page component (`<ChatPage />`) plus the host-adapter wiring needed to drive it.
 
