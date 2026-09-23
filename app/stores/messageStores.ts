@@ -33,6 +33,13 @@ export const useMessagesStore = defineStore("messages-store", () => {
   const uploadProgress = ref<Map<string, UploadProgressEvent>>(new Map());
   const replyingTo = ref<ExtendedMessage | null>(null);
 
+  // Unsent text per conversation, so switching chats never loses what was being typed.
+  const drafts = ref<Record<string, string>>({});
+  const setDraft = (conversationId: string, text: string) => {
+    if (text.trim()) drafts.value[conversationId] = text;
+    else delete drafts.value[conversationId];
+  };
+
   const messagesMap = ref<Record<string, Message[]>>({});
   // Per conversation, so a fetch still running for one chat never swallows another's.
   const messagesLoadingMap = ref<Record<string, boolean>>({});
@@ -390,6 +397,8 @@ export const useMessagesStore = defineStore("messages-store", () => {
     deleteBus,
     sendBus,
     updateBus,
+    drafts,
+    setDraft,
     sendMessage,
     retryMessage,
     patchMessage,

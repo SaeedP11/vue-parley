@@ -8,11 +8,14 @@ import BubbleVideo from "./chat-bubbles/BubbleVideo.vue";
 import FileDisplay from "./chat-bubbles/FileDisplay.vue";
 import SafeEmojiText from "../general/SafeEmojiText.vue";
 import ContactAvatar from "./contact/ContactAvatar.vue";
+import BubbleDivider from "./chat-bubbles/BubbleDivider.vue";
+import BubbleImages from "./chat-bubbles/BubbleImages.vue";
+import BubbleSelectionMark from "./chat-bubbles/BubbleSelectionMark.vue";
+import BubbleStatus from "./chat-bubbles/BubbleStatus.vue";
 
 import { useMessagesStore } from "~/stores/messageStores.js";
 import { useLongPress } from "~/composables/useLongPress";
 import useLocalI18n from "~/composables/useLocalI18n";
-import { useChatStore } from "~/stores/chatStore.js";
 import { useDate } from "~/composables/useDate.js";
 import { chatBubble } from "@i18n/locales";
 import { useProfileStore } from "~/stores/profileStore.js";
@@ -31,9 +34,8 @@ const props = withDefaults(
 );
 
 const { t } = useLocalI18n(chatBubble);
-const chatStore = useChatStore();
 const messagesStore = useMessagesStore();
-const { formatDateShort, formatTime } = useDate();
+const { formatDateShort } = useDate();
 
 type ImageDisplayInstance = InstanceType<typeof ImageGroupDisplay>;
 type BubbleOptionsInstance = InstanceType<typeof BubbleOptions>;
@@ -41,8 +43,6 @@ type BubbleOptionsInstance = InstanceType<typeof BubbleOptions>;
 const imageDisplayRef = useTemplateRef<ImageDisplayInstance>("imageDisplayRef");
 const bubbleOptionsRef =
   useTemplateRef<BubbleOptionsInstance>("bubbleOptionsRef");
-
-const MAX_VISIBLE_IMAGES = 3;
 
 const profileStore = useProfileStore();
 const currentUserId = computed(() => profileStore.userId);
@@ -98,16 +98,7 @@ const isSameSenderNext = computed(
   () => props.message.nextMessage?.senderId === props.message.senderId,
 );
 
-const displayedImages = computed(
-  () => props.message.imageUrl?.slice(0, MAX_VISIBLE_IMAGES) || [],
-);
 
-const checkIcon = computed(() => {
-  if (props.message.isFailed) return "PhWarningCircle";
-  if (props.message.isSent)
-    return props.message.isRead ? "PhChecks" : "PhCheck";
-  return "PhClock";
-});
 
 const uploadData = computed(() =>
   messagesStore.uploadProgress.get(props.message.id),
@@ -151,23 +142,12 @@ const longPress = useLongPress(handleRightClick);
       'max-h-250 opacity-100': !isDeleting,
     }"
   >
-    <!-- Date / Unread Divider -->
-    <div
+    <BubbleDivider
       v-if="message.isFirstInDate || isFirstUnread"
-      class="py-5 w-full flex items-center justify-center"
-    >
-      <div
-        class="rounded-full bg-on-surface/10 flex items-center justify-center px-4 py-0.5"
-      >
-        <div class="text-on-surface select-none text-body-sm">
-          {{
-            !isFirstUnread
-              ? formatDateShort(message.date)
-              : t("unreadMessages")
-          }}
-        </div>
-      </div>
-    </div>
+      :label="
+        isFirstUnread ? t('unreadMessages') : formatDateShort(message.date)
+      "
+    />
 
     <!-- Message Row -->
     <div
@@ -178,25 +158,10 @@ const longPress = useLongPress(handleRightClick);
         'cursor-pointer select-none': isSelectMode,
       }"
     >
-      <!-- Selection Checkbox -->
-      <div
+      <BubbleSelectionMark
         v-if="!message.request"
-        class="shrink-0 transition-all duration-200 overflow-hidden ease-in-out whitespace-nowrap"
-        :class="{
-          'w-auto': isSelectMode && isSelected,
-          'w-0': !(isSelectMode && isSelected),
-        }"
-      >
-        <div
-          class="transition-all duration-200 ease-in-out w-5 h-5 rounded-full bg-gradient-primary-secondary flex items-center justify-center"
-          :class="{
-            'opacity-100 scale-100': isSelectMode && isSelected,
-            'opacity-0 scale-0': !(isSelectMode && isSelected),
-          }"
-        >
-          <div class="w-2.5 h-2.5 rounded-full bg-surface"></div>
-        </div>
-      </div>
+        :selected="isSelectMode && isSelected"
+      />
 
       <!-- Request Card Fallback -->
       <div v-if="message.request" class="py-3 w-full flex justify-center">
@@ -254,56 +219,13 @@ const longPress = useLongPress(handleRightClick);
                   />
                 </div>
 
-                <!-- Single Image Bubble -->
-                <div
-                  v-else-if="messageType === 'image'"
-                  @click.stop="previewImage(0)"
-                  class="relative cursor-pointer overflow-hidden rounded-xl max-w-4/5 md:max-w-85 w-85 h-40.5"
-                >
-                  <BImage
-                    fit="cover"
-                    :src="message.imageUrl[0]"
-                    class="w-full h-full rounded-xl overflow-hidden"
-                  />
-                  <UploadProgressOverlay
-                    v-if="!message.isSent && uploadData"
-                    :progress="uploadData.progress"
-                    size="lg"
-                  />
-                </div>
-
-                <!-- Multi Image Bubble -->
-                <div
-                  v-else-if="messageType === 'multiImage'"
-                  class="max-w-75 flex items-center gap-x-3 h-16"
-                >
-                  <div
-                    v-if="message.imageUrl.length > MAX_VISIBLE_IMAGES"
-                    @click="previewImage(MAX_VISIBLE_IMAGES)"
-                    class="h-full rounded-xl cursor-pointer overflow-hidden aspect-square flex items-center justify-center bg-surface-variant-2"
-                  >
-                    <div class="text-on-surface select-none text-label-md">
-                      +{{ message.imageUrl.length - MAX_VISIBLE_IMAGES }}
-                    </div>
-                  </div>
-
-                  <div
-                    v-for="(image, index) in displayedImages"
-                    :key="index"
-                    @click.stop="previewImage(index)"
-                    class="relative h-full rounded-xl cursor-pointer overflow-hidden aspect-square"
-                  >
-                    <BImage
-                      :src="image"
-                      class="min-w-full min-h-full max-w-full max-h-full h-full w-full"
-                    />
-                    <UploadProgressOverlay
-                      v-if="!message.isSent && uploadData"
-                      :progress="uploadData.progress"
-                      size="sm"
-                    />
-                  </div>
-                </div>
+                <BubbleImages
+                  v-else-if="messageType === 'image' || messageType === 'multiImage'"
+                  :images="message.imageUrl!"
+                  :is-sent="message.isSent"
+                  :upload="uploadData"
+                  @preview="previewImage"
+                />
 
                 <!-- Video Bubble -->
                 <BubbleVideo
@@ -312,36 +234,11 @@ const longPress = useLongPress(handleRightClick);
                   mode="playback"
                 />
 
-                <!-- Status / Timestamp Footer -->
-                <div
-                  v-if="isMine && message.isFailed"
-                  role="button"
-                  class="w-full pt-2 flex items-center gap-x-2 cursor-pointer justify-start"
-                  @click.stop="messagesStore.retryMessage(message)"
-                >
-                  <BIcon :icon="checkIcon" class="w-4 h-4 fill-error" />
-                  <div class="select-none text-body-sm text-error">
-                    {{ t("sendFailed") }}
-                  </div>
-                </div>
-                <div
-                  v-else-if="shouldShowStatus"
-                  class="w-full pt-2 flex items-center gap-x-2.5"
-                  :class="{ 'justify-start': isMine, 'justify-end': !isMine }"
-                >
-                  <BIcon
-                    v-if="isMine"
-                    :icon="checkIcon"
-                    class="w-4 h-4"
-                    :class="{
-                      'fill-primary': message.isRead && message.isSent,
-                      'fill-on-surface/50': !(message.isRead && message.isSent),
-                    }"
-                  />
-                  <div class="select-none text-body-sm text-on-surface/50">
-                    {{ formatTime(message.date) }}
-                  </div>
-                </div>
+                <BubbleStatus
+                  v-if="(isMine && message.isFailed) || shouldShowStatus"
+                  :message="message"
+                  :is-mine="isMine"
+                />
               </div>
 
               <!-- Avatar -->

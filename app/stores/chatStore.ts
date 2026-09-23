@@ -47,6 +47,8 @@ export const useChatStore = defineStore("chat", () => {
       {
         data: Contact[];
         loading: boolean;
+        /** A page-1 load (first load, search, filter), as opposed to loading more. */
+        refreshing?: boolean;
         page: number;
         hasNextPage: boolean;
       }
@@ -78,8 +80,14 @@ export const useChatStore = defineStore("chat", () => {
   ) => {
     const conversations = conversationStates.value[filterState];
 
-    if (conversations.loading) return;
+    if (conversations.loading) {
+      // A new search or filter must not be dropped because a load is in flight; run the
+      // latest one when it finishes. Loading more while busy is safely ignored.
+      if (page === 1) queued[filterState] = search;
+      return;
+    }
     conversations.loading = true;
+    conversations.refreshing = page === 1;
     try {
       const result = await handlers.fetchConversations({
         pageSize: chatsPerPage.value,
@@ -94,8 +102,15 @@ export const useChatStore = defineStore("chat", () => {
       conversations.hasNextPage = result.hasNextPage;
     } finally {
       conversations.loading = false;
+      conversations.refreshing = false;
+      const next = queued[filterState];
+      if (next !== undefined) {
+        delete queued[filterState];
+        void fetchConversations(filterState, 1, next);
+      }
     }
   };
+  const queued: Partial<Record<StateKeys, string>> = {};
 
   const getDisplayedContacts = (filter: StateKeys): Contact[] => {
     const state = conversationStates.value[filter];

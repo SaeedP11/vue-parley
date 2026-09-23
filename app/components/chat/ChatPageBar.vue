@@ -39,6 +39,8 @@
             <div
               class="relative flex items-center gap-x-4 transition-all duration-200 ease-in-out"
             >
+              <!-- Host actions for the open conversation, beside the call button. -->
+              <slot name="actions" :contact="selectedChat" />
               <div class="hidden md:block">
                 <BIcon
                   icon="PhPhone"
@@ -76,6 +78,20 @@
         class="md:hidden h-6 w-6 cursor-pointer fill-chat-on-background/50"
         @click="goBack"
       />
+    </div>
+
+    <!-- A conversation is open but its contact is still being fetched (e.g. a deep link). -->
+    <div
+      v-else-if="currentConversationId"
+      class="relative z-50 flex h-16 w-full items-center gap-x-3 border-b border-b-chat-outline-variant bg-chat-background py-4 px-5 md:h-20"
+    >
+      <div class="h-10 w-10 shrink-0 overflow-hidden rounded-full">
+        <div v-loading="true" class="h-full w-full" />
+      </div>
+      <div class="flex flex-col gap-y-1.5">
+        <div v-loading="true" class="h-4 w-32" />
+        <div v-loading="true" class="h-3 w-20" />
+      </div>
     </div>
 
     <div class="absolute bottom-0 z-20 h-0 w-full overflow-visible">

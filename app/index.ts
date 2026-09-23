@@ -8,6 +8,15 @@ import { useProfileStore } from "./stores/profileStore";
 export { default as ChatPage } from "./components/ChatPage.vue";
 export { default as Call } from "./components/call/Call.vue";
 
+// Building blocks, for hosts that compose their own layout instead of <ChatPage />. They read
+// the same stores, so they work together as long as the handlers are registered.
+export { default as ChatList } from "./components/chat/contact/ChatList.vue";
+export { default as ChatConversation } from "./components/chat/ChatView.vue";
+export { default as ChatHeader } from "./components/chat/ChatPageBar.vue";
+export { default as ChatMessages } from "./components/chat/ChatMessages.vue";
+export { default as ChatInput } from "./components/chat/ChatInput.vue";
+export { default as ChatBubble } from "./components/chat/ChatBubble.vue";
+
 export { default as BVirtualVerticalList } from "./components/global/BVirtualVerticalList.vue";
 export { default as BEmojiPicker } from "./components/global/BEmojiPicker.vue";
 export { default as BCarousel } from "./components/global/BCarousel.vue";

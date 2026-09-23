@@ -113,7 +113,7 @@ onBeforeUnmount(() => {
           <template #item="{ item }">
             <ChatContactDisplay
               :contact="item"
-              :loading="currentState.loading && currentState.page === 0"
+              :loading="currentState.loading && (currentState.page === 0 || !!currentState.refreshing)"
             />
           </template>
         </BVirtualVerticalList>

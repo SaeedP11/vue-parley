@@ -3,6 +3,7 @@ import SafeEmojiText from "~/components/general/SafeEmojiText.vue";
 import { useProfileStore } from "~/stores/profileStore.js";
 import useLocalI18n from "~/composables/useLocalI18n";
 import { useChatStore } from "~/stores/chatStore.js";
+import { useMessagesStore } from "~/stores/messageStores.js";
 import { chatContactDisplay } from "@i18n/locales";
 import ContactAvatar from "./ContactAvatar.vue";
 import type { Contact } from "~/types";
@@ -15,6 +16,7 @@ const props = defineProps<{
 
 const { t } = useLocalI18n(chatContactDisplay);
 const chatStore = useChatStore();
+const messagesStore = useMessagesStore();
 const profileStore = useProfileStore();
 const currentUserId = computed(() => profileStore.userId);
 
@@ -28,6 +30,11 @@ const openChat = () => {
   chatStore.setSelectedChat(props.contact.id);
 };
 
+// The open chat shows its draft in the input already.
+const draft = computed(() =>
+  isActive.value ? "" : (messagesStore.drafts[props.contact.id] ?? ""),
+);
+
 const isFromMe = computed(
   () => props.contact.lastMessage?.senderId === currentUserId.value,
 );
@@ -36,6 +43,7 @@ const lastMessageIcon = computed(() => {
   const msg = props.contact.lastMessage;
   if (!msg || !isFromMe.value) return { color: "", icon: "" };
 
+  if (msg.isFailed) return { color: "fill-error", icon: "PhWarningCircle" };
   if (!msg.isSent)
     return { color: "fill-chat-on-background/30", icon: "PhClock" };
   if (!msg.isRead)
@@ -136,8 +144,20 @@ const lastMessageColor = computed(() => {
 
       <div class="w-full flex items-center justify-between mt-0.5">
         <div class="flex items-center gap-x-1.5 flex-1 overflow-hidden">
+          <div
+            v-if="draft"
+            class="max-w-full truncate text-body-sm flex items-center gap-x-1"
+          >
+            <span class="text-error shrink-0">{{ t("draft") }}:</span>
+            <SafeEmojiText
+              truncate
+              :text="draft"
+              class="text-chat-on-background/50"
+            />
+          </div>
+
           <BIcon
-            v-if="attachmentIcon && contact.lastMessage"
+            v-if="!draft && attachmentIcon && contact.lastMessage"
             weight="bold"
             :icon="attachmentIcon"
             class="w-4 h-4 fill-chat-primary shrink-0"
@@ -145,7 +165,7 @@ const lastMessageColor = computed(() => {
 
           <div
             v-loading="isLoading"
-            v-if="contact.lastMessage"
+            v-if="!draft && contact.lastMessage"
             :class="[
               'max-w-full truncate text-body-sm transition-colors',
               lastMessageColor,

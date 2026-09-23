@@ -7,116 +7,32 @@
       :recording-time="currentRecordingSeconds"
       @flip-camera="handleFlipCamera"
     />
-    <div>
-      <div
-        :class="[textMode !== 'normal' ? ' h-10' : 'h-0']"
-        class="gap-x-3 px-3 w-full whitespace-nowrap overflow-hidden border-t select-none text-body-sm border-t-outline-variant flex relative z-30 justify-between items-center transition-all duration-200 ease-in-out bg-surface"
-      >
-        <BIcon
-          :icon="
-            textMode === 'edit' ? 'PhPencilSimpleLine' : 'PhArrowBendUpLeft'
-          "
-          class="w-5 h-5 fill-on-surface shrink-0"
-        />
-        <div class="flex-1 flex items-center gap-x-2">
-          <div v-if="textMode === 'reply'" class="shrink-0 text-on-surface/50">
-            {{ displayActionName }} :
-          </div>
-          <div class="flex-1">
-            <div
-              class="text-on-surface w-full overflow-hidden text-ellipsis line-clamp-1"
-            >
-              <SafeEmojiText :text="displayedActionText" />
-            </div>
-          </div>
-        </div>
-        <BIcon
-          icon="PhX"
-          class="cursor-pointer w-5 shrink-0 h-5 fill-on-surface/50"
-          @click="cancelAction"
-        />
-      </div>
-    </div>
+    <InputActionBar
+      :mode="textMode"
+      :name="displayActionName"
+      :text="displayedActionText ?? ''"
+      @cancel="cancelAction"
+    />
     <div
       @contextmenu.prevent
       ref="rootElements"
-      :class="[
-        (isRecording && !isLocked) || editor.messageText.value.trim().length > 0
-          ? 'px-4'
-          : 'px-4',
-      ]"
-      class="transition-all duration-200 ease-in-out min-h-19 py-4 w-full bg-surface flex items-end border-t border-t-outline-variant gap-x-5 relative z-40 overflow-visible select-none"
+      class="px-4 transition-all duration-200 ease-in-out min-h-19 py-4 w-full bg-surface flex items-end border-t border-t-outline-variant gap-x-5 relative z-40 overflow-visible select-none"
     >
-      <div
-        class="relative flex items-center justify-center shrink-0 z-30 mb-0.5"
-        :style="{
-          transform: `translate(${dragOffset.x}px, ${dragOffset.y}px)`,
-          transition: isDragging
-            ? 'none'
-            : 'transform 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-        }"
-      >
-        <div
-          v-if="isRecording"
-          class="absolute -top-20 flex flex-col items-center justify-center bg-surface shadow-floating rounded-full w-9 transition-opacity"
-          :class="[
-            isLocked
-              ? 'pointer-events-auto py-1.5'
-              : 'pointer-events-none py-3 gap-y-3',
-          ]"
-          :style="{ opacity: lockOpacity }"
-        >
-          <template v-if="!isLocked">
-            <BIcon icon="PhLockKey" class="w-5 h-5 fill-on-surface" />
-          </template>
-
-          <template v-else>
-            <div
-              class="w-full h-9 flex items-center justify-center cursor-pointer"
-              @click="togglePause"
-            >
-              <BIcon
-                :icon="isPaused ? 'PhPlayCircle' : 'PhPauseCircle'"
-                class="w-6 h-6 fill-on-surface"
-              />
-            </div>
-          </template>
-          <BIcon
-            icon="PhCaretUp"
-            class="w-4 h-4 fill-on-surface/60 animate-bounce"
-          />
-        </div>
-
-        <div
-          class="flex items-center w-11 touch-none h-11 justify-center transition-all duration-200"
-          :class="[
-            (isRecording && !isLocked) ||
-            editor.messageText.value.trim().length > 0
-              ? ' rounded-full bg-primary/10'
-              : 'w-6 h-6 bg-primary/0',
-          ]"
-          @pointerdown="!isLocked ? handlePointerDown($event) : null"
-          @click="!isLocked ? toggleSecondaryMessageType() : null"
-        >
-          <BIcon
-            v-if="!isLocked && editor.messageText.value.trim().length == 0"
-            :icon="secondaryMessageIcon"
-            :weight="isRecording ? 'fill' : 'regular'"
-            class="cursor-pointer w-6 h-6 shrink-0 transition-colors"
-            :class="[isRecording ? ' fill-primary' : iconClass]"
-          />
-          <div
-            v-else
-            class="min-w-11 min-h-11 aspect-square rounded-full bg-gradient-primary-secondary flex items-center justify-center cursor-pointer"
-          >
-            <BIcon
-              icon="PhPaperPlaneTilt"
-              class="w-6 h-6 fill-white shrink-0"
-              @click="sendRecording"
-            />
-          </div>
-        </div>
-      </div>
+      <RecordButton
+        :is-recording="isRecording"
+        :is-locked="isLocked"
+        :is-paused="isPaused"
+        :has-text="editor.messageText.value.trim().length > 0"
+        :icon="secondaryMessageIcon"
+        :icon-class="iconClass"
+        :lock-opacity="lockOpacity"
+        :drag-offset="dragOffset"
+        :is-dragging="isDragging"
+        @pointerdown="handlePointerDown"
+        @toggle-type="toggleSecondaryMessageType"
+        @toggle-pause="togglePause"
+        @send="sendRecording"
+      />
 
       <div v-show="!isRecording" class="flex-1 flex items-end gap-x-5">
         <div class="min-h-11 flex items-center w-full">
@@ -166,38 +82,13 @@
         </div>
       </div>
 
-      <div
+      <RecordingStatus
         v-show="isRecording"
-        class="flex-1 justify-between -translate-y-2 flex items-center"
-      >
-        <div></div>
-        <div
-          class="flex justify-center items-center text-body-md text-on-surface/70 transition-opacity"
-          :style="{ opacity: cancelOpacity }"
-        >
-          <span v-if="!isLocked">{{ t("chat.swipeToCancel") }}</span>
-          <span
-            v-else
-            class="text-primary cursor-pointer px-4 z-20"
-            @click="cancelRecording"
-            >{{ t("chat.cancel") }}</span
-          >
-        </div>
-
-        <div class="left-6 flex items-center gap-x-2 shrink-0 z-10">
-          <div class="w-2.5 h-2.5 relative">
-            <div class="w-2.5 h-2.5 rounded-full bg-error"></div>
-            <div
-              class="w-2.5 h-2.5 rounded-full bg-error animate-ping absolute top-0 left-0 inset-0"
-            ></div>
-          </div>
-          <span
-            class="text-body-md min-w-12 text-center text-on-surface tabular-nums mt-0.5"
-            dir="ltr"
-            >{{ formattedTime }}</span
-          >
-        </div>
-      </div>
+        :locked="isLocked"
+        :cancel-opacity="cancelOpacity"
+        :time="formattedTime"
+        @cancel="cancelRecording"
+      />
     </div>
     <div
       class="md:hidden w-full transition-all relative z-30 duration-300 ease-[cubic-bezier(0.33,1,0.68,1)] overflow-hidden"
@@ -231,7 +122,10 @@ import VideoRecordDisplay from "./chat-input/VideoRecordDisplay.vue";
 import { useRichTextEditor } from "~/composables/useRichTextEditor";
 import { useMessagesStore } from "~/stores/messageStores.js";
 import { useProfileStore } from "~/stores/profileStore.js";
-import SafeEmojiText from "../general/SafeEmojiText.vue";
+import InputActionBar from "./chat-input/InputActionBar.vue";
+import RecordingStatus from "./chat-input/RecordingStatus.vue";
+import RecordButton from "./chat-input/RecordButton.vue";
+import { useInputDraft } from "~/composables/chat/useInputDraft";
 import useLocalI18n from "~/composables/useLocalI18n";
 import { useChatStore } from "~/stores/chatStore.js";
 import { useCallStore } from "~/stores/callStore.js";
@@ -275,6 +169,7 @@ const secondaryMessageType = ref<"video" | "voice">("voice");
 
 // Composables
 const editor = useRichTextEditor(inputRef);
+const { restoreDraft } = useInputDraft(editor, () => textMode.value === "edit");
 const inputWidth = computed(() => rootElements.value?.clientWidth || 0);
 
 // --- Computed UI States ---
@@ -429,10 +324,12 @@ const sendMessage = () => {
   if (editor.messageText.value.trim().length === 0) return;
 
   if (textMode.value === "edit" && editingMessageData.value) {
+    // Clears `editingMessage`; its watcher leaves edit mode and restores the draft.
     messagesStore.saveEditMessage(
       editingMessageData.value.id,
       editor.messageText.value,
     );
+    return;
   } else {
     const msg = createBaseMessage();
     msg.type = "text";
@@ -450,14 +347,26 @@ const cancelAction = () => messagesStore.clearActions();
 const handleEditMessage = (msg: ExtendedMessage) => {
   textMode.value = "edit";
   editingMessageData.value = msg;
-  editor.messageText.value = msg.text || "";
-  nextTick(() => {
-    inputRef.value?.focus();
-    editor.adjustHeight();
-  });
+  editor.setText(msg.text || "");
+  nextTick(() => inputRef.value?.focus());
 };
 
 // --- Watchers ---
+// The store sets `editingMessage` from the bubble menu; enter edit mode from it, and leave it
+// (restoring the draft the edit displaced) when the edit is saved or cancelled.
+watch(
+  () => messagesStore.editingMessage,
+  (msg) => {
+    if (msg) {
+      handleEditMessage(msg);
+    } else if (textMode.value === "edit") {
+      textMode.value = "normal";
+      editingMessageData.value = null;
+      restoreDraft();
+    }
+  },
+);
+
 watch(
   () => messagesStore.replyingTo,
   (msg) => {

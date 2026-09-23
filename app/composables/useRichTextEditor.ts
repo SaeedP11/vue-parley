@@ -82,6 +82,14 @@ export function useRichTextEditor(inputRef: Ref<HTMLDivElement | null>) {
     isSelectingEmoji.value = false;
   };
 
+  /** Replaces the content with plain text, e.g. a restored draft or a message being edited. */
+  const setText = (text: string) => {
+    messageText.value = text;
+    savedRange.value = null;
+    if (inputRef.value) inputRef.value.innerText = text;
+    nextTick(() => adjustHeight());
+  };
+
   const clearInput = () => {
     messageText.value = "";
     if (inputRef.value) inputRef.value.innerHTML = "";
@@ -95,6 +103,7 @@ export function useRichTextEditor(inputRef: Ref<HTMLDivElement | null>) {
     handleContentInput,
     handleEmojiSelect,
     clearInput,
+    setText,
     adjustHeight,
   };
 }

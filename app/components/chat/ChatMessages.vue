@@ -1,20 +1,10 @@
 <template>
   <div v-if="contact" class="relative w-full h-full overflow-hidden">
-    <!-- Floating Header -->
-    <div
-      :class="[hasCall ? 'top-12' : 'top-4']"
-      class="absolute left-0 right-0 z-20 flex justify-center pointer-events-none transition-opacity duration-200"
-      :style="{ opacity: scroll.headerOpacity.value }"
-    >
-      <div
-        v-if="floatingHeader"
-        class="rounded-full bg-chat-on-background/10 flex items-center justify-center px-4 py-0.5"
-      >
-        <div class="text-chat-on-background select-none text-label-sm">
-          {{ floatingHeader }}
-        </div>
-      </div>
-    </div>
+    <FloatingDateHeader
+      :label="floatingHeader"
+      :opacity="scroll.headerOpacity.value"
+      :offset="hasCall"
+    />
 
     <!-- Flipped Scroll Container -->
     <div
@@ -41,9 +31,9 @@
           }"
         >
           <div
-            v-for="virtualRow in scroll.virtualizer.value.getVirtualItems()"
-            :key="msgList.reversedMessages.value[virtualRow.index].id"
-            :data-index="virtualRow.index"
+            v-for="{ row, message } in virtualRows"
+            :key="message.id"
+            :data-index="row.index"
             :ref="
               (el) => el && scroll.virtualizer.value.measureElement(el as any)
             "
@@ -52,40 +42,17 @@
               top: 0,
               left: 0,
               width: '100%',
-              transform: `translateY(${virtualRow.start}px)`,
+              transform: `translateY(${row.start}px)`,
             }"
           >
             <div
               class="flip-vertical pt-0"
-              :class="[
-                virtualRow.index === 0 ? 'pb-2' : '',
-                msgList.animatingIds.value.has(
-                  msgList.reversedMessages.value[virtualRow.index].id,
-                )
-                  ? msgList.reversedMessages.value[virtualRow.index]?.request
-                    ? 'animate-request-in'
-                    : msgList.reversedMessages.value[virtualRow.index]
-                          .senderId === currentUserId
-                      ? 'animate-slide-right'
-                      : 'animate-slide-left'
-                  : '',
-              ]"
+              :class="[row.index === 0 ? 'pb-2' : '', enterAnimation(message)]"
             >
               <ChatBubble
-                :is-deleting="
-                  msgList.deletingIds.value.has(
-                    msgList.reversedMessages.value[virtualRow.index].id,
-                  )
-                "
-                :is-first-unread="
-                  msgList.reversedMessages.value[virtualRow.index].id ===
-                  msgList.firstUnreadId.value
-                "
-                :message="msgList.reversedMessages.value[virtualRow.index]"
-                :is-self="
-                  msgList.reversedMessages.value[virtualRow.index].senderId ===
-                  currentUserId
-                "
+                :is-deleting="msgList.deletingIds.value.has(message.id)"
+                :is-first-unread="message.id === msgList.firstUnreadId.value"
+                :message="message"
                 :contact="contact"
               />
             </div>
@@ -139,61 +106,21 @@
       @click.self.stop
     >
       <div class="flex flex-col pointer-events-none" @click.self.stop>
-        <div class="pr-3 pb-1 w-11">
-          <div
-            @click="scroll.resetScroll()"
-            :class="[
-              scroll.canScroll.value
-                ? 'scale-100 pointer-events-auto opacity-100'
-                : 'opacity-0 pointer-events-none scale-0',
-            ]"
-            class="w-11 origin-bottom transition-all duration-200 ease-in-out h-11 rounded-full overflow-hidden bg-chat-background shadow-floating flex items-center justify-center cursor-pointer"
-          >
-            <BIcon icon="PhArrowDown" class="fill-chat-on-background w-6 h-6" />
-          </div>
-        </div>
-
-        <div
-          class="grid transition-all pointer-events-none duration-200 ease-in-out"
-          :class="[
-            !scroll.showOptionsBar.value
-              ? 'grid-rows-[1fr] opacity-100'
-              : 'grid-rows-[0fr] opacity-0',
-          ]"
-        >
-          <div class="min-h-0">
-            <div
-              :class="[
-                !scroll.showOptionsBar.value
-                  ? 'translate-y-0 opacity-100 pointer-events-none'
-                  : '-translate-y-2 opacity-0 pointer-events-none',
-              ]"
-              class="transition-all duration-200 w-full lg:max-w-full max-w-dvw p-2 flex items-center gap-x-3 overflow-x-auto lg:overflow-visible hide-scrollbar whitespace-nowrap"
-            >
-              <div
-                v-for="option in options"
-                :key="option.key"
-                @click="handleOption(option.key)"
-                class="px-2.5 pointer-events-auto flex items-center gap-x-2 cursor-pointer bg-chat-surface-3 rounded-lg h-9 shrink-0"
-              >
-                <BIcon
-                  :icon="option.icon"
-                  class="w-5 h-5 fill-chat-on-background/50"
-                />
-                <div
-                  class="text-body-sm select-none text-chat-on-background/70"
-                >
-                  {{ option.label }}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        <ScrollToBottomButton
+          :visible="scroll.canScroll.value"
+          :unseen="newWhileScrolledUp"
+          @click="scroll.resetScroll()"
+        />
+        <ConversationOptionsBar
+          :options="options"
+          :visible="!scroll.showOptionsBar.value"
+          @select="handleOption"
+        />
       </div>
     </div>
   </div>
 
-  <BModal ref="modal" @action="handleModalConfirm" />
+  <BModal ref="modal" :loading="modalBusy" @action="handleModalConfirm" />
 </template>
 
 <script setup lang="ts">
@@ -202,7 +129,10 @@ import useLocalI18n from "~/composables/useLocalI18n";
 import { chat, chatMessages } from "@i18n/locales";
 import { useAppToast } from "~/composables/useAppToast";
 import ChatBubble from "./ChatBubble.vue";
-import type { Contact } from "~/types";
+import FloatingDateHeader from "./messages/FloatingDateHeader.vue";
+import ScrollToBottomButton from "./messages/ScrollToBottomButton.vue";
+import ConversationOptionsBar from "./messages/ConversationOptionsBar.vue";
+import type { Contact, ExtendedMessage } from "~/types";
 import loading from "~/assets/lottie/loading.json";
 import NoDataDisplay from "../general/NoDataDisplay.vue";
 import NoMessages from "~/assets/lib-images/chat/no-messages.webp";
@@ -253,6 +183,22 @@ const scroll = useFlippedVirtualScroll({
   onLoadMore: msgList.loadNextPage,
 });
 
+// Each rendered row paired with its message, so the template looks it up once.
+const virtualRows = computed(() =>
+  scroll.virtualizer.value
+    .getVirtualItems()
+    .map((row) => ({ row, message: msgList.reversedMessages.value[row.index]! }))
+    .filter(({ message }) => !!message),
+);
+
+const enterAnimation = (message: ExtendedMessage) => {
+  if (!msgList.animatingIds.value.has(message.id)) return "";
+  if (message.request) return "animate-request-in";
+  return message.senderId === currentUserId.value
+    ? "animate-slide-right"
+    : "animate-slide-left";
+};
+
 // Keep Virtualizer count in sync with messages
 watch(
   () => msgList.reversedMessages.value.length,
@@ -265,6 +211,23 @@ watch(
   { immediate: true },
 );
 
+// Messages from the other side that arrived while the user was reading history, shown on the
+// scroll-to-bottom button. Keyed off the newest message so older pages loading in don't count.
+const newWhileScrolledUp = ref(0);
+watch(
+  () => msgList.messages.value.at(-1),
+  (last, prev) => {
+    if (!last || !prev || last.id === prev.id) return;
+    if (last.conversationId !== prev.conversationId) return;
+    if (scroll.canScroll.value && last.senderId !== currentUserId.value)
+      newWhileScrolledUp.value++;
+  },
+);
+watch(scroll.canScroll, (away) => {
+  if (!away) newWhileScrolledUp.value = 0;
+});
+watch(chatId, () => (newWhileScrolledUp.value = 0));
+
 // --- Event Bus Wiring ---
 msgList.subscribeToBus({
   onSend: (hasMyMessage) => {
@@ -276,6 +239,7 @@ msgList.subscribeToBus({
 // --- Modal / Delete Actions (UI specific logic stays in component) ---
 // The modal is shared, and a cancelled delete leaves `selectedToDelete` behind.
 const modalAction = ref<"delete" | "end-chat" | null>(null);
+const modalBusy = ref(false);
 
 const handleOption = (key: string) => {
   if (key !== "end-chat" || !chatId.value) return;
@@ -314,8 +278,16 @@ const handleModalConfirm = () => {
   modalAction.value = null;
 
   if (action === "end-chat" && chatId.value) {
-    modal.value?.closeModal();
-    void chatStore.endConversation(chatId.value).catch(() => {});
+    // Stay open with the button spinning until the server answers; the host reports failures.
+    if (modalBusy.value) return;
+    modalBusy.value = true;
+    chatStore
+      .endConversation(chatId.value)
+      .catch(() => {})
+      .finally(() => {
+        modalBusy.value = false;
+        modal.value?.closeModal();
+      });
     return;
   }
 
