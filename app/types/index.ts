@@ -29,6 +29,8 @@ export interface Message {
   isEdited: boolean;
   senderId: string;
   isSent: boolean;
+  /** Set when the last send attempt failed, so the bubble can offer a retry. */
+  isFailed?: boolean;
   isRead: boolean;
   repliedTo?: Message;
   request?: string;
@@ -177,6 +179,8 @@ export interface MessagesHandlers {
   editMessage(id: string, text: string): Promise<Message>;
   deleteMessages(ids: string[]): Promise<void>;
   fetchMessages(params: FetchMessagesParams): Promise<Message[]>;
+  /** Persists that the viewer has read a conversation. Optional; without it read state stays local. */
+  markRead?(conversationId: string): Promise<void>;
 }
 
 export interface FetchProfileAttachmentsParams {

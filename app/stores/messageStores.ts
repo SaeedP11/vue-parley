@@ -173,6 +173,47 @@ export const useMessagesStore = defineStore("messages-store", () => {
     }
   };
 
+  /**
+   * Patches one message in its own conversation. Keyed by the message's conversation rather
+   * than the open one, so a send that settles after the user switched chats still lands.
+   * When `updates.id` swaps a temp id for one the thread already holds (the realtime event
+   * beat the send response), the temp copy is dropped instead of leaving a duplicate.
+   */
+  const patchMessage = (
+    conversationId: string,
+    id: string,
+    updates: Partial<Message>,
+  ) => {
+    const list = messagesMap.value[conversationId];
+    if (!list) return;
+    const index = list.findIndex((m) => m.id === id);
+    if (index === -1) return;
+
+    if (updates.id && updates.id !== id && list.some((m) => m.id === updates.id)) {
+      messagesMap.value[conversationId] = list.filter((_, i) => i !== index);
+      return;
+    }
+
+    messagesMap.value[conversationId] = [
+      ...list.slice(0, index),
+      { ...list[index]!, ...updates },
+      ...list.slice(index + 1),
+    ];
+  };
+
+  /** Puts messages back after a failed delete, in date order. */
+  const restoreMessages = (conversationId: string, restored: Message[]) => {
+    const list = messagesMap.value[conversationId];
+    if (!list || restored.length === 0) return;
+    const present = new Set(list.map((m) => m.id));
+    const merged = [...list, ...restored.filter((m) => !present.has(m.id))].sort(
+      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
+    );
+    messagesMap.value[conversationId] = merged;
+    const last = merged[merged.length - 1];
+    if (last) updateLastMessage(conversationId, last);
+  };
+
   const markAsRead = (conversationId: string) => {
     for (const key in chatStore.conversationStates) {
       const contact = chatStore.conversationStates[key as StateKeys].data.find(
@@ -183,7 +224,9 @@ export const useMessagesStore = defineStore("messages-store", () => {
         if (contact.lastMessage) contact.lastMessage.isRead = true;
       }
     }
-    // void adapter.chat.markRead(conversationId);
+    handlers.markRead?.(conversationId).catch((error) =>
+      console.error("[chat] failed to mark conversation as read", error),
+    );
   };
 
   const updateLastMessage = (conversationId: string, message: Message) => {
@@ -227,65 +270,77 @@ export const useMessagesStore = defineStore("messages-store", () => {
       updateLastMessage(latest.conversationId, latest);
     }
 
-    await Promise.all(
-      tempMessages.map(async (tempMsg) => {
-        const tracksProgress = tempMsg.type !== "text";
-        try {
-          const canonical = await handlers.sendMessage(tempMsg, {
-            onProgress: tracksProgress
-              ? (e) => {
-                  if (e.progress >= 100) {
-                    uploadProgress.value.delete(tempMsg.id);
-                  } else {
-                    uploadProgress.value.set(tempMsg.id, {
-                      progress: e.progress,
-                      uploaded: e.uploaded,
-                      total: e.total,
-                    });
-                  }
-                }
-              : undefined,
-          });
+    await Promise.all(tempMessages.map(deliver));
+  };
 
-          uploadProgress.value.delete(tempMsg.id);
-          const updates = { id: canonical.id, isSent: true };
-          updateBus.emit({ id: tempMsg.id, updates });
-          patchLastMessage(tempMsg.conversationId, tempMsg.id, updates);
-        } catch {
-          uploadProgress.value.delete(tempMsg.id);
-          updateBus.emit({ id: tempMsg.id, updates: { isSent: false } });
-          patchLastMessage(tempMsg.conversationId, tempMsg.id, {
-            isSent: false,
-          });
-        }
-      }),
+  const applyUpdate = (
+    conversationId: string,
+    id: string,
+    updates: Partial<Message>,
+  ) => {
+    patchMessage(conversationId, id, updates);
+    patchLastMessage(conversationId, id, updates);
+    updateBus.emit({ id, updates });
+  };
+
+  const deliver = async (tempMsg: Message) => {
+    const { conversationId } = tempMsg;
+    const tracksProgress = tempMsg.type !== "text";
+    try {
+      const canonical = await handlers.sendMessage(tempMsg, {
+        onProgress: tracksProgress
+          ? (e) => {
+              if (e.progress >= 100) {
+                uploadProgress.value.delete(tempMsg.id);
+              } else {
+                uploadProgress.value.set(tempMsg.id, {
+                  progress: e.progress,
+                  uploaded: e.uploaded,
+                  total: e.total,
+                });
+              }
+            }
+          : undefined,
+      });
+
+      uploadProgress.value.delete(tempMsg.id);
+      applyUpdate(conversationId, tempMsg.id, {
+        id: canonical.id,
+        isSent: true,
+        isFailed: false,
+      });
+    } catch {
+      uploadProgress.value.delete(tempMsg.id);
+      applyUpdate(conversationId, tempMsg.id, { isSent: false, isFailed: true });
+    }
+  };
+
+  /** Re-sends a message whose last attempt failed, keeping its place in the thread. */
+  const retryMessage = async (message: Message) => {
+    // The bubble hands over its enriched copy; send the stored one.
+    const stored = messagesMap.value[message.conversationId]?.find(
+      (m) => m.id === message.id,
     );
+    if (!stored?.isFailed || !stored.id.startsWith("tmp-")) return;
+    applyUpdate(stored.conversationId, stored.id, { isFailed: false });
+    await deliver({ ...stored, isFailed: false });
   };
 
   const saveEditMessage = async (id: string, text: string) => {
-    const conversationId = editingMessage.value?.conversationId;
-
-    updateBus.emit({ id, updates: { text, isSent: false } });
-    if (conversationId)
-      patchLastMessage(conversationId, id, { text, isSent: false });
-
+    const original = editingMessage.value;
+    const conversationId = original?.conversationId;
     clearActions();
+    if (!conversationId) return;
+
+    applyUpdate(conversationId, id, { text, isSent: false });
 
     try {
       await handlers.editMessage(id, text);
-      updateBus.emit({
-        id,
-        updates: { isSent: true, isEdited: true },
-      });
-      if (conversationId)
-        patchLastMessage(conversationId, id, {
-          isSent: true,
-          isEdited: true,
-        });
+      applyUpdate(conversationId, id, { isSent: true, isEdited: true });
     } catch {
-      updateBus.emit({ id, updates: { isSent: false } });
-      if (conversationId)
-        patchLastMessage(conversationId, id, { isSent: false });
+      // Put the old text back: the edit never reached the server, and an unsent edit has no retry.
+      applyUpdate(conversationId, id, { text: original.text, isSent: true });
+      openToast(t("chat.editFailed"), "error");
     }
   };
 
@@ -336,6 +391,9 @@ export const useMessagesStore = defineStore("messages-store", () => {
     sendBus,
     updateBus,
     sendMessage,
+    retryMessage,
+    patchMessage,
+    restoreMessages,
     saveEditMessage,
     fetchMessages,
     markAsRead,

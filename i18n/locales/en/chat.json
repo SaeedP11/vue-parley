@@ -92,6 +92,8 @@
     },
     "you": "You",
     "copiedMessage": "Message copied to clipboard.",
+    "editFailed": "Could not edit the message. Please try again.",
+    "deleteFailed": "Could not delete the message. Please try again.",
     "unreadMessages": "Unread.",
     "caption": "Caption",
     "send": "Send",

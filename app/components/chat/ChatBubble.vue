@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, useTemplateRef } from "vue";
+import { computed, nextTick, ref, useTemplateRef } from "vue";
 import type { Contact, ExtendedMessage } from "~/types";
 import ImageGroupDisplay from "./chat-bubbles/ImageGroupDisplay.vue";
 import BubbleOptions from "./chat-bubbles/BubbleOptions.vue";
@@ -103,6 +103,7 @@ const displayedImages = computed(
 );
 
 const checkIcon = computed(() => {
+  if (props.message.isFailed) return "PhWarningCircle";
   if (props.message.isSent)
     return props.message.isRead ? "PhChecks" : "PhCheck";
   return "PhClock";
@@ -115,11 +116,17 @@ const uploadData = computed(() =>
 // --- Actions ---
 const previewImage = (index: number) => imageDisplayRef.value?.open(index);
 
-const handleRightClick = (event: MouseEvent | PointerEvent) => {
+const optionsMounted = ref(false);
+
+const handleRightClick = async (event: MouseEvent | PointerEvent) => {
   if (props.message.request || !props.message.isSent) return;
   if (!messagesStore.isSelectMode) {
     messagesStore.selectedMessages.clear();
     messagesStore.toggleSelection(props.message);
+  }
+  if (!optionsMounted.value) {
+    optionsMounted.value = true;
+    await nextTick();
   }
   bubbleOptionsRef.value?.openMenu(
     (event as MouseEvent).clientX,
@@ -156,7 +163,7 @@ const longPress = useLongPress(handleRightClick);
           {{
             !isFirstUnread
               ? formatDateShort(message.date)
-              : t("chat.unreadMessages")
+              : t("unreadMessages")
           }}
         </div>
       </div>
@@ -307,7 +314,18 @@ const longPress = useLongPress(handleRightClick);
 
                 <!-- Status / Timestamp Footer -->
                 <div
-                  v-if="shouldShowStatus"
+                  v-if="isMine && message.isFailed"
+                  role="button"
+                  class="w-full pt-2 flex items-center gap-x-2 cursor-pointer justify-start"
+                  @click.stop="messagesStore.retryMessage(message)"
+                >
+                  <BIcon :icon="checkIcon" class="w-4 h-4 fill-error" />
+                  <div class="select-none text-body-sm text-error">
+                    {{ t("sendFailed") }}
+                  </div>
+                </div>
+                <div
+                  v-else-if="shouldShowStatus"
                   class="w-full pt-2 flex items-center gap-x-2.5"
                   :class="{ 'justify-start': isMine, 'justify-end': !isMine }"
                 >
@@ -341,11 +359,16 @@ const longPress = useLongPress(handleRightClick);
 
         <!-- Hidden Modals / Overlays -->
         <ImageGroupDisplay
-          v-show="message.imageUrl && message.imageUrl.length > 0"
+          v-if="message.imageUrl && message.imageUrl.length > 0"
           ref="imageDisplayRef"
           :images="message.imageUrl"
         />
-        <BubbleOptions :message="message" ref="bubbleOptionsRef" />
+        <!-- Mounted on first open: a menu per bubble is otherwise dozens of idle instances. -->
+        <BubbleOptions
+          v-if="optionsMounted"
+          :message="message"
+          ref="bubbleOptionsRef"
+        />
       </div>
     </div>
   </div>

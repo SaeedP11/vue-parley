@@ -6,5 +6,6 @@
     "file": "File",
     "image": "Photo"
   },
-  "unreadMessages": "Unread."
+  "unreadMessages": "Unread.",
+  "sendFailed": "Not sent. Tap to retry"
 }

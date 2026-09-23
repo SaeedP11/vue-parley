@@ -6,5 +6,6 @@
     "file": "فایل",
     "image": "عکس"
   },
-  "unreadMessages": "خوانده نشده."
+  "unreadMessages": "خوانده نشده.",
+  "sendFailed": "ارسال نشد. برای تلاش دوباره بزنید"
 }

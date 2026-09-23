@@ -19,25 +19,49 @@ export function useChatMessageList(chatId: ComputedRef<string | null>) {
   );
 
   // --- Enrichment ---
+  // Any change to a thread (a new message, an id swap, a read flag) re-runs this computed. Handing
+  // back the previous enriched object whenever its inputs are unchanged keeps every other bubble's
+  // `message` prop identical, so only the bubbles that actually changed re-render.
+  const enrichedCache = new WeakMap<Message, ExtendedMessage>();
+
   const reversedMessages = computed<ExtendedMessage[]>(() => {
     const raw = messages.value;
-    const enriched: ExtendedMessage[] = raw.map((msg, idx) => {
+    // Contacts are keyed by conversation, and in a 1:1 chat that contact is the counterpart.
+    const contact = chatStore.getContactById(chatId.value ?? "");
+    const enriched = new Array<ExtendedMessage>(raw.length);
+
+    for (let idx = 0; idx < raw.length; idx++) {
+      const msg = raw[idx]!;
       const prev = raw[idx - 1];
       const next = raw[idx + 1];
+
+      const cached = enrichedCache.get(msg);
+      if (
+        cached &&
+        cached.prevMessage === prev &&
+        cached.nextMessage === next &&
+        cached.contact === contact
+      ) {
+        enriched[raw.length - 1 - idx] = cached;
+        continue;
+      }
+
       const isFirstInDate =
         !prev ||
         new Date(msg.date).toDateString() !==
           new Date(prev.date).toDateString();
 
-      return {
+      const value: ExtendedMessage = {
         ...msg,
         prevMessage: prev,
         nextMessage: next,
         isFirstInDate,
-        contact: chatStore.getContactById(msg.senderId),
+        contact,
       };
-    });
-    return enriched.reverse();
+      enrichedCache.set(msg, value);
+      enriched[raw.length - 1 - idx] = value;
+    }
+    return enriched;
   });
 
   const firstUnreadId = computed(() => {
@@ -77,11 +101,12 @@ export function useChatMessageList(chatId: ComputedRef<string | null>) {
       newMsgs.forEach((msg) => animatingIds.value.delete(msg.id));
     }, 400);
 
-    const id = chatId.value;
-    if (id) {
+    // Each message goes to its own conversation, not whichever one is open.
+    for (const msg of newMsgs) {
+      const id = msg.conversationId;
       messagesStore.messagesMap[id] = [
         ...(messagesStore.messagesMap[id] ?? []),
-        ...newMsgs,
+        msg,
       ];
     }
 
@@ -89,11 +114,13 @@ export function useChatMessageList(chatId: ComputedRef<string | null>) {
   };
 
   const executeDelete = (idsToDelete: string[], onDone: () => void) => {
+    // Captured now: the user may switch conversation during the animation.
+    const id = chatId.value;
     setTimeout(() => {
       idsToDelete.forEach((id) => deletingIds.value.add(id));
 
       setTimeout(() => {
-        const id = chatId.value;
+        idsToDelete.forEach((id) => deletingIds.value.delete(id));
         if (id) {
           const remainingMessages = (
             messagesStore.messagesMap[id] ?? []
@@ -123,7 +150,6 @@ export function useChatMessageList(chatId: ComputedRef<string | null>) {
   // --- Event Bus Subscriptions ---
   let unsubSend: () => void;
   let unsubDelete: () => void;
-  let unsubUpdate: () => void;
 
   const subscribeToBus = (callbacks: {
     onSend: (hasMyMessage: boolean) => void;
@@ -135,28 +161,13 @@ export function useChatMessageList(chatId: ComputedRef<string | null>) {
     });
 
     unsubDelete = messagesStore.deleteBus.on((ids) => callbacks.onDelete(ids));
-
-    unsubUpdate = messagesStore.updateBus.on(({ id: msgId, updates }) => {
-      const convId = chatId.value;
-      if (!convId) return;
-      const list = messagesStore.messagesMap[convId];
-      if (!list) return;
-      const index = list.findIndex((m) => m.id === msgId);
-      if (index !== -1) {
-        messagesStore.messagesMap[convId] = [
-          ...list.slice(0, index),
-          { ...list[index], ...updates },
-          ...list.slice(index + 1),
-        ];
-      }
-    });
+    // Updates are applied by the store itself (`patchMessage`), keyed by conversation.
   };
 
   // Auto-unsubscribe when the component scope is destroyed
   onScopeDispose(() => {
     if (unsubSend) unsubSend();
     if (unsubDelete) unsubDelete();
-    if (unsubUpdate) unsubUpdate();
   });
 
   return {

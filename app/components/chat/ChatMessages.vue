@@ -199,7 +199,8 @@
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onBeforeUnmount } from "vue";
 import useLocalI18n from "~/composables/useLocalI18n";
-import { chatMessages } from "@i18n/locales";
+import { chat, chatMessages } from "@i18n/locales";
+import { useAppToast } from "~/composables/useAppToast";
 import ChatBubble from "./ChatBubble.vue";
 import type { Contact } from "~/types";
 import loading from "~/assets/lottie/loading.json";
@@ -225,6 +226,8 @@ const chatStore = useChatStore();
 const callStore = useCallStore();
 const messagesStore = useMessagesStore();
 const { t } = useLocalI18n(chatMessages);
+const { t: tChat } = useLocalI18n(chat);
+const { openToast } = useAppToast();
 const { formatDateShort } = useDate();
 const profileStore = useProfileStore();
 const currentUserId = computed(() => profileStore.userId);
@@ -318,9 +321,22 @@ const handleModalConfirm = () => {
 
   if (action === "delete" && selectedToDelete.value.length > 0) {
     modal.value?.closeModal();
-    void messagesStore.confirmDelete([...selectedToDelete.value]);
-    msgList.executeDelete(selectedToDelete.value, () => {
-      selectedToDelete.value = [];
+    const ids = [...selectedToDelete.value];
+    const conversationId = chatId.value;
+    const snapshot = msgList.messages.value.filter((m) => ids.includes(m.id));
+
+    // Removal is optimistic; if the server refuses, wait for the animation to finish removing
+    // them and then put them back, so the thread never shows messages that still exist as gone.
+    const removed = new Promise<void>((resolve) =>
+      msgList.executeDelete(ids, () => {
+        selectedToDelete.value = [];
+        resolve();
+      }),
+    );
+    messagesStore.confirmDelete(ids).catch(async () => {
+      await removed;
+      if (conversationId) messagesStore.restoreMessages(conversationId, snapshot);
+      openToast(tChat("chat.deleteFailed"), "error");
     });
   }
 };
