@@ -411,7 +411,10 @@ const handleAttachments = (payloads: Message[]) => {
     msg.type = payload.type;
     if (payload.type === "text") msg.text = payload.text;
     if (payload.type === "image") msg.imageUrl = payload.imageUrl;
-    if (payload.type === "file") msg.fileUrl = payload.fileUrl;
+    if (payload.type === "file") {
+      msg.fileUrl = payload.fileUrl;
+      msg.fileName = payload.fileName;
+    }
     if (payload.type === "voice") msg.voiceUrl = payload.voiceUrl;
     if (payload.type === "video") msg.videoUrl = payload.videoUrl;
     return msg;

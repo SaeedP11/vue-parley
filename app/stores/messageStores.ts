@@ -34,7 +34,11 @@ export const useMessagesStore = defineStore("messages-store", () => {
   const replyingTo = ref<ExtendedMessage | null>(null);
 
   const messagesMap = ref<Record<string, Message[]>>({});
-  const messagesLoading = ref(false);
+  // Per conversation, so a fetch still running for one chat never swallows another's.
+  const messagesLoadingMap = ref<Record<string, boolean>>({});
+  const messagesLoading = computed(() =>
+    Object.values(messagesLoadingMap.value).some(Boolean),
+  );
   const messagesPageSize = ref(20);
   const messagesPage = ref<Record<string, number>>({});
   const messagesHasNextPage = ref<Record<string, boolean>>({});
@@ -118,9 +122,14 @@ export const useMessagesStore = defineStore("messages-store", () => {
       : selectedArray.value.map((m) => m.id);
     if (targets.length === 0) return;
 
-    targets.forEach((id) => processingActions.value.set(id, "cancel-request"));
+    // Only asks for confirmation; `confirmDelete` runs once the user accepts.
     deleteBus.emit(targets);
     clearActions();
+  };
+
+  const confirmDelete = async (targets: string[]) => {
+    if (targets.length === 0) return;
+    targets.forEach((id) => processingActions.value.set(id, "cancel-request"));
 
     try {
       await handlers.deleteMessages(targets);
@@ -285,8 +294,8 @@ export const useMessagesStore = defineStore("messages-store", () => {
     page: number = 1,
     pageSize: number = messagesPageSize.value,
   ) => {
-    if (messagesLoading.value) return;
-    messagesLoading.value = true;
+    if (messagesLoadingMap.value[conversationId]) return;
+    messagesLoadingMap.value[conversationId] = true;
     try {
       const batch = await handlers.fetchMessages({
         conversationId,
@@ -300,7 +309,7 @@ export const useMessagesStore = defineStore("messages-store", () => {
       messagesPage.value[conversationId] = page;
       messagesHasNextPage.value[conversationId] = batch.length === pageSize;
     } finally {
-      messagesLoading.value = false;
+      delete messagesLoadingMap.value[conversationId];
     }
   };
 
@@ -320,6 +329,7 @@ export const useMessagesStore = defineStore("messages-store", () => {
     triggerEdit,
     copyMessageText,
     triggerDelete,
+    confirmDelete,
     editingMessage,
     canReply,
     deleteBus,
@@ -333,6 +343,7 @@ export const useMessagesStore = defineStore("messages-store", () => {
     patchLastMessage,
     messagesMap,
     messagesLoading,
+    messagesLoadingMap,
     messagesPage,
     messagesPageSize,
     messagesHasNextPage,

@@ -14,6 +14,7 @@ const props = withDefaults(
     isMine?: boolean;
     isSent?: boolean;
     url: string;
+    fileName?: string;
   }>(),
   {
     isMine: true,
@@ -51,6 +52,7 @@ const checkLocalExistence = async () => {
 };
 
 const fileName = computed(() => {
+  if (props.fileName) return props.fileName;
   try {
     const urlObj = new URL(props.url);
     return decodeURIComponent(

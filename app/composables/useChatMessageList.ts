@@ -14,7 +14,9 @@ export function useChatMessageList(chatId: ComputedRef<string | null>) {
   const messages = computed<Message[]>(
     () => messagesStore.messagesMap[chatId.value ?? ""] ?? [],
   );
-  const isLoading = computed(() => messagesStore.messagesLoading);
+  const isLoading = computed(
+    () => !!messagesStore.messagesLoadingMap[chatId.value ?? ""],
+  );
 
   // --- Enrichment ---
   const reversedMessages = computed<ExtendedMessage[]>(() => {
@@ -48,7 +50,7 @@ export function useChatMessageList(chatId: ComputedRef<string | null>) {
   // --- Fetching ---
   const fetchMessages = async (page: number) => {
     const id = chatId.value;
-    if (!id || messagesStore.messagesLoading) return;
+    if (!id || messagesStore.messagesLoadingMap[id]) return;
     if (page > 1 && !messagesStore.messagesHasNextPage[id]) return;
     await messagesStore.fetchMessages(id, page);
   };

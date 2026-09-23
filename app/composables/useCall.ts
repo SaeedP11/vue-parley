@@ -466,15 +466,17 @@ export default function useCall() {
     );
   };
 
+  const logUnhandledRejection = (event: PromiseRejectionEvent) => {
+    console.error(
+      "[useCall] Unhandled rejection:",
+      event.reason,
+      "stack:",
+      (event as any).reason?.stack || event.reason,
+    );
+  };
+
   onMounted(async () => {
-    window.addEventListener("unhandledrejection", (event) => {
-      console.error(
-        "[useCall] Unhandled rejection:",
-        event.reason,
-        "stack:",
-        (event as any).reason?.stack || event.reason,
-      );
-    });
+    window.addEventListener("unhandledrejection", logUnhandledRejection);
 
     if (window.process)
       Object.assign(window.process, { nextTick: ProcessNextTick });
@@ -888,6 +890,7 @@ export default function useCall() {
     document.removeEventListener("mousemove", resetControlsTimeout);
     document.removeEventListener("click", resetControlsTimeout);
     document.removeEventListener("keydown", resetControlsTimeout);
+    window.removeEventListener("unhandledrejection", logUnhandledRejection);
     clearTimeout(controlsTimeout);
 
     if (typeof socketMsgId === "number") {

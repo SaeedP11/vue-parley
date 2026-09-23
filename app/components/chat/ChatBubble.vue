@@ -235,6 +235,7 @@ const longPress = useLongPress(handleRightClick);
                     v-else-if="messageType === 'file'"
                     :is-mine="isMine"
                     :url="message.fileUrl"
+                    :file-name="message.fileName"
                     :message-id="message.id"
                     :is-sent="message.isSent"
                   />

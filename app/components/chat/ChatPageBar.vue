@@ -18,7 +18,10 @@
             <div class="text-label-md text-chat-on-background">
               {{ selectedChat.name }} {{ selectedChat.lastName }}
             </div>
-            <div class="text-body-sm text-chat-on-background/50">
+            <div
+              v-if="selectedChat.lastSeen"
+              class="text-body-sm text-chat-on-background/50"
+            >
               {{
                 t("lastSeen", {
                   time: formatRelativeDate(selectedChat.lastSeen),

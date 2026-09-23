@@ -23,6 +23,7 @@ export interface Message {
   text?: string;
   imageUrl?: string[];
   fileUrl?: string;
+  fileName?: string;
   voiceUrl?: string;
   videoUrl?: string;
   isEdited: boolean;
@@ -38,7 +39,8 @@ export interface Contact {
   name: string;
   lastName: string;
   isOnline: boolean;
-  lastSeen: Date;
+  /** Omit when unknown; the header then hides the "last seen" line. */
+  lastSeen?: Date;
   imageUrl: string;
   nationalCode?: string;
   phoneNumber?: string;
@@ -140,6 +142,8 @@ export interface ContactsPage {
 export interface ChatHandlers {
   fetchConversations(params: FetchContactsParams): Promise<ContactsPage>;
   deleteConversation(id: string): Promise<void>;
+  /** Optional; the "end conversation" action is only offered when provided. */
+  endConversation?(id: string): Promise<void>;
 }
 
 export interface MediaDownloadOptions {

@@ -8,9 +8,25 @@ export const useChatStore = defineStore("chat", () => {
     { channel: string; name: string; avatar?: string; from: string }[]
   >([]);
 
+  // `handlers` is not reactive, so the UI reads this flag instead.
+  const canEndConversation = ref(false);
+
   function setHandlers(val: ChatHandlers) {
     handlers = val;
+    canEndConversation.value = !!val.endConversation;
   }
+
+  const endConversation = async (id: string) => {
+    if (!handlers.endConversation) return;
+    await handlers.endConversation(id);
+
+    for (const key in conversationStates.value) {
+      const contact = conversationStates.value[key as StateKeys].data.find(
+        (c) => c.id === id,
+      );
+      if (contact) contact.isActive = false;
+    }
+  };
 
   const chatsPerPage = computed(() => {
     const h = windowHeight.value || 800;
@@ -192,6 +208,8 @@ export const useChatStore = defineStore("chat", () => {
     openProfile,
     closeProfile,
     deleteConversation,
+    canEndConversation,
+    endConversation,
     fetchConversations,
     loadNextPage,
     getContactById,

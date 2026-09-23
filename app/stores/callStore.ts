@@ -8,7 +8,14 @@ export const useCallStore = defineStore("call-modal", () => {
   const isActive = ref(false);
   const elapsedTime = ref(0);
 
+  const stopTimer = () => {
+    if (timerInterval.value) clearInterval(timerInterval.value);
+    timerInterval.value = null;
+    startTime.value = null;
+  };
+
   const startTimer = () => {
+    stopTimer();
     startTime.value = Date.now();
     timerInterval.value = setInterval(() => {
       elapsedTime.value = Math.floor(
@@ -18,6 +25,11 @@ export const useCallStore = defineStore("call-modal", () => {
   };
 
   const startCall = (id: string) => {
+    // A mounted call keeps its peers, so re-targeting it would split its signalling.
+    if (isActive.value) {
+      isMinimized.value = false;
+      return;
+    }
     startTimer();
     channelId.value = id;
     isActive.value = true;
@@ -25,6 +37,7 @@ export const useCallStore = defineStore("call-modal", () => {
   };
 
   const endCall = () => {
+    stopTimer();
     isActive.value = false;
     isMinimized.value = false;
     elapsedTime.value = 0;

@@ -88,13 +88,17 @@ const isChatMode = computed(() => {
   return canShowMessagingSection.value;
 });
 
-const medicOptions = computed<MenuOption[]>(() => [
-  {
-    label: t("barOptions.endChat"),
-    icon: "PhXSquare",
-    key: "end-chat",
-  },
-]);
+const medicOptions = computed<MenuOption[]>(() =>
+  chatStore.canEndConversation && selectedChat.value?.isActive
+    ? [
+        {
+          label: t("barOptions.endChat"),
+          icon: "PhXSquare",
+          key: "end-chat",
+        },
+      ]
+    : [],
+);
 
 const openProfile = () => {
   chatStore.openProfile();

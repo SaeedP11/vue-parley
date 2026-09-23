@@ -173,6 +173,7 @@
               <div
                 v-for="option in options"
                 :key="option.key"
+                @click="handleOption(option.key)"
                 class="px-2.5 pointer-events-auto flex items-center gap-x-2 cursor-pointer bg-chat-surface-3 rounded-lg h-9 shrink-0"
               >
                 <BIcon
@@ -270,7 +271,23 @@ msgList.subscribeToBus({
 });
 
 // --- Modal / Delete Actions (UI specific logic stays in component) ---
+// The modal is shared, and a cancelled delete leaves `selectedToDelete` behind.
+const modalAction = ref<"delete" | "end-chat" | null>(null);
+
+const handleOption = (key: string) => {
+  if (key !== "end-chat" || !chatId.value) return;
+  modalAction.value = "end-chat";
+  modal.value?.openModal(
+    t("endChat.title"),
+    t("endChat.message"),
+    "error",
+    true,
+    t("endChat.confirm"),
+  );
+};
+
 const handleDeleteMessages = (idsToDelete: string[]) => {
+  modalAction.value = "delete";
   selectedToDelete.value = idsToDelete;
   const isRequestDeletion =
     idsToDelete.length === 1 &&
@@ -290,8 +307,18 @@ const handleDeleteMessages = (idsToDelete: string[]) => {
 };
 
 const handleModalConfirm = () => {
-  if (selectedToDelete.value.length > 0) {
+  const action = modalAction.value;
+  modalAction.value = null;
+
+  if (action === "end-chat" && chatId.value) {
     modal.value?.closeModal();
+    void chatStore.endConversation(chatId.value).catch(() => {});
+    return;
+  }
+
+  if (action === "delete" && selectedToDelete.value.length > 0) {
+    modal.value?.closeModal();
+    void messagesStore.confirmDelete([...selectedToDelete.value]);
     msgList.executeDelete(selectedToDelete.value, () => {
       selectedToDelete.value = [];
     });
