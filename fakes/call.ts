@@ -22,8 +22,9 @@ export function createBroadcastCallHandlers(
 
   return {
     published,
-    // A placeholder: there is no TURN server. See allowDirectPeerConnections().
-    credential: { ttl: 3600, user: "fake", pass: "fake", urls: ["turn:127.0.0.1:3478"] },
+    // No TURN server: peers on the same machine connect directly.
+    credential: { ttl: 3600, user: "", pass: "", urls: [] },
+    iceTransportPolicy: "all",
     async handleGenerateCred() {},
     async publisher(json) {
       published.push(JSON.parse(json));
@@ -40,15 +41,3 @@ export function createBroadcastCallHandlers(
   };
 }
 
-/**
- * The chat forces `iceTransportPolicy: "relay"` through a TURN server. Without one, let peers on
- * the same machine connect directly over host candidates instead. Development and tests only.
- */
-export function allowDirectPeerConnections() {
-  const Native = window.RTCPeerConnection;
-  window.RTCPeerConnection = class extends Native {
-    constructor(config?: RTCConfiguration) {
-      super({ ...config, iceServers: [], iceTransportPolicy: "all" });
-    }
-  } as typeof RTCPeerConnection;
-}

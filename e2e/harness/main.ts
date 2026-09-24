@@ -2,13 +2,9 @@ import { createApp } from "vue";
 import { createPinia } from "pinia";
 import { createI18n } from "vue-i18n";
 import { createChat } from "~/index";
-import { allowDirectPeerConnections } from "../../fakes/call";
 import { ME, MY_NAME, backend, call } from "./backend";
 import App from "./App.vue";
 import "./style.css";
-
-// No TURN server in tests: the two tabs connect directly.
-allowDirectPeerConnections();
 
 const i18n = createI18n({
   legacy: false,

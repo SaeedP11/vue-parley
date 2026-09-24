@@ -137,6 +137,13 @@ export interface CallHandlers {
     callback: (message: CallMessageSchema) => Promise<void>,
   ) => Promise<number>;
   unSubscriber: (id: number) => Promise<void>;
+  /**
+   * "relay" (the default) sends media only through the TURN servers in `credential`. "all" also
+   * allows direct connections, and works without TURN servers (e.g. on a LAN or in tests).
+   */
+  iceTransportPolicy?: RTCIceTransportPolicy;
+  /** Logs signalling and peer events to the console. */
+  debug?: boolean;
 }
 
 export interface FetchContactsParams {
