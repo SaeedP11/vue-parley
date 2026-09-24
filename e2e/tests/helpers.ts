@@ -11,6 +11,7 @@ export interface HarnessWindow {
     published: { type: string; payload: Record<string, unknown> }[];
     callStore: { isActive: boolean; isMinimized: boolean; channelId: string | null };
     setRenderCall: (value: boolean) => void;
+    mediaStore: { download: (url: string) => Promise<Blob> };
   };
 }
 

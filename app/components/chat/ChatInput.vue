@@ -59,12 +59,14 @@
               <template #trigger>
                 <BIcon
                   icon="PhSmiley"
+                  data-testid="chat-emoji"
                   class="cursor-pointer w-6 h-6 fill-on-surface"
                   @mousedown.prevent
+                  @click="emojiUsed = true"
                 />
               </template>
               <div class="">
-                <BEmojiPicker :native="true" @select="handleEmojiSelect" />
+                <BEmojiPicker v-if="emojiUsed" @select="handleEmojiSelect" />
               </div>
             </BMenu>
           </div>
@@ -97,7 +99,7 @@
         showMobileEmojiPicker ? 'max-h-60 opacity-100' : 'max-h-0 opacity-0'
       "
     >
-      <BEmojiPicker @select="handleEmojiSelect" />
+      <BEmojiPicker v-if="emojiUsed" @select="handleEmojiSelect" />
     </div>
   </div>
 </template>
@@ -163,6 +165,8 @@ const videoDisplayRef =
 
 // Local State
 const showMobileEmojiPicker = ref(false);
+/** The pickers mount on first use: they are heavy, and most messages have no emoji. */
+const emojiUsed = ref(false);
 const textMode = ref<"normal" | "edit" | "reply">("normal");
 const editingMessageData = ref<ExtendedMessage | null>(null);
 const replyingToMessageData = ref<ExtendedMessage | null>(null);
@@ -407,6 +411,7 @@ const handleEnterKey = (e: KeyboardEvent) => {
 };
 
 const toggleMobileEmoji = () => {
+  emojiUsed.value = true;
   showMobileEmojiPicker.value = !showMobileEmojiPicker.value;
   if (showMobileEmojiPicker.value) {
     editor.saveCursorPosition();

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import NoChatSelected from "../assets/lib-images/chat/no-chat-selected.webp";
+import NoChatSelected from "../assets/lib-images/chat/empty-state.webp";
 import NoDataDisplay from "./general/NoDataDisplay.vue";
 import useLocalI18n from "~/composables/useLocalI18n";
 import { useChatStore } from "../stores/chatStore";
@@ -7,8 +7,10 @@ import ChatList from "./chat/contact/ChatList.vue";
 import { useCallStore } from "~/stores/callStore";
 import ChatView from "./chat/ChatView.vue";
 import { chatPage } from "@i18n/locales";
-import Call from "./call/Call.vue";
-import { computed, useSlots } from "vue";
+import { computed, defineAsyncComponent, useSlots } from "vue";
+
+// Loaded with the first call, not with the chat.
+const Call = defineAsyncComponent(() => import("./call/Call.vue"));
 import type { Contact } from "~/types";
 
 const props = withDefaults(
@@ -93,5 +95,5 @@ const showMessagingSection = computed(() => {
       <ChatList />
     </div>
   </div>
-  <Call v-if="props.renderCall && callStore.channelId" />
+  <Call v-if="props.renderCall && callStore.session" />
 </template>

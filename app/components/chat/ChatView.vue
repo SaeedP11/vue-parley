@@ -79,8 +79,7 @@
 </template>
 
 <script setup lang="ts">
-import { Vue3Lottie as LottieAnimation } from "vue3-lottie";
-import { computed, ref, nextTick, watch } from "vue";
+import { computed, ref, nextTick, watch, defineAsyncComponent } from "vue";
 import PermissionPopup from "~/components/chat/chat-input/PermissionPopup.vue";
 import ChatProfileOverview from "~/components/chat/ChatProfileOverview.vue";
 import type { ChatTextField } from "~/types/components/chat-input";
@@ -89,11 +88,16 @@ import ChatMessages from "~/components/chat/ChatMessages.vue";
 import ChatPageBar from "~/components/chat/ChatPageBar.vue";
 import ChatInput from "~/components/chat/ChatInput.vue";
 import NoDataDisplay from "~/components/general/NoDataDisplay.vue";
-import ChatEnded from "~/assets/lib-images/chat/no-messages.webp";
+import ChatEnded from "~/assets/lib-images/chat/empty-state.webp";
 import loading from "~/assets/lottie/loading.json";
 import useLocalI18n from "~/composables/useLocalI18n";
 import { useChatStore } from "~/stores/chatStore";
 import { chatView } from "@i18n/locales";
+
+// lottie-web is large; fetch it the first time a spinner shows.
+const LottieAnimation = defineAsyncComponent(() =>
+  import("vue3-lottie").then((m) => m.Vue3Lottie),
+);
 
 const chatStore = useChatStore();
 const { width } = useWindowSize();

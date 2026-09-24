@@ -162,6 +162,8 @@ defineExpose({
 <template>
   <Teleport to="body">
     <div
+      data-testid="image-viewer"
+      :data-open="isOpen"
       @click.self="closeImage"
       :class="[
         isOpen

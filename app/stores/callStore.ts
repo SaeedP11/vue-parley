@@ -1,7 +1,7 @@
 import { defineStore, acceptHMRUpdate } from "pinia";
 import { markRaw, ref, shallowRef } from "vue";
 import type { CallHandlers } from "~/types";
-import { createCallSession, type CallSession } from "~/composables/call/session";
+import type { CallSession } from "~/composables/call/session";
 import { useAppToast } from "~/composables/useAppToast";
 import useLocalI18n from "~/composables/useLocalI18n";
 import { useProfileStore } from "./profileStore";
@@ -18,8 +18,13 @@ export const useCallStore = defineStore("call-modal", () => {
     handlers = val;
   }
 
-  /** The running call. Lives here, not in a component, so it survives the call view unmounting. */
+  /**
+   * The running call. Lives here, not in a component, so it survives the call view unmounting.
+   * Null until its code has loaded: calling (simple-peer and its polyfills) is fetched on first use.
+   */
   const session = shallowRef<CallSession | null>(null);
+  /** Bumped on every start/end, so a slow load can tell it was overtaken. */
+  let attempt = 0;
 
   const timerInterval = ref<ReturnType<typeof setInterval> | null>(null);
   const channelId = ref<string | null>(null);
@@ -56,27 +61,33 @@ export const useCallStore = defineStore("call-modal", () => {
       );
     }
 
-    const call = createCallSession({
-      handlers,
-      channel: id,
-      self: {
-        id: profileStore.userId,
-        name: () => profileStore.userName ?? "",
-        avatar: () => profileStore.userAvatar,
-      },
-      notify: (key) => openToast(t(key), "error"),
-    });
-    // Streams and connections inside must not be made deeply reactive.
-    session.value = markRaw(call);
-
+    const callHandlers = handlers;
+    const current = ++attempt;
     startTimer();
     channelId.value = id;
     isActive.value = true;
     isMinimized.value = false;
-    void call.start();
+
+    void import("~/composables/call/session").then(({ createCallSession }) => {
+      if (current !== attempt) return; // ended or restarted while loading
+      const call = createCallSession({
+        handlers: callHandlers,
+        channel: id,
+        self: {
+          id: profileStore.userId,
+          name: () => profileStore.userName ?? "",
+          avatar: () => profileStore.userAvatar,
+        },
+        notify: (key) => openToast(t(key), "error"),
+      });
+      // Streams and connections inside must not be made deeply reactive.
+      session.value = markRaw(call);
+      void call.start();
+    });
   };
 
   const endCall = () => {
+    attempt++;
     session.value?.end();
     session.value = null;
     stopTimer();

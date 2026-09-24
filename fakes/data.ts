@@ -79,7 +79,17 @@ export function e2eData(userId: string): FakeData {
           text("c1", 3, "c1", "Ready for the video call?", 10),
         ],
       ],
-      ["c2", [text("c2", 1, "c2", "Nima says hi", 60)]],
+      [
+        "c2",
+        [
+          {
+            ...text("c2", 0, "c2", "", 70),
+            type: "image",
+            imageUrl: ["https://example.com/photo.png"],
+          },
+          text("c2", 1, "c2", "Nima says hi", 60),
+        ],
+      ],
       ["c3", [text("c3", 1, "c3", "This conversation is over", 600)]],
     ]),
   });

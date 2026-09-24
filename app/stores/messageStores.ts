@@ -2,7 +2,6 @@ import {
   ExtendedMessage,
   Message,
   MessagesHandlers,
-  StateKeys,
   UploadProgressEvent,
 } from "~/types";
 import { useAppToast } from "~/composables/useAppToast";
@@ -222,26 +221,18 @@ export const useMessagesStore = defineStore("messages-store", () => {
   };
 
   const markAsRead = (conversationId: string) => {
-    for (const key in chatStore.conversationStates) {
-      const contact = chatStore.conversationStates[key as StateKeys].data.find(
-        (c) => c.id === conversationId,
-      );
-      if (contact) {
-        contact.unreadCount = 0;
-        if (contact.lastMessage) contact.lastMessage.isRead = true;
-      }
-    }
+    const last = chatStore.getContactById(conversationId)?.lastMessage;
+    chatStore.updateContact(conversationId, {
+      unreadCount: 0,
+      ...(last && { lastMessage: { ...last, isRead: true } }),
+    });
     handlers.markRead?.(conversationId).catch((error) =>
       console.error("[chat] failed to mark conversation as read", error),
     );
   };
 
   const updateLastMessage = (conversationId: string, message: Message) => {
-    for (const key in chatStore.conversationStates) {
-      const state = chatStore.conversationStates[key as StateKeys];
-      const contact = state.data.find((c) => c.id === conversationId);
-      if (contact) contact.lastMessage = { ...message };
-    }
+    chatStore.updateContact(conversationId, { lastMessage: { ...message } });
   };
 
   const patchLastMessage = (
@@ -249,18 +240,9 @@ export const useMessagesStore = defineStore("messages-store", () => {
     messageId: string,
     updates: Partial<Message>,
   ) => {
-    for (const key in chatStore.conversationStates) {
-      const contact = chatStore.conversationStates[key as StateKeys].data.find(
-        (c) => c.id === conversationId,
-      );
-      if (
-        contact &&
-        contact.lastMessage &&
-        contact.lastMessage.id === messageId
-      ) {
-        contact.lastMessage = { ...contact.lastMessage, ...updates };
-      }
-    }
+    const last = chatStore.getContactById(conversationId)?.lastMessage;
+    if (last?.id === messageId)
+      chatStore.updateContact(conversationId, { lastMessage: { ...last, ...updates } });
   };
 
   const sendMessage = async (messages: Message[]) => {

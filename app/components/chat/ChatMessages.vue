@@ -124,8 +124,7 @@
 </template>
 
 <script setup lang="ts">
-import { Vue3Lottie as LottieAnimation } from "vue3-lottie";
-import { ref, computed, watch, nextTick, onBeforeUnmount } from "vue";
+import { ref, computed, watch, nextTick, onBeforeUnmount, defineAsyncComponent } from "vue";
 import useLocalI18n from "~/composables/useLocalI18n";
 import { chat, chatMessages } from "@i18n/locales";
 import { useAppToast } from "~/composables/useAppToast";
@@ -136,7 +135,7 @@ import ConversationOptionsBar from "./messages/ConversationOptionsBar.vue";
 import type { Contact, ExtendedMessage } from "~/types";
 import loading from "~/assets/lottie/loading.json";
 import NoDataDisplay from "../general/NoDataDisplay.vue";
-import NoMessages from "~/assets/lib-images/chat/no-messages.webp";
+import NoMessages from "~/assets/lib-images/chat/empty-state.webp";
 import type { Modal } from "~/types/components/modal";
 import type { MenuOption } from "~/types/components/menu-options";
 import { useMessagesStore } from "~/stores/messageStores";
@@ -146,6 +145,11 @@ import { useDate } from "~/composables/useDate";
 import { useChatMessageList } from "~/composables/useChatMessageList.js";
 import { useFlippedVirtualScroll } from "~/composables/useFlippedVirtualScroll.js";
 import { useProfileStore } from "~/stores/profileStore.js";
+
+// lottie-web is large; fetch it the first time a spinner shows.
+const LottieAnimation = defineAsyncComponent(() =>
+  import("vue3-lottie").then((m) => m.Vue3Lottie),
+);
 
 const props = withDefaults(
   defineProps<{ contact: Contact | null; options: MenuOption[] }>(),

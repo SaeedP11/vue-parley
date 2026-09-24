@@ -7,6 +7,17 @@ import vue from "@vitejs/plugin-vue";
 import tailwindcss from "@tailwindcss/vite";
 import { resolve } from "node:path";
 import dts from "vite-plugin-dts";
+import { readFileSync } from "node:fs";
+
+const pkg = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8"));
+// simple-peer (and its `events` shim) need Node polyfills that host bundlers don't provide, so
+// they are bundled, in the lazily loaded call chunk. Everything else the host installs anyway;
+// leaving it external lets the host dedupe and tree-shake it.
+const BUNDLED = new Set(["simple-peer", "events"]);
+const external = [
+  ...Object.keys(pkg.peerDependencies ?? {}),
+  ...Object.keys(pkg.dependencies ?? {}).filter((dep) => !BUNDLED.has(dep)),
+];
 
 export default defineConfig({
   plugins: [
@@ -42,13 +53,22 @@ export default defineConfig({
       name: "VueChat",
       entry: resolve(__dirname, "app/index.ts"),
       formats: ["es", "cjs"],
-      fileName: (format) => (format === "es" ? "index.mjs" : "index.cjs"),
     },
     rollupOptions: {
-      external: ["vue", "vue-i18n", "pinia", "@vueuse/core"],
-      output: {
-        compact: false,
-      },
+      external: (id) => external.some((dep) => id === dep || id.startsWith(`${dep}/`)),
+      // Per format, so lazy chunks get the extension package.json's "type" expects.
+      output: [
+        {
+          format: "es",
+          entryFileNames: "index.mjs",
+          chunkFileNames: "chunks/[name]-[hash].mjs",
+        },
+        {
+          format: "cjs",
+          entryFileNames: "index.cjs",
+          chunkFileNames: "chunks/[name]-[hash].cjs",
+        },
+      ],
     },
   },
 });

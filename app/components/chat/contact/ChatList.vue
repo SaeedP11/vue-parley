@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onBeforeUnmount } from "vue";
-import NoData from "~/assets/lib-images/dashboard/no-contacts.webp";
+import NoData from "~/assets/lib-images/chat/empty-state.webp";
 import NoDataDisplay from "~/components/general/NoDataDisplay.vue";
 import type { ChatFilter, StateKeys } from "~/types";
 import ChatContactDisplay from "./ChatContactDisplay.vue";

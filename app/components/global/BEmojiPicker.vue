@@ -1,15 +1,21 @@
 <script setup lang="ts">
-import EmojiPicker, { EmojiExt } from "vue3-emoji-picker";
-import "vue3-emoji-picker/css";
+import { defineAsyncComponent } from "vue";
+import type { EmojiExt } from "vue3-emoji-picker";
 
-const emit = defineEmits(["select"]);
+// Loaded when a picker first renders, not with the chat.
+const EmojiPicker = defineAsyncComponent(async () => {
+  const [picker] = await Promise.all([
+    import("vue3-emoji-picker"),
+    import("vue3-emoji-picker/css"),
+  ]);
+  return picker.default;
+});
+
+const emit = defineEmits<{ select: [emoji: EmojiExt] }>();
 </script>
 
 <template>
-  <EmojiPicker
-    :native="true"
-    @select="(emoji: EmojiExt) => emit('select', emoji)"
-  />
+  <EmojiPicker :native="true" @select="(emoji: EmojiExt) => emit('select', emoji)" />
 </template>
 
 <style>

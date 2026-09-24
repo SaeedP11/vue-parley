@@ -1,4 +1,5 @@
 import "./assets/css/main.css";
+import { defineAsyncComponent } from "vue";
 import { useCallStore } from "./stores/callStore";
 import { useChatStore } from "./stores/chatStore";
 import { useMessagesStore } from "./stores/messageStores";
@@ -6,7 +7,8 @@ import { useMediaStore } from "./stores/mediaStore";
 import { useProfileStore } from "./stores/profileStore";
 
 export { default as ChatPage } from "./components/ChatPage.vue";
-export { default as Call } from "./components/call/Call.vue";
+// Async, so hosts that never call don't download it. Render it while `callStore.session` is set.
+export const Call = defineAsyncComponent(() => import("./components/call/Call.vue"));
 
 // Building blocks, for hosts that compose their own layout instead of <ChatPage />. They read
 // the same stores, so they work together as long as the handlers are registered.

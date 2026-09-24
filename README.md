@@ -135,7 +135,7 @@ A call belongs to the call store, not to a component, so it keeps running when t
 ```vue
 <!-- App.vue -->
 <RouterView />
-<Call v-if="callStore.isActive" />
+<Call v-if="callStore.session" />
 
 <!-- the chat route -->
 <ChatPage :render-call="false" />

@@ -106,7 +106,14 @@ const uploadData = computed(() =>
 );
 
 // --- Actions ---
-const previewImage = (index: number) => imageDisplayRef.value?.open(index);
+const viewerMounted = ref(false);
+const previewImage = async (index: number) => {
+  if (!viewerMounted.value) {
+    viewerMounted.value = true;
+    await nextTick();
+  }
+  imageDisplayRef.value?.open(index);
+};
 
 const optionsMounted = ref(false);
 
@@ -257,13 +264,12 @@ const longPress = useLongPress(handleRightClick);
           </div>
         </div>
 
-        <!-- Hidden Modals / Overlays -->
+        <!-- Overlays, each mounted on first open: otherwise every bubble keeps idle copies. -->
         <ImageGroupDisplay
-          v-if="message.imageUrl && message.imageUrl.length > 0"
+          v-if="viewerMounted && message.imageUrl && message.imageUrl.length > 0"
           ref="imageDisplayRef"
           :images="message.imageUrl"
         />
-        <!-- Mounted on first open: a menu per bubble is otherwise dozens of idle instances. -->
         <BubbleOptions
           v-if="optionsMounted"
           :message="message"

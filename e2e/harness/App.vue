@@ -4,6 +4,7 @@ import {
   ChatPage,
   useCallStore,
   useChatStore,
+  useMediaStore,
   useMessagesStore,
 } from "~/index";
 import { backend, call } from "./backend";
@@ -19,6 +20,7 @@ Object.assign(window, {
     chatStore: useChatStore(),
     messagesStore: useMessagesStore(),
     callStore: useCallStore(),
+    mediaStore: useMediaStore(),
     /** Mounts or unmounts the call view, as a host navigating away would. */
     setRenderCall: (value: boolean) => (renderCall.value = value),
   },

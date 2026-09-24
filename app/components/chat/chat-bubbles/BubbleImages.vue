@@ -5,6 +5,7 @@
  */
 import { computed } from "vue";
 import type { UploadProgressEvent } from "~/types";
+import UploadProgressOverlay from "./UploadProgressOverlay.vue";
 
 const MAX_VISIBLE_IMAGES = 3;
 
@@ -23,6 +24,7 @@ const showUpload = computed(() => !props.isSent && !!props.upload);
 <template>
   <div
     v-if="images.length === 1"
+    data-testid="bubble-image"
     @click.stop="emit('preview', 0)"
     class="relative cursor-pointer overflow-hidden rounded-xl max-w-4/5 md:max-w-85 w-85 h-40.5"
   >

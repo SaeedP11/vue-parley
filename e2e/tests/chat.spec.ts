@@ -243,6 +243,13 @@ test.describe("messaging", () => {
     await expect(bubble(page, "notes.txt")).toBeVisible();
   });
 
+  test("inserts an emoji from the picker, loaded on first use", async ({ page }) => {
+    await expect(page.locator(".v3-emoji-picker")).toHaveCount(0);
+    await page.getByTestId("chat-emoji").click();
+    await page.getByRole("button", { name: "😀" }).first().click();
+    await expect(page.getByTestId("chat-input")).toContainText("😀");
+  });
+
   test("keeps a per-conversation draft", async ({ page }) => {
     const input = page.getByTestId("chat-input");
     await input.click();
@@ -278,5 +285,36 @@ test.describe("conversation lifecycle", () => {
   test("text-only conversations have no call button", async ({ page }) => {
     await openConversation(page, "c2");
     await expect(page.getByTestId("chat-start-call")).toHaveCount(0);
+  });
+});
+
+test.describe("images", () => {
+  test("the viewer mounts on first open", async ({ page }) => {
+    await openConversation(page, "c2");
+    // Not mounted up front: one idle full-screen overlay per image bubble adds up.
+    await expect(page.getByTestId("image-viewer")).toHaveCount(0);
+
+    await page.getByTestId("bubble-image").click();
+    await expect(page.getByTestId("image-viewer")).toHaveAttribute("data-open", "true");
+
+    await page.keyboard.press("Escape");
+    await expect(page.locator('[data-testid="image-viewer"][data-open="true"]')).toHaveCount(0);
+  });
+});
+
+test.describe("media cache", () => {
+  test("downloads a file once, then serves it from the cache", async ({ page }) => {
+    const download = () =>
+      page.evaluate(async () => {
+        const blob = await (window as any).__harness.mediaStore.download(
+          "https://example.com/cached.txt",
+        );
+        return blob.size;
+      });
+
+    const first = await download();
+    const second = await download();
+    expect(second).toBe(first);
+    expect(await handlerCalls(page, "download")).toHaveLength(1);
   });
 });

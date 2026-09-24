@@ -51,10 +51,14 @@
 </template>
 
 <script setup lang="ts" generic="T extends Record<string, any>">
-import { Vue3Lottie as LottieAnimation } from "vue3-lottie";
-import { ref, onMounted, onUnmounted } from "vue";
+import { ref, onMounted, onUnmounted, defineAsyncComponent } from "vue";
 import { useVirtualizer } from "@tanstack/vue-virtual";
 import loadingAnimation from "~/assets/lottie/loading.json";
+
+// lottie-web is large; fetch it the first time a spinner shows.
+const LottieAnimation = defineAsyncComponent(() =>
+  import("vue3-lottie").then((m) => m.Vue3Lottie),
+);
 
 const props = withDefaults(
   defineProps<{
