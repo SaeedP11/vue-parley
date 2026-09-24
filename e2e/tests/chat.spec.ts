@@ -318,3 +318,26 @@ test.describe("media cache", () => {
     expect(await handlerCalls(page, "download")).toHaveLength(1);
   });
 });
+
+test.describe("deep links", () => {
+  test("a conversation no list has fetched can be added and opened", async ({ page }) => {
+    // What a host does for /chat/<id> when the id isn't on a loaded page of the list.
+    await page.evaluate(() => {
+      const store = (window as any).__harness.chatStore;
+      store.addContact({
+        id: "c9",
+        name: "Deep",
+        lastName: "Link",
+        isOnline: false,
+        imageUrl: "",
+        isActive: true,
+        birthDate: new Date("1990-01-01"),
+        serviceType: "chat",
+        userType: ["user"],
+      });
+      store.setSelectedChat("c9");
+    });
+    await expect(contactItem(page, "c9")).toContainText("Deep Link");
+    await expect(page.getByTestId("chat-input")).toBeVisible();
+  });
+});

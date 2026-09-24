@@ -141,6 +141,10 @@ A call belongs to the call store, not to a component, so it keeps running when t
 <ChatPage :render-call="false" />
 ```
 
+Calls use the browser's WebRTC API directly (no `simple-peer`, no Node polyfills). The signalling messages keep simple-peer's format, so tabs still on an older, simple-peer based release can call this one and back; `e2e/tests/interop.spec.ts` checks that.
+
+Conversations a list page hasn't fetched (say, one opened from a link) are added with `chatStore.addContact(contact)`, and changed with `chatStore.updateContact(id, changes)`. `conversationStates` is a read-only view.
+
 Call handlers also accept `iceTransportPolicy` (default `"relay"`; `"all"` allows direct connections without TURN) and `debug` (logs signalling to the console).
 
 Every component and directive the chat uses is imported by the component itself, so nothing else needs to be registered.

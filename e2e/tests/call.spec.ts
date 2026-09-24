@@ -155,6 +155,9 @@ test.describe("video call", () => {
 
     await share.click();
     await expect(share).toHaveAttribute("data-active", "false");
+    // The stopped share's tile goes away instead of freezing on its last frame.
+    await expect(remoteScreen).toHaveCount(0, { timeout: 20_000 });
+    await expect(bob.getByTestId("call-remote-video")).toHaveCount(1);
   });
 
   test("minimize to picture-in-picture and restore", async () => {

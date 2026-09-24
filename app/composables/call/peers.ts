@@ -1,6 +1,6 @@
-import { ref, watch, type Ref } from "vue";
-import Peer from "simple-peer";
+import { markRaw, ref, watch, type Ref } from "vue";
 import type { SignalData } from "~/types";
+import { createPeer, type PeerConnection } from "./peer";
 import type { Signaling, TrackTypes } from "./signaling";
 
 export interface RemoteStream {
@@ -19,7 +19,7 @@ export interface PeerOptions {
 }
 
 /**
- * One simple-peer connection per remote participant, plus the streams they send us.
+ * One connection per remote participant, plus the streams they send us.
  *
  * Who makes the offer is decided by comparing ids, so both sides agree without a round trip.
  * A peer can't be created before our own media exists; such requests wait until it does.
@@ -27,14 +27,14 @@ export interface PeerOptions {
 export function usePeers(opts: PeerOptions) {
   const { selfId, signaling, localStream, screenStream, log } = opts;
 
-  const peers = ref<Record<string, Peer.Instance>>({});
+  const peers = ref<Record<string, PeerConnection>>({});
   const remoteVideos = ref<Record<string, RemoteStream>>({});
   const remoteScreens = ref<Record<string, RemoteStream>>({});
   const remoteStreamTypes = ref<Record<string, TrackTypes>>({});
   /** Peers asked for before our media was ready. */
-  const pending = ref<Record<string, { initiator: boolean; name: string }>>({});
+  const pending = ref<Record<string, { name: string }>>({});
   /** Signals that arrived for a peer that doesn't exist yet. */
-  const pendingSignals: Record<string, Peer.SignalData> = {};
+  const pendingSignals: Record<string, SignalData> = {};
   /** Last SDP applied per peer, so a re-delivered message isn't applied twice. */
   const lastSdp: Record<string, string | undefined> = {};
 
@@ -42,8 +42,9 @@ export function usePeers(opts: PeerOptions) {
   const has = (remoteId: string) => !!peers.value[remoteId] || !!pending.value[remoteId];
 
   function remove(remoteId: string) {
-    peers.value[remoteId]?.destroy();
+    const peer = peers.value[remoteId];
     delete peers.value[remoteId];
+    peer?.destroy();
     delete remoteVideos.value[remoteId];
     delete remoteScreens.value[remoteId];
     delete pending.value[remoteId];
@@ -51,13 +52,36 @@ export function usePeers(opts: PeerOptions) {
     delete lastSdp[remoteId];
   }
 
+  /** Whether `stream` is the remote's screen share, going by what they announced. */
+  function isScreen(remoteId: string, stream: MediaStream) {
+    const announced = remoteStreamTypes.value[remoteId] ?? [];
+    const match = announced.find((t) => t.id === stream.id);
+    if (match) return match.type === "screen";
+    // Stream ids didn't survive the trip: fall back to "they announced a screen".
+    return announced.some((t) => t.type === "screen");
+  }
+
+  function onRemoteStream(remoteId: string, name: string, stream: MediaStream) {
+    log("stream from", remoteId, stream.getTracks().map((t) => t.kind));
+    const target =
+      isScreen(remoteId, stream) && stream.getVideoTracks().length > 0
+        ? remoteScreens
+        : remoteVideos;
+    target.value[remoteId] = { name, stream };
+
+    // A stopped screen share leaves an empty stream behind; drop its tile.
+    stream.addEventListener("removetrack", () => {
+      if (stream.getTracks().length > 0) return;
+      if (target.value[remoteId]?.stream === stream) delete target.value[remoteId];
+    });
+  }
+
   function add(remoteId: string, name: string) {
     if (peers.value[remoteId]) return;
-    const initiator = isInitiator(remoteId);
 
     if (!localStream.value) {
       log("local media not ready, deferring peer", remoteId);
-      pending.value[remoteId] = { initiator, name };
+      pending.value[remoteId] = { name };
       return;
     }
 
@@ -67,11 +91,28 @@ export function usePeers(opts: PeerOptions) {
       return;
     }
 
-    let peer: Peer.Instance;
+    const initiator = isInitiator(remoteId);
+    let peer: PeerConnection;
     try {
-      peer = new Peer({ initiator, trickle: false, stream: localStream.value, config });
+      peer = createPeer({
+        initiator,
+        stream: localStream.value,
+        config,
+        onSignal: (signal) => void signaling.signal(remoteId, signal),
+        onStream: (stream) => onRemoteStream(remoteId, name, stream),
+        onError(err) {
+          console.error("[vue-chat] Peer error for", remoteId, err);
+          // Announce ourselves again so the pair can start over.
+          void signaling.join();
+        },
+        onClose() {
+          log("peer closed", remoteId);
+          // Only if it is still the current one: a replaced peer closing must not remove its successor.
+          if (peers.value[remoteId] === peer) remove(remoteId);
+        },
+      });
     } catch (err) {
-      console.error("[vue-chat] Peer constructor threw:", err);
+      console.error("[vue-chat] Could not create peer connection:", err);
       return;
     }
     log("created peer", remoteId, "initiator:", initiator);
@@ -79,32 +120,7 @@ export function usePeers(opts: PeerOptions) {
     const screen = screenStream.value;
     screen?.getVideoTracks().forEach((track) => peer.addTrack(track, screen));
 
-    peer.on("signal", (signal: SignalData) => void signaling.signal(remoteId, signal));
-
-    peer.on("stream", (stream: MediaStream) => {
-      log("stream from", remoteId, stream.getTracks().map((t) => t.kind));
-      const announced = remoteStreamTypes.value[remoteId] ?? [];
-      const isScreen = announced.some((t) => t.type === "screen");
-      if (isScreen && stream.getVideoTracks().length > 0) {
-        remoteScreens.value[remoteId] = { name, stream };
-      } else {
-        remoteVideos.value[remoteId] = { name, stream };
-      }
-    });
-
-    peer.on("error", (err: Error) => {
-      console.error("[vue-chat] Peer error for", remoteId, err);
-      remove(remoteId);
-      // Announce ourselves again so the pair can start over.
-      void signaling.join();
-    });
-
-    peer.on("close", () => {
-      log("peer closed", remoteId);
-      remove(remoteId);
-    });
-
-    peers.value[remoteId] = peer;
+    peers.value[remoteId] = markRaw(peer);
 
     const queued = pendingSignals[remoteId];
     if (queued) {
@@ -115,17 +131,16 @@ export function usePeers(opts: PeerOptions) {
 
   /** Applies a signal from `remoteId`, creating the peer first if needed. */
   function signal(remoteId: string, name: string, data: SignalData & { sdp: string }) {
-    if (lastSdp[remoteId] === data.sdp) return;
+    if (data.sdp && lastSdp[remoteId] === data.sdp) return;
     if (!peers.value[remoteId]) add(remoteId, name);
 
     const peer = peers.value[remoteId];
-    const payload = data as Peer.SignalData;
     if (peer) {
-      lastSdp[remoteId] = data.sdp;
-      peer.signal(payload);
+      if (data.sdp) lastSdp[remoteId] = data.sdp;
+      peer.signal(data);
     } else {
       log("peer still deferred, queueing signal for", remoteId);
-      pendingSignals[remoteId] = payload;
+      pendingSignals[remoteId] = data;
     }
   }
 
@@ -134,32 +149,19 @@ export function usePeers(opts: PeerOptions) {
     Object.values(peers.value).forEach((peer) => peer.addTrack(track, stream));
   }
 
-  function removeTrackFromAll(track: MediaStreamTrack, stream: MediaStream) {
-    Object.values(peers.value).forEach((peer) => {
-      const senders: RTCRtpSender[] = (peer as any)._pc?.getSenders?.() ?? [];
-      if (senders.some((s) => s.track?.id === track.id)) peer.removeTrack(track, stream);
-    });
+  function removeTrackFromAll(track: MediaStreamTrack) {
+    Object.values(peers.value).forEach((peer) => peer.removeTrack(track));
   }
 
   /** Swaps the outgoing camera track on every peer (after switching cameras). */
   function replaceVideoTrack(track: MediaStreamTrack, stream: MediaStream) {
-    Object.values(peers.value).forEach((peer) => {
-      const senders: RTCRtpSender[] = (peer as any)._pc?.getSenders?.() ?? [];
-      const sender = senders.find((s) => s.track?.kind === "video");
-      if (sender) void sender.replaceTrack(track);
-      else peer.addTrack(track, stream);
-    });
+    Object.values(peers.value).forEach((peer) => peer.replaceVideoTrack(track, stream));
   }
 
   function destroyAll() {
-    Object.values(peers.value).forEach((peer) => {
-      try {
-        peer.destroy();
-      } catch {
-        // already gone
-      }
-    });
+    const all = Object.values(peers.value);
     peers.value = {};
+    all.forEach((peer) => peer.destroy());
   }
 
   // Create the peers that were waiting for our media.

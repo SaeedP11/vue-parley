@@ -1,6 +1,7 @@
 /**
- * A WebRTC signalling payload: an SDP offer/answer or an ICE candidate. Mirrors simple-peer's
- * `SignalData`, declared here so the public types don't depend on @types/simple-peer.
+ * A WebRTC signalling payload: an SDP offer/answer, an ICE candidate, or a request for the
+ * initiator to renegotiate. The same shape simple-peer uses, so clients on the previous,
+ * simple-peer based build still interoperate.
  */
 export interface SignalData {
   type?: "transceiverRequest" | "renegotiate" | "candidate" | RTCSdpType;

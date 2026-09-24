@@ -1,4 +1,3 @@
-import { nodePolyfills } from "vite-plugin-node-polyfills";
 import Components from "unplugin-vue-components/vite";
 import AutoImport from "unplugin-auto-import/vite";
 import { fileURLToPath, URL } from "node:url";
@@ -10,20 +9,16 @@ import dts from "vite-plugin-dts";
 import { readFileSync } from "node:fs";
 
 const pkg = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8"));
-// simple-peer (and its `events` shim) need Node polyfills that host bundlers don't provide, so
-// they are bundled, in the lazily loaded call chunk. Everything else the host installs anyway;
-// leaving it external lets the host dedupe and tree-shake it.
-const BUNDLED = new Set(["simple-peer", "events"]);
+// Dependencies stay external: the host installs them anyway, and can dedupe and tree-shake them.
 const external = [
   ...Object.keys(pkg.peerDependencies ?? {}),
-  ...Object.keys(pkg.dependencies ?? {}).filter((dep) => !BUNDLED.has(dep)),
+  ...Object.keys(pkg.dependencies ?? {}),
 ];
 
 export default defineConfig({
   plugins: [
     vue(),
     tailwindcss(),
-    nodePolyfills(),
     AutoImport({
       imports: ["vue", "@vueuse/core"],
       dts: fileURLToPath(new URL("./auto-imports.d.ts", import.meta.url)),

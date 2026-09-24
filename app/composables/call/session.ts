@@ -1,4 +1,4 @@
-import { computed, effectScope, nextTick } from "vue";
+import { computed, effectScope } from "vue";
 import { nanoid } from "nanoid";
 import type { CallHandlers } from "~/types";
 import { createSignaling } from "./signaling";
@@ -83,10 +83,6 @@ export function createCallSession(opts: CallSessionOptions) {
   }
 
   async function start() {
-    // simple-peer expects Node's process.nextTick.
-    const w = window as unknown as { process?: { nextTick?: unknown } };
-    w.process = { ...w.process, nextTick };
-
     await signaling.listen({
       onSignal: (from, name, signal) => peers.signal(from, name, signal),
       onJoin(from, name) {
@@ -121,7 +117,7 @@ export function createCallSession(opts: CallSessionOptions) {
 
   function stopScreenShare() {
     const stream = media.stopScreenShare();
-    stream?.getVideoTracks().forEach((track) => peers.removeTrackFromAll(track, stream));
+    stream?.getVideoTracks().forEach((track) => peers.removeTrackFromAll(track));
   }
 
   async function toggleScreenShare() {

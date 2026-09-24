@@ -1,5 +1,6 @@
 import { ChatHandlers, Contact, StateKeys, UserRoleKey } from "~/types";
 import { defineStore } from "pinia";
+import { shallowReadonly } from "vue";
 
 const FILTERS: StateKeys[] = ["", "online", "ended", "active"];
 
@@ -15,7 +16,8 @@ interface ListState {
 
 /** One conversation list as `conversationStates` exposes it. */
 export interface ConversationListView {
-  data: Contact[];
+  /** Read-only: add contacts with `addContact`, change them with `updateContact`. */
+  data: readonly Contact[];
   loading: boolean;
   refreshing?: boolean;
   page: number;
@@ -73,7 +75,10 @@ export const useChatStore = defineStore("chat", () => {
   const contactsOf = (list: ListState) =>
     list.ids.map((id) => contactsById.value[id]).filter((c): c is Contact => !!c);
 
-  /** Each list with its contacts resolved; the shape hosts already read. Read-only. */
+  /**
+   * Each list with its contacts resolved; the shape hosts already read. The lists are read-only
+   * (writing to them warns in development), since they are rebuilt from `contactsById`.
+   */
   const conversationStates = computed(
     () =>
       Object.fromEntries(
@@ -82,7 +87,7 @@ export const useChatStore = defineStore("chat", () => {
           return [
             key,
             {
-              data: contactsOf(list),
+              data: shallowReadonly(contactsOf(list)),
               loading: list.loading,
               refreshing: list.refreshing,
               page: list.page,
@@ -106,6 +111,16 @@ export const useChatStore = defineStore("chat", () => {
 
   const getContactById = (id: string): Contact | null =>
     contactsById.value[id] ?? null;
+
+  /**
+   * Adds a contact the lists haven't fetched (e.g. a conversation opened from a link) to the top
+   * of a list, or refreshes it if it is already known.
+   */
+  const addContact = (contact: Contact, filter: StateKeys = "") => {
+    contactsById.value[contact.id] = contact;
+    const list = lists.value[filter];
+    if (!list.ids.includes(contact.id)) list.ids.unshift(contact.id);
+  };
 
   /** Changes a contact everywhere it is listed. */
   const updateContact = (id: string, updates: Partial<Contact>) => {
@@ -236,6 +251,7 @@ export const useChatStore = defineStore("chat", () => {
     getContactById,
     getDisplayedContacts,
     updateContact,
+    addContact,
     calls,
   };
 });

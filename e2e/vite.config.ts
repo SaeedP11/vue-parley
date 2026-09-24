@@ -15,6 +15,7 @@ export default defineConfig({
   plugins: [
     vue(),
     tailwindcss(),
+    // Only for legacy.html: simple-peer needs Node built-ins. The library itself doesn't.
     nodePolyfills(),
     AutoImport({ imports: ["vue", "@vueuse/core"], dts: false }),
     Components({
@@ -31,4 +32,7 @@ export default defineConfig({
     },
   },
   server: { port: 5179, strictPort: true },
+  // legacy.html (the previous, simple-peer based release) needs it. Pre-bundled at startup: found
+  // lazily, Vite would re-optimise and reload the page in the middle of the first interop test.
+  optimizeDeps: { include: ["simple-peer"] },
 });

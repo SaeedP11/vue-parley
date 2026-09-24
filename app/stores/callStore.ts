@@ -20,7 +20,7 @@ export const useCallStore = defineStore("call-modal", () => {
 
   /**
    * The running call. Lives here, not in a component, so it survives the call view unmounting.
-   * Null until its code has loaded: calling (simple-peer and its polyfills) is fetched on first use.
+   * Null until its code has loaded: calling is fetched on first use.
    */
   const session = shallowRef<CallSession | null>(null);
   /** Bumped on every start/end, so a slow load can tell it was overtaken. */
