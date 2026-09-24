@@ -1,10 +1,12 @@
-/* Compiled into dist/chat.css, so hosts need no Tailwind of their own. Preflight (the global
-   reset) is left out on purpose: it would restyle the host page. */
+/* Compiled into dist/chat.css, so hosts need no Tailwind of their own. Tailwind's global
+   reset (preflight) is replaced by a copy scoped to `.vue-chat` (reset.css), so the host page is
+   left alone. */
 @layer theme, base, components, utilities;
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/utilities.css" layer(utilities);
 @source "../..";
 
+@import "./reset.css";
 @import "./theme.css";
 @import "./components.css";
 

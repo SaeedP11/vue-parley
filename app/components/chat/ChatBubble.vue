@@ -139,7 +139,7 @@ const longPress = useLongPress(handleRightClick);
     data-testid="chat-bubble"
     :data-message-id="message.id"
     @contextmenu.prevent="handleRightClick"
-    class="w-full transition-all duration-300 ease-in-out"
+    class="vue-chat w-full transition-all duration-300 ease-in-out"
     :class="{
       'max-h-0 opacity-0 overflow-hidden': isDeleting,
       'max-h-250 opacity-100': !isDeleting,

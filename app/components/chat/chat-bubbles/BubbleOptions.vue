@@ -134,6 +134,7 @@ onBeforeUnmount(() => {
 <template>
   <Teleport to="body">
     <div
+      class="vue-chat"
       :style="{
         position: 'fixed',
         top: `${position.y}px`,

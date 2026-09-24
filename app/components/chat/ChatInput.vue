@@ -1,5 +1,5 @@
 <template>
-  <div dir="rtl" class="w-full relative">
+  <div dir="rtl" class="vue-chat w-full relative">
     <VideoRecordDisplay
       ref="videoDisplayRef"
       :stream="mediaStream"

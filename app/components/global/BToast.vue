@@ -1,7 +1,7 @@
 <template>
   <Teleport to="body">
       <div
-        class="pointer-events-none fixed bottom-0 z-10000 w-full max-w-dvw p-5 bg-transparent md:max-w-203"
+        class="vue-chat pointer-events-none fixed bottom-0 z-10000 w-full max-w-dvw p-5 bg-transparent md:max-w-203"
         role="status"
         aria-live="polite"
         aria-atomic="true"

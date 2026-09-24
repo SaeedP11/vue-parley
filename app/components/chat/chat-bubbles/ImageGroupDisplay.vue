@@ -168,7 +168,7 @@ defineExpose({
           ? ' md:bg-black/10 dark:md:bg-white/10 bg-black dark:bg-white md:backdrop-blur-lg pointer-events-auto visible opacity-100'
           : 'md:bg-black/0 dark:md:bg-white/0 bg-black/0 dark:bg-white/0 backdrop-blur-none pointer-events-none invisible opacity-0',
       ]"
-      class="transition-all flex flex-col duration-200 ease-in-out fixed top-0 left-0 z-100 w-dvw h-dvh"
+      class="vue-chat transition-all flex flex-col duration-200 ease-in-out fixed top-0 left-0 z-100 w-dvw h-dvh"
     >
       <div
         :style="isMobile ? { transform: `translateY(${translateY}px)` } : {}"

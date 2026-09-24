@@ -7,6 +7,7 @@ import { useChatStore } from "~/stores/chatStore.js";
 import { useMessagesStore } from "~/stores/messageStores.js";
 import { chatContactDisplay } from "@i18n/locales";
 import ContactAvatar from "./ContactAvatar.vue";
+import { useDate } from "~/composables/useDate";
 import type { Contact } from "~/types";
 import { computed } from "vue";
 
@@ -73,6 +74,17 @@ const attachmentIcon = computed(() => {
   return null;
 });
 
+const { formatTime, formatDateShort } = useDate();
+
+/** Today's messages show their time; older ones their date. */
+const lastMessageTime = computed(() => {
+  const date = props.contact.lastMessage?.date;
+  if (!date) return "";
+  return new Date(date).toDateString() === new Date().toDateString()
+    ? formatTime(date)
+    : formatDateShort(date);
+});
+
 const lastMessageText = computed(() => {
   const msg = props.contact.lastMessage;
   if (!msg) return "";
@@ -135,7 +147,7 @@ const lastMessageColor = computed(() => {
             v-loading="isLoading"
             class="text-chat-on-background/50 text-[11px]"
           >
-            {{ contact.lastMessage.date }}
+            {{ lastMessageTime }}
           </div>
           <BIcon
             v-if="lastMessageIcon.icon !== ''"

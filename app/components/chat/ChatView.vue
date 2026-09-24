@@ -1,5 +1,5 @@
 <template>
-  <div class="h-full w-full bg-chat-surface">
+  <div class="vue-chat h-full w-full bg-chat-surface">
     <div
       v-show="canShowMessagingSection || isProfile"
       class="flex h-full w-full"

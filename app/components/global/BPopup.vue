@@ -1,7 +1,7 @@
 <template>
     <Teleport to="body">
       <div
-        class="popup-el fixed flex w-dvw h-dvh z-9999 transition-all duration-300 ease-in-out"
+        class="vue-chat popup-el fixed flex w-dvw h-dvh z-9999 transition-all duration-300 ease-in-out"
         :class="[
           isMobile ? 'items-end' : 'items-center justify-center',
           isOpen

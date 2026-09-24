@@ -1,5 +1,5 @@
 <template>
-  <div class="relative z-20 w-full">
+  <div class="vue-chat relative z-20 w-full">
     <div
       v-if="selectedChat"
       class="relative z-50 flex h-16 w-full items-center justify-between gap-x-4 border-b border-b-chat-outline-variant bg-chat-background py-4 px-5 md:h-20"

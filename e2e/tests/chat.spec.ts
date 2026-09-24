@@ -24,6 +24,34 @@ test.describe("conversation list", () => {
     expect(await handlerCalls(page, "fetchConversations")).not.toHaveLength(0);
   });
 
+  test("shows a formatted time, not a raw date", async ({ page }) => {
+    // Every seeded last message is from today, so each row shows a time like "10:41".
+    for (const row of await page.getByTestId("chat-contact").all()) {
+      await expect(row).not.toContainText("GMT");
+      await expect(row).toContainText(/\d{1,2}:\d{2}/);
+    }
+  });
+
+  test("keeps its reset inside the chat", async ({ page }) => {
+    const layout = await page.evaluate(() => {
+      const host = document.createElement("h1");
+      host.textContent = "host heading";
+      document.body.append(host);
+      const style = getComputedStyle(host);
+      const panel = document.querySelector<HTMLElement>(".vue-chat")!;
+      return {
+        hostMargin: parseFloat(style.marginTop),
+        hostFontSize: parseFloat(style.fontSize),
+        chatBoxSizing: getComputedStyle(panel).boxSizing,
+      };
+    });
+    // Browser defaults survive outside the chat...
+    expect(layout.hostMargin).toBeGreaterThan(0);
+    expect(layout.hostFontSize).toBeGreaterThan(16);
+    // ...while the chat itself gets the reset it relies on.
+    expect(layout.chatBoxSizing).toBe("border-box");
+  });
+
   test("shows the empty placeholder until a conversation is picked", async ({
     page,
   }) => {

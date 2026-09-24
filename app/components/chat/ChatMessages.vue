@@ -1,5 +1,5 @@
 <template>
-  <div v-if="contact" class="relative w-full h-full overflow-hidden">
+  <div v-if="contact" class="vue-chat relative w-full h-full overflow-hidden">
     <FloatingDateHeader
       :label="floatingHeader"
       :opacity="scroll.headerOpacity.value"

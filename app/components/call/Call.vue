@@ -176,7 +176,7 @@ const clampedStyle = computed(() => {
     ref="minimizedRef"
     data-testid="call-pip"
     :style="clampedStyle"
-    class="fixed w-70 h-40 bg-black-600 rounded-2xl shadow-floating z-9999 overflow-hidden border border-white/10 flex flex-col items-center justify-center cursor-move touch-none"
+    class="vue-chat fixed w-70 h-40 bg-black-600 rounded-2xl shadow-floating z-9999 overflow-hidden border border-white/10 flex flex-col items-center justify-center cursor-move touch-none"
     :class="[!isDragging ? 'transition-all duration-300 ease-out' : '']"
   >
     <video
@@ -280,7 +280,7 @@ const clampedStyle = computed(() => {
   <div
     v-show="callStore.isActive && !callStore.isMinimized"
     data-testid="call-view"
-    class="fixed inset-0 z-[60] flex h-full w-full flex-col bg-diamond-black"
+    class="vue-chat fixed inset-0 z-[60] flex h-full w-full flex-col bg-diamond-black"
   >
     <!-- Header -->
     <div

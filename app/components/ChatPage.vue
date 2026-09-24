@@ -50,7 +50,7 @@ const showMessagingSection = computed(() => {
 </script>
 <template>
   <div
-    class="flex w-full h-full max-h-full overflow-hidden font-chat-family text-chat-base text-chat-on-background bg-chat-background"
+    class="vue-chat flex w-full h-full max-h-full overflow-hidden font-chat-family text-chat-base text-chat-on-background bg-chat-background"
   >
     <div v-if="showMessagingSection" class="h-full flex-1 relative">
       <!-- Each is forwarded only when filled, so ChatView's `$slots[...]` checks stay accurate. -->
