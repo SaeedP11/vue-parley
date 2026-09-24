@@ -4,7 +4,8 @@ import { openConversation, openHarness, type HarnessWindow } from "./helpers";
 
 // Two tabs in one browser context share a BroadcastChannel, which the harness uses as the call
 // signalling bus. Media comes from Chromium's fake camera/mic, and the peers connect directly
-// over host candidates (see e2e/harness/main.ts), so this exercises the real WebRTC path.
+// over host candidates (the fake handlers set iceTransportPolicy "all"), so this exercises the
+// real WebRTC path.
 
 async function startCall(page: Page) {
   await openConversation(page, "c1");
@@ -45,8 +46,9 @@ function published(page: Page) {
   );
 }
 
-// Two browsers negotiating WebRTC is slow when many run in parallel.
-test.describe.configure({ timeout: 120_000 });
+// Each test runs two browsers with live media: run them one after another in a single worker, so
+// they don't starve each other (or the chat tests running alongside).
+test.describe.configure({ mode: "default", timeout: 120_000 });
 
 test.describe("video call", () => {
   let alice: Page;
@@ -168,6 +170,57 @@ test.describe("video call", () => {
     await expect(alice.getByTestId("call-view")).toBeVisible();
     await expect(alice.getByTestId("call-pip")).toHaveCount(0);
     await expectPlayingVideo(alice.getByTestId("call-local-video"));
+  });
+
+  test("the call carries on while its view is unmounted", async () => {
+    await joinBoth(bob, alice);
+    await expect(alice.getByTestId("call-remote-video")).toHaveCount(1, {
+      timeout: 20_000,
+    });
+
+    const setRenderCall = (value: boolean) =>
+      bob.evaluate(
+        (v) => (window as unknown as HarnessWindow).__harness.setRenderCall(v),
+        value,
+      );
+
+    // Bob navigates away from the chat: his call view goes, the call must not.
+    await setRenderCall(false);
+    await expect(bob.getByTestId("call-view")).toHaveCount(0);
+    await alice.waitForTimeout(1_000);
+    await expect(alice.getByTestId("call-remote-video")).toHaveCount(1);
+    await expectPlayingVideo(alice.getByTestId("call-remote-video").locator("video"));
+
+    // Back again: the same call, still connected.
+    await setRenderCall(true);
+    await expect(bob.getByTestId("call-view")).toBeVisible();
+    await expectPlayingVideo(bob.getByTestId("call-local-video"));
+    await expectPlayingVideo(bob.getByTestId("call-remote-video").locator("video"));
+    await expect(bob.getByTestId("call-participants")).toContainText("2");
+  });
+
+  test("hanging up from picture-in-picture ends the call properly", async () => {
+    await joinBoth(bob, alice);
+    await expect(bob.getByTestId("call-remote-video")).toHaveCount(1, {
+      timeout: 20_000,
+    });
+    const stream = await alice
+      .getByTestId("call-local-video")
+      .evaluateHandle((el: HTMLVideoElement) => el.srcObject as MediaStream);
+
+    await alice.getByTestId("call-minimize").click();
+    await alice.getByTestId("call-pip-end").click();
+
+    await expect(alice.getByTestId("call-pip")).toHaveCount(0);
+    expect(await published(alice)).toContain("hangup");
+    expect(
+      await stream.evaluate((s) =>
+        s.getTracks().every((t) => t.readyState === "ended"),
+      ),
+    ).toBe(true);
+    await expect(bob.getByTestId("call-remote-video")).toHaveCount(0, {
+      timeout: 20_000,
+    });
   });
 
   test("hanging up tears the call down on both sides", async () => {

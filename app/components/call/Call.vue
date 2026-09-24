@@ -229,7 +229,8 @@ const clampedStyle = computed(() => {
 
         <div
           class="flex aspect-square w-9 cursor-pointer items-center justify-center rounded-full bg-diamond-error transition-all duration-200 ease-in-out hover:scale-110"
-          @click.stop="callStore.endCall"
+          data-testid="call-pip-end"
+          @click.stop="endCall"
         >
           <BIcon icon="PhPhoneX" class="h-4 w-4 fill-white" />
         </div>

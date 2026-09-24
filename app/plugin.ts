@@ -7,7 +7,7 @@ import type {
   MessagesHandlers,
   ProfileHandlers,
 } from "./types";
-import { CALL_HANDLERS } from "./provider/callProvider";
+import { useCallStore } from "./stores/callStore";
 import { useChatStore } from "./stores/chatStore";
 import { useMessagesStore } from "./stores/messageStores";
 import { useMediaStore } from "./stores/mediaStore";
@@ -25,7 +25,7 @@ export interface ChatOptions {
   media: MediaHandlers;
   /** Needed for the profile panel's media and files tabs. */
   profile?: ProfileHandlers;
-  /** Omit to leave calling out; `provideCallHandlers()` can still supply them per subtree. */
+  /** Omit to leave calling out; `provideCallHandlers()` can still supply them later. */
   call?: CallHandlers;
   /** The signed-in user. Can also be set later through `useProfileStore()`. */
   user?: ChatUser;
@@ -66,6 +66,9 @@ export function createChat(options: ChatOptions): Plugin {
           case useMediaStore.$id:
             store.setHandlers(options.media);
             break;
+          case useCallStore.$id:
+            if (options.call) store.setHandlers(options.call);
+            break;
           case useProfileStore.$id:
             if (options.profile) store.setHandlers(options.profile);
             if (options.user) {
@@ -77,7 +80,6 @@ export function createChat(options: ChatOptions): Plugin {
         }
       });
 
-      if (options.call) app.provide(CALL_HANDLERS, options.call);
     },
   };
 }

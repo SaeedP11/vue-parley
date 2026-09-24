@@ -126,7 +126,22 @@ export default defineNuxtPlugin((nuxtApp) => {
 
 - Gives each store its handlers when that store is first created (via a Pinia plugin, because some stores need a component's `setup` to start).
 - Sets the signed-in user on the profile store.
-- Provides the call handlers app-wide. For a single subtree, `provideCallHandlers()` in a component still works.
+- Hands the call handlers to the call store. `provideCallHandlers()` in a component does the same, for handlers that only exist further down the tree.
+
+### Calls outside the chat page
+
+A call belongs to the call store, not to a component, so it keeps running when the chat page unmounts. To keep it **on screen** while the user navigates, render the call view once near the app root and turn off the chat page's own:
+
+```vue
+<!-- App.vue -->
+<RouterView />
+<Call v-if="callStore.isActive" />
+
+<!-- the chat route -->
+<ChatPage :render-call="false" />
+```
+
+Call handlers also accept `iceTransportPolicy` (default `"relay"`; `"all"` allows direct connections without TURN) and `debug` (logs signalling to the console).
 
 Every component and directive the chat uses is imported by the component itself, so nothing else needs to be registered.
 

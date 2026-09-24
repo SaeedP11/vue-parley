@@ -42,6 +42,8 @@ export function useCallUi(opts: CallUiOptions) {
   onUnmounted(() => {
     inputEvents.forEach((e) => document.removeEventListener(e, resetControlsTimeout));
     clearTimeout(controlsTimeout);
+    // The call goes on; only this view lets go of its elements.
+    detachAll();
   });
 
   // --- Fullscreen: the whole call, or a single tile ---

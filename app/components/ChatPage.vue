@@ -11,6 +11,17 @@ import Call from "./call/Call.vue";
 import { computed, useSlots } from "vue";
 import type { Contact } from "~/types";
 
+const props = withDefaults(
+  defineProps<{
+    /**
+     * Render the call view here. Set to false and mount `<Call />` once near the app root to
+     * keep the call on screen while the user navigates away from the chat.
+     */
+    renderCall?: boolean;
+  }>(),
+  { renderCall: true },
+);
+
 defineSlots<{
   /** Replaces the "no conversation selected" placeholder. */
   empty?: () => unknown;
@@ -82,5 +93,5 @@ const showMessagingSection = computed(() => {
       <ChatList />
     </div>
   </div>
-  <Call v-if="callStore.channelId" />
+  <Call v-if="props.renderCall && callStore.channelId" />
 </template>
