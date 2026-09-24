@@ -7,6 +7,48 @@ import tailwindcss from "@tailwindcss/vite";
 import { resolve } from "node:path";
 import dts from "vite-plugin-dts";
 import { readFileSync } from "node:fs";
+import postcss, { type AtRule, type Plugin as PostcssPlugin } from "postcss";
+import type { Plugin } from "vite";
+
+const SCOPE = ":where(.vue-chat, .vue-chat *)";
+
+function scopeSelector(sel: string): string {
+  if (sel.includes(".vue-chat")) return sel;
+  if (sel === ":root" || sel === ":host") return ".vue-chat";
+  if (sel === ".dark") return ".dark .vue-chat";
+  const prefix = sel.match(/^(:where\(\.dark\)|\.dark)\s+/)?.[0] ?? sel.match(/^[a-zA-Z][\w-]*/)?.[0] ?? "";
+  return prefix + SCOPE + sel.slice(prefix.length);
+}
+
+// Confines chat.css to `.vue-chat` roots so its compiled utilities and theme cannot override the
+// host's own Tailwind (e.g. our `.hidden` beating the host's `lg:flex`).
+const scopeRules: PostcssPlugin = {
+  postcssPlugin: "scope-vue-chat",
+  Rule(rule) {
+    for (let p = rule.parent; p; p = p.parent) {
+      if (p.type !== "atrule") continue;
+      const { name, params } = p as AtRule;
+      if (name.endsWith("keyframes") || (name === "layer" && params === "properties")) return;
+    }
+    rule.selectors = [...new Set(rule.selectors.map(scopeSelector))];
+  },
+};
+
+function scopeChatCss(): Plugin {
+  return {
+    name: "scope-chat-css",
+    apply: "build",
+    generateBundle: {
+      order: "post",
+      handler(_, bundle) {
+        for (const asset of Object.values(bundle)) {
+          if (asset.type !== "asset" || !asset.fileName.endsWith(".css")) continue;
+          asset.source = postcss([scopeRules]).process(String(asset.source), { from: undefined }).css;
+        }
+      },
+    },
+  };
+}
 
 const pkg = JSON.parse(readFileSync(new URL("./package.json", import.meta.url), "utf8"));
 // Dependencies stay external: the host installs them anyway, and can dedupe and tree-shake them.
@@ -19,6 +61,7 @@ export default defineConfig({
   plugins: [
     vue(),
     tailwindcss(),
+    scopeChatCss(),
     AutoImport({
       imports: ["vue", "@vueuse/core"],
       dts: fileURLToPath(new URL("./auto-imports.d.ts", import.meta.url)),

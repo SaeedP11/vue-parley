@@ -56,7 +56,9 @@
     "@vueuse/core": "^14.2.1",
     "motion-v": "^2.3.0",
     "pinia": "^2.3.0",
+    "postcss": "^8.5.17",
     "rollup-plugin-visualizer": "^7.0.1",
+    "simple-peer": "^9.11.1",
     "tailwindcss": "4.3.2",
     "typescript": "^5.7.0",
     "unplugin-auto-import": "^0.18.0",
@@ -66,7 +68,6 @@
     "vite-plugin-node-polyfills": "^0.28.0",
     "vue": "^3.5.31",
     "vue-i18n": "^11.4.5",
-    "vue-tsc": "^2.2.0",
-    "simple-peer": "^9.11.1"
+    "vue-tsc": "^2.2.0"
   }
 }
