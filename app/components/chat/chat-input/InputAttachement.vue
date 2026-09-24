@@ -4,6 +4,7 @@
       <template #trigger>
         <BIcon
           icon="PhPaperclip"
+          data-testid="chat-attach"
           class="h-6 w-6 shrink-0 cursor-pointer fill-chat-on-background"
         />
       </template>
@@ -124,6 +125,8 @@
 </template>
 
 <script setup lang="ts">
+import vFilePick from "~/directives/filePicker";
+import vImagePick from "~/directives/imagePicker";
 import { ref, computed, watch } from "vue";
 import type { Menu } from "~/types/components/menu";
 import type { Popup } from "~/types/components/popup";

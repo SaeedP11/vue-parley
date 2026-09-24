@@ -174,6 +174,7 @@ const clampedStyle = computed(() => {
   <div
     v-if="callStore.isActive && callStore.isMinimized"
     ref="minimizedRef"
+    data-testid="call-pip"
     :style="clampedStyle"
     class="fixed w-70 h-40 bg-black-600 rounded-2xl shadow-floating z-9999 overflow-hidden border border-white/10 flex flex-col items-center justify-center cursor-move touch-none"
     :class="[!isDragging ? 'transition-all duration-300 ease-out' : '']"
@@ -267,6 +268,7 @@ const clampedStyle = computed(() => {
 
         <div
           class="flex aspect-square w-9 cursor-pointer items-center justify-center rounded-full bg-black/50 backdrop-blur-md transition-all duration-200 ease-in-out hover:scale-105 hover:bg-black/80"
+          data-testid="call-maximize"
           @click.stop="callStore.maximize()"
         >
           <BIcon icon="PhResize" class="h-4 w-4 fill-white" />
@@ -277,6 +279,7 @@ const clampedStyle = computed(() => {
 
   <div
     v-show="callStore.isActive && !callStore.isMinimized"
+    data-testid="call-view"
     class="fixed inset-0 z-[60] flex h-full w-full flex-col bg-diamond-black"
   >
     <!-- Header -->
@@ -293,7 +296,7 @@ const clampedStyle = computed(() => {
         </div>
         <div class="flex items-center gap-x-2 text-white text-body-sm">
           <BIcon icon="PhUsers" class="h-4 w-4 fill-white" />
-          <span
+          <span data-testid="call-participants"
             >{{ participantCount }}
             {{
               participantCount > 1 ? t("participants") : t("participant")
@@ -317,7 +320,8 @@ const clampedStyle = computed(() => {
         </div>
         <div
           class="flex aspect-square w-9 cursor-pointer items-center justify-center rounded-full bg-black-500 transition-all duration-200 ease-in-out sm:w-12"
-          @click="callStore.minimize"
+          data-testid="call-minimize"
+        @click="callStore.minimize"
         >
           <BIcon icon="PhCaretDown" class="h-4 w-4 fill-white sm:h-6 sm:w-6" />
         </div>
@@ -381,6 +385,7 @@ const clampedStyle = computed(() => {
         <div
           v-for="(stream, remoteUserId) in remoteVideos"
           :key="`remote-${remoteUserId}`"
+          data-testid="call-remote-video"
           :ref="
             (el) => (remoteParents[`remote_video_${remoteUserId}`] = el as any)
           "
@@ -436,6 +441,7 @@ const clampedStyle = computed(() => {
         <div
           v-for="(stream, remoteUserId) in remoteScreens"
           :key="`remote-screen-${remoteUserId}`"
+          data-testid="call-remote-screen"
           :ref="
             (el) => (remoteParents[`remote_screen_${remoteUserId}`] = el as any)
           "
@@ -506,6 +512,7 @@ const clampedStyle = computed(() => {
         >
           <video
             ref="localVideo"
+            data-testid="call-local-video"
             autoplay
             muted
             playsinline
@@ -576,6 +583,8 @@ const clampedStyle = computed(() => {
       <div
         class="flex aspect-square w-9 cursor-pointer items-center justify-center rounded-full transition-all duration-200 ease-in-out sm:w-12"
         :class="[isAudioOn ? 'bg-black-500' : 'bg-white']"
+        data-testid="call-toggle-audio"
+        :data-active="isAudioOn"
         @click="toggleAudio"
       >
         <BIcon
@@ -588,6 +597,8 @@ const clampedStyle = computed(() => {
       <div
         class="flex aspect-square w-9 cursor-pointer items-center justify-center rounded-full transition-all duration-200 ease-in-out sm:w-12"
         :class="[isVideoOn ? 'bg-black-500' : 'bg-white']"
+        data-testid="call-toggle-video"
+        :data-active="isVideoOn"
         @click="toggleVideo"
       >
         <BIcon
@@ -622,6 +633,8 @@ const clampedStyle = computed(() => {
       <div
         class="flex aspect-square w-9 cursor-pointer items-center justify-center rounded-full transition-all duration-200 ease-in-out sm:w-12"
         :class="[isScreenSharing ? 'bg-white' : 'bg-black-500']"
+        data-testid="call-toggle-screen"
+        :data-active="isScreenSharing"
         @click="toggleScreenShare"
       >
         <BIcon
@@ -656,6 +669,7 @@ const clampedStyle = computed(() => {
 
       <div
         class="flex aspect-square w-12 cursor-pointer items-center justify-center rounded-full bg-diamond-error sm:w-15"
+        data-testid="call-end"
         @click="endCall"
       >
         <BIcon icon="PhPhoneX" class="h-5 w-5 fill-white sm:h-7 sm:w-7" />

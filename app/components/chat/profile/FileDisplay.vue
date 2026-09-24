@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import vLoading from "~/directives/loading";
 import { ref, computed, onMounted } from "vue";
 import useLocalI18n from "~/composables/useLocalI18n";
 import { profileFileDisplay } from "@i18n/locales";

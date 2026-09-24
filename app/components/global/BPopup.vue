@@ -1,5 +1,4 @@
 <template>
-  <ClientOnly>
     <Teleport to="body">
       <div
         class="popup-el fixed flex w-dvw h-dvh z-9999 transition-all duration-300 ease-in-out"
@@ -68,7 +67,6 @@
         </div>
       </div>
     </Teleport>
-  </ClientOnly>
 </template>
 
 <script setup lang="ts">

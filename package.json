@@ -27,7 +27,10 @@
     "typecheck": "vue-tsc --noEmit -p tsconfig.typecheck.json",
     "dev": "vite build --watch",
     "demo": "vite --config demo/vite.config.ts",
-    "demo:build": "yarn build && vite --config demo/vite.dist.config.ts"
+    "demo:build": "yarn build && vite --config demo/vite.dist.config.ts",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:harness": "vite --config e2e/vite.config.ts"
   },
   "peerDependencies": {
     "@vueuse/core": "^11.0.0 || ^12.0.0 || ^13.0.0 || ^14.0.0",
@@ -47,12 +50,15 @@
     "vue3-lottie": "^3.3.1"
   },
   "devDependencies": {
+    "@playwright/test": "1.52.0",
+    "@tailwindcss/vite": "4.3.2",
     "@types/node": "^22.10.0",
     "@vitejs/plugin-vue": "^5.2.0",
     "@vueuse/core": "^14.2.1",
     "motion-v": "^2.3.0",
     "pinia": "^2.3.0",
     "rollup-plugin-visualizer": "^7.0.1",
+    "tailwindcss": "4.3.2",
     "typescript": "^5.7.0",
     "unplugin-auto-import": "^0.18.0",
     "unplugin-vue-components": "^32.1.0",

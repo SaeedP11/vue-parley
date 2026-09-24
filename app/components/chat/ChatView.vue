@@ -79,6 +79,7 @@
 </template>
 
 <script setup lang="ts">
+import { Vue3Lottie as LottieAnimation } from "vue3-lottie";
 import { computed, ref, nextTick, watch } from "vue";
 import PermissionPopup from "~/components/chat/chat-input/PermissionPopup.vue";
 import ChatProfileOverview from "~/components/chat/ChatProfileOverview.vue";

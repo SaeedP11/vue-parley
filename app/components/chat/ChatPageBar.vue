@@ -45,6 +45,7 @@
                 <BIcon
                   icon="PhPhone"
                   class="h-6 w-6 cursor-pointer fill-chat-on-background/50"
+                  data-testid="chat-start-call"
                   @click="initCall"
                   v-if="selectedChat.serviceType !== 'chat'"
                 />
@@ -119,6 +120,7 @@
 </template>
 
 <script setup lang="ts">
+import vLoading from "~/directives/loading";
 import { useMessagesStore } from "~/stores/messageStores.js";
 import ContactAvatar from "./contact/ContactAvatar.vue";
 import useLocalI18n from "~/composables/useLocalI18n";

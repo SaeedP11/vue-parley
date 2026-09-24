@@ -12,6 +12,7 @@ import BubbleDivider from "./chat-bubbles/BubbleDivider.vue";
 import BubbleImages from "./chat-bubbles/BubbleImages.vue";
 import BubbleSelectionMark from "./chat-bubbles/BubbleSelectionMark.vue";
 import BubbleStatus from "./chat-bubbles/BubbleStatus.vue";
+import ReplyPreview from "./chat-bubbles/ReplyPreview.vue";
 
 import { useMessagesStore } from "~/stores/messageStores.js";
 import { useLongPress } from "~/composables/useLongPress";
@@ -135,6 +136,8 @@ const longPress = useLongPress(handleRightClick);
 
 <template>
   <div
+    data-testid="chat-bubble"
+    :data-message-id="message.id"
     @contextmenu.prevent="handleRightClick"
     class="w-full transition-all duration-300 ease-in-out"
     :class="{

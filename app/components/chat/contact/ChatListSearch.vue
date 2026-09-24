@@ -44,10 +44,12 @@ watch(isOpen, async (val) => {
           <BIcon
             @click="toggleSearch"
             icon="PhMagnifyingGlass"
+            data-testid="chat-search-toggle"
             class="cursor-pointer w-5 h-5 fill-chat-on-background/50 shrink-0"
           />
           <input
             ref="inputRef"
+            data-testid="chat-search"
             v-model="model"
             :placeholder="t('search')"
             :class="[

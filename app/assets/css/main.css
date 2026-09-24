@@ -1,3 +1,10 @@
+/* Compiled into dist/chat.css, so hosts need no Tailwind of their own. Preflight (the global
+   reset) is left out on purpose: it would restyle the host page. */
+@layer theme, base, components, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+@source "../..";
+
 @import "./theme.css";
 @import "./components.css";
 

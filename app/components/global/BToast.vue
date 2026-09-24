@@ -1,6 +1,5 @@
 <template>
   <Teleport to="body">
-    <ClientOnly>
       <div
         class="pointer-events-none fixed bottom-0 z-10000 w-full max-w-dvw p-5 bg-transparent md:max-w-203"
         role="status"
@@ -46,7 +45,6 @@
           </div>
         </div>
       </div>
-    </ClientOnly>
   </Teleport>
 </template>
 

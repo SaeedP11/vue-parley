@@ -17,11 +17,12 @@ The package ships a single composed page component (`<ChatPage />`) plus the hos
 - [Usage](#usage-💡)
   - [Plain Vue + Vite](#plain-vue--vite)
   - [Nuxt 3 / 4](#nuxt-3--4)
-- [What `Chat.install` does](#what-chatinstall-does-✅)
+- [What `createChat()` does](#what-createchat-does-✅)
 - [i18n Keys](#i18n-keys-🌍)
 - [Styles](#styles-💅)
 - [Build](#build-🔧)
 - [Project Structure](#project-structure-📁)
+- [Testing](#testing-🧪)
 - [Contributing](#contributing-🤝)
 - [License](#license-📜)
 - [Important Links](#important-links-🔗)
@@ -67,79 +68,67 @@ yarn add vue vue-i18n pinia @vueuse/core
 
 ### Plain Vue + Vite
 
-Configure your `main.ts`:
+Install the plugin once in `main.ts`. Pinia and vue-i18n must be installed before it.
 
 ```ts
 // main.ts
 import { createApp } from 'vue';
 import { createPinia } from 'pinia';
 import { createI18n } from 'vue-i18n';
-import { BehayandChat, ChatPage } from '@yonus_amire01/chat';
+import { createChat } from '@yonus_amire01/chat';
 import '@yonus_amire01/chat/style.css';
-
 import App from './App.vue';
-// Required message keys — see "i18n keys" below.
-import faMessages from './locales/fa.json';
 
-const app = createApp(App);
-
-app.use(createPinia()); // Pinia must be installed BEFORE BehayandChat.
-app.use(
-  createI18n({
-    legacy: false,
-    locale: 'fa',
-    messages: { fa: faMessages },
-  }),
-);
-app.use(BehayandChat /* , { adapter: myAdapter } */);
-
-app.mount('#app');
+createApp(App)
+  .use(createPinia())
+  .use(createI18n({ legacy: false, locale: 'fa', fallbackLocale: 'en' }))
+  .use(
+    createChat({
+      chat: chatHandlers,         // ChatHandlers: fetch/delete/end conversations
+      messages: messagesHandlers, // MessagesHandlers: fetch/send/edit/delete messages
+      media: mediaHandlers,       // MediaHandlers: download files, file sizes
+      profile: profileHandlers,   // optional: profile panel's media and files tabs
+      call: callHandlers,         // optional: enables voice/video calls
+      user: { id: me.id, name: me.fullName },
+    }),
+  )
+  .mount('#app');
 ```
 
-Then, render the `<ChatPage />` component anywhere in your application:
+Then render `<ChatPage />` anywhere:
 
 ```vue
+<script setup lang="ts">
+import { ChatPage } from '@yonus_amire01/chat';
+</script>
+
 <template>
   <ChatPage />
 </template>
 ```
 
-If no `adapter` is provided, `createMockAdapter()` is used, allowing you to preview the UI without a backend.
-
-**Adapter Interface:**
-
-```ts
-import type { HostAdapter } from '@yonus_amire01/chat';
-
-const adapter: HostAdapter = {
-  chat: /* ChatAdapter */,
-  chatAction: /* ChatActionAdapter */,
-  service: /* ServiceAdapter */,
-  medication: /* MedicationAdapter */,
-};
-```
+All handler interfaces (`ChatHandlers`, `MessagesHandlers`, `MediaHandlers`, `ProfileHandlers`, `CallHandlers`) are exported as types. `e2e/harness/mocks.ts` has a complete in-memory implementation of each.
 
 ### Nuxt 3 / 4
 
-Create `app/plugins/behayand-chat.ts`:
+Create `app/plugins/chat.client.ts` (Pinia and i18n come from `@pinia/nuxt` and `@nuxtjs/i18n`):
 
 ```ts
-import { BehayandChat } from '@yonus_amire01/chat';
+import { createChat } from '@yonus_amire01/chat';
 import '@yonus_amire01/chat/style.css';
 
 export default defineNuxtPlugin((nuxtApp) => {
-  nuxtApp.vueApp.use(BehayandChat /* , { adapter } */);
+  nuxtApp.vueApp.use(createChat({ chat, messages, media, call, user }));
 });
 ```
 
-Pinia and i18n are managed by `@pinia/nuxt` and `@nuxtjs/i18n` modules, so manual installation is not required.
+## What `createChat()` does ✅
 
-## What `BehayandChat.install` does ✅
+- Gives each store its handlers when that store is first created (via a Pinia plugin, because some stores need a component's `setup` to start).
+- Sets the signed-in user on the profile store.
+- Provides the call handlers app-wide. For a single subtree, `provideCallHandlers()` in a component still works.
 
-- **Store Initialization:** Creates and registers the chat, chat-action, service, medication, and call stores, driven by the provided (or mock) adapter.
-- **Global Component Registration:** Automatically registers all components located in `components/global/*.vue` (e.g., `BButton`, `BLabel`, `BVirtualVerticalList`) within the Vue application. This ensures that components used internally by `<ChatPage />` are readily available.
-
-Note: You do not need to install PrimeVue, as this package does not rely on any of its components.
+Every component and directive the chat uses is imported by the component itself, so nothing else needs to be registered.
 
 ## i18n Keys 🌍
 
@@ -174,7 +163,7 @@ import '@yonus_amire01/chat/style.css';
 
 This import includes:
 
-- **Tailwind v4 Base & Utilities:** Scoped to the package's class usage.
+- **Compiled Tailwind v4 theme & utilities:** only the classes the package uses. The host needs no Tailwind of its own, and Tailwind's global reset (preflight) is not included, so the host page's styles are left alone.
 - **Theme Tokens:** Custom CSS variables for theming (e.g., `--color-primary-*`, `--color-surface`) and gradient utilities.
 - **Font Declarations:** `IranYekan` / `IranYekanFaNum` `@font-face` rules (woff files are bundled).
 - **Flag SVGs:** Bundled SVG assets for language flags (e.g., `fa`, `en`, `ar`).
@@ -248,53 +237,17 @@ This project provides a reusable Vue 3 chat component designed for integration i
 **Typical Integration Flow:**
 
 1. **Install Dependencies:** As outlined in the Installation section.
-2. **Initialize Plugin:** Use `BehayandChat.install()` in your Vue app's main entry point (`main.ts` or Nuxt plugin).
-3. **Provide Adapter:** Supply a `HostAdapter` implementation or rely on the mock adapter for development.
-4. **Render `<ChatPage />`:** Include the `<ChatPage />` component in your application's templates.
+2. **Install the plugin:** `app.use(createChat({ ... }))` after Pinia and vue-i18n (see Usage).
+3. **Render `<ChatPage />`**, or compose your own layout from the exported building blocks (`ChatList`, `ChatConversation`, `ChatHeader`, `ChatMessages`, `ChatInput`).
 
-**Example (from `demo/src/App.vue`):**
+## Testing 🧪
 
-```vue
-<script setup lang="ts">
-import {
-  ChatPage,
-  useChatStore,
-  useCallStore,
-  useMessagesStore,
-  useMediaStore,
-} from '../../dist';
+`pnpm test:e2e` runs the Playwright suite in `e2e/`: every chat feature against in-memory fake backends, plus real two-tab video calls using Chromium's fake camera and mic. Tests also fail if a template uses a component or directive nobody registered.
 
-// Mock handlers for demonstration
-import { createMockChatHelpers } from './mock/conversations';
-import { createMockMessagesHandlers } from './mock/messages';
-import { createMockMediaHandlers } from './mock/media';
+On NixOS, use the Nix-built browsers (the nixpkgs `playwright-driver` version must match `@playwright/test`):
 
-const chatStore = useChatStore();
-const messagesStore = useMessagesStore();
-const mediaStore = useMediaStore();
-const callStore = useCallStore();
-
-// Set up mock handlers
-chatStore.setHandlers(createMockChatHelpers());
-messagesStore.setHandlers(createMockMessagesHandlers());
-mediaStore.setHandlers(createMockMediaHandlers());
-
-// Example functions to control calls
-function startCall() { callStore.startCall('test-channel'); }
-function minimizeCall() { callStore.minimize(); }
-function maximizeCall() { callStore.maximize(); }
-</script>
-
-<template>
-  <!-- Call control buttons (for demo purposes) -->
-  <div style="padding: 4px; background: #ddd; display: flex; gap: 4px">
-    <button @click="startCall">Start call</button>
-    <button @click="minimizeCall">Minimize</button>
-    <button @click="maximizeCall">Maximize</button>
-  </div>
-  <!-- Render the main ChatPage component -->
-  <ChatPage />
-</template>
+```sh
+export PLAYWRIGHT_BROWSERS_PATH=$(nix build --no-link --print-out-paths nixpkgs#playwright-driver.browsers)
 ```
 
 ## Contributing 🤝

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import vLoading from "~/directives/loading";
 import profileBackground from "~/assets/lib-images/chat/profile-background.webp";
 import { useProfileStore } from "~/stores/profileStore.js";
 import ContactAvatar from "./contact/ContactAvatar.vue";

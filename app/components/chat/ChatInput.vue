@@ -38,6 +38,7 @@
         <div class="min-h-11 flex items-center w-full">
           <div
             ref="inputRef"
+            data-testid="chat-input"
             contenteditable="true"
             @keydown.enter.exact.prevent="handleEnterKey"
             @input="editor.handleContentInput"

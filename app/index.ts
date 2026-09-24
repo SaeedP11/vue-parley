@@ -40,6 +40,8 @@ export * from "./stores/mediaStore";
 export * from "./stores/profileStore";
 
 export { provideCallHandlers } from "./provider/callProvider";
+export { createChat } from "./plugin";
+export type { ChatOptions, ChatUser } from "./plugin";
 
 export {
   useChatStore,

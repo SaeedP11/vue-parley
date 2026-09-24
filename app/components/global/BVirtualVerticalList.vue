@@ -51,6 +51,7 @@
 </template>
 
 <script setup lang="ts" generic="T extends Record<string, any>">
+import { Vue3Lottie as LottieAnimation } from "vue3-lottie";
 import { ref, onMounted, onUnmounted } from "vue";
 import { useVirtualizer } from "@tanstack/vue-virtual";
 import loadingAnimation from "~/assets/lottie/loading.json";

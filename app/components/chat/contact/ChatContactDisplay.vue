@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import vLoading from "~/directives/loading";
 import SafeEmojiText from "~/components/general/SafeEmojiText.vue";
 import { useProfileStore } from "~/stores/profileStore.js";
 import useLocalI18n from "~/composables/useLocalI18n";
@@ -107,6 +108,8 @@ const lastMessageColor = computed(() => {
 </script>
 <template>
   <div
+    data-testid="chat-contact"
+    :data-contact-id="contact.id"
     @click="openChat"
     :class="[isActive ? 'bg-chat-surface' : 'bg-chat-surface/0']"
     class="rounded-xl w-full transition-all duration-200 ease-in-out cursor-pointer p-2.5 flex justify-between gap-x-3 items-center h-19"

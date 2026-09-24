@@ -1,0 +1,7 @@
+/* Deliberately no Tailwind here: the library's own CSS must be enough. */
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+}

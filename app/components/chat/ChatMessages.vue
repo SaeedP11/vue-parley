@@ -124,6 +124,7 @@
 </template>
 
 <script setup lang="ts">
+import { Vue3Lottie as LottieAnimation } from "vue3-lottie";
 import { ref, computed, watch, nextTick, onBeforeUnmount } from "vue";
 import useLocalI18n from "~/composables/useLocalI18n";
 import { chat, chatMessages } from "@i18n/locales";

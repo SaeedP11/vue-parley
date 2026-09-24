@@ -542,7 +542,23 @@ export default function useCall() {
           } as CallMessageSchema),
         );
 
-        _addPeer(fromId, shouldBeInitiator(fromId), message.payload.name);
+        const isNew = !peers.value[fromId] && !pendingPeerRequests.value[fromId];
+        const initiator = shouldBeInitiator(fromId);
+        _addPeer(fromId, initiator, message.payload.name);
+
+        // Only whoever is already in the call hears a newcomer's join. If the newcomer has to
+        // make the offer, it doesn't know about us yet, so announce ourselves back to it.
+        if (isNew && !initiator) {
+          publisher(
+            JSON.stringify({
+              type: CallMessageType.Join,
+              payload: {
+                from: userId.value,
+                name: `${profileStore.userName ?? ""}`,
+              },
+            } as CallMessageSchema),
+          );
+        }
       } else if (message.type === CallMessageType.TrackType) {
         console.log(
           "[useCall] TrackType from",
