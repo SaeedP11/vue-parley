@@ -26,6 +26,7 @@ const isActive = computed(
 );
 
 const isLoading = computed(() => props.loading);
+const unreadCount = computed(() => props.contact.unreadCount ?? 0);
 
 const openChat = () => {
   chatStore.setSelectedChat(props.contact.id);
@@ -100,7 +101,7 @@ const lastMessageColor = computed(() => {
   if ((!msg.text && msg.type !== "text") || msg.request)
     return "text-chat-primary font-medium";
 
-  if (props.contact.unreadCount > 0)
+  if (unreadCount.value > 0)
     return "text-chat-on-background font-medium";
 
   return "text-chat-on-background/50";
@@ -181,11 +182,11 @@ const lastMessageColor = computed(() => {
         <div class="h-full flex items-center shrink-0 ms-2">
           <div
             v-loading="isLoading"
-            v-if="contact.unreadCount > 0"
+            v-if="unreadCount > 0"
             class="rounded-full justify-center min-w-6 px-1.5 h-5 flex bg-gradient-error items-center select-none"
           >
             <div dir="ltr" class="text-white text-[10px] font-bold text-center">
-              {{ contact.unreadCount > 99 ? "+99" : contact.unreadCount }}
+              {{ unreadCount > 99 ? "+99" : unreadCount }}
             </div>
           </div>
         </div>

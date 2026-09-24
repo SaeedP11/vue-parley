@@ -56,7 +56,7 @@ export function useChatMessageList(chatId: ComputedRef<string | null>) {
         prevMessage: prev,
         nextMessage: next,
         isFirstInDate,
-        contact,
+        contact: contact ?? undefined,
       };
       enrichedCache.set(msg, value);
       enriched[raw.length - 1 - idx] = value;

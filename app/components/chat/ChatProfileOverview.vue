@@ -44,11 +44,11 @@ const currentTab = ref(0);
 
 const mediaAttachements = computed<string[]>(
   () =>
-    (conversationId.value && profileStore.mediaMap[conversationId.value]) ?? [],
+    (conversationId.value && profileStore.mediaMap[conversationId.value]) || [],
 );
 const fileAttachements = computed<string[]>(
   () =>
-    (conversationId.value && profileStore.filesMap[conversationId.value]) ?? [],
+    (conversationId.value && profileStore.filesMap[conversationId.value]) || [],
 );
 const isLoadingMedia = computed(() => profileStore.mediaLoading);
 const isLoadingAttachements = computed(() => profileStore.filesLoading);

@@ -2,26 +2,13 @@ import { createApp } from "vue";
 import { createPinia } from "pinia";
 import { createI18n } from "vue-i18n";
 import { createChat } from "~/index";
-import {
-  ME,
-  MY_NAME,
-  createChatHandlers,
-  createMediaHandlers,
-  createMessagesHandlers,
-  createProfileHandlers,
-} from "./mocks";
-import { call } from "./calls";
+import { allowDirectPeerConnections } from "../../fakes/call";
+import { ME, MY_NAME, backend, call } from "./backend";
 import App from "./App.vue";
 import "./style.css";
 
-// The library forces `iceTransportPolicy: "relay"` through a TURN server. The test browser has
-// none, so let the two tabs connect directly over host candidates instead.
-const NativePC = window.RTCPeerConnection;
-window.RTCPeerConnection = class extends NativePC {
-  constructor(config?: RTCConfiguration) {
-    super({ ...config, iceServers: [], iceTransportPolicy: "all" });
-  }
-} as typeof RTCPeerConnection;
+// No TURN server in tests: the two tabs connect directly.
+allowDirectPeerConnections();
 
 const i18n = createI18n({
   legacy: false,
@@ -30,20 +17,18 @@ const i18n = createI18n({
   messages: {},
 });
 
-
 // Set up the way a host app would.
-const app = createApp(App)
+createApp(App)
   .use(createPinia())
   .use(i18n)
   .use(
     createChat({
-      chat: createChatHandlers(),
-      messages: createMessagesHandlers(),
-      media: createMediaHandlers(),
-      profile: createProfileHandlers(),
+      chat: backend.chat,
+      messages: backend.messages,
+      media: backend.media,
+      profile: backend.profile,
       call,
       user: { id: ME, name: MY_NAME },
     }),
-  );
-
-app.mount("#app");
+  )
+  .mount("#app");

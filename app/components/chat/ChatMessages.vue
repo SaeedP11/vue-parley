@@ -339,7 +339,7 @@ watch(
   () => chatId.value,
   (newId, oldId) => {
     if (newId && newId !== oldId) {
-      messagesStore.markAsRead(chatId.value);
+      messagesStore.markAsRead(newId);
       if (scrollContainer.value) scrollContainer.value.scrollTop = 0;
       msgList.fetchMessages(1);
     }

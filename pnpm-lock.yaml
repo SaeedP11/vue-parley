@@ -45,6 +45,9 @@ importers:
       '@types/node':
         specifier: ^22.10.0
         version: 22.19.21
+      '@types/simple-peer':
+        specifier: ^9.11.9
+        version: 9.11.9
       '@vitejs/plugin-vue':
         specifier: ^5.2.0
         version: 5.2.4(vite@6.4.3(@types/node@22.19.21)(jiti@2.7.0)(lightningcss@1.32.0))(vue@3.5.38(typescript@5.9.3))
@@ -93,9 +96,6 @@ importers:
 
   demo:
     dependencies:
-      '@tailwindcss/vite':
-        specifier: ^4.3.2
-        version: 4.3.2(vite@8.1.4(@types/node@24.13.3)(esbuild@0.25.12)(jiti@2.7.0))
       '@vueuse/core':
         specifier: ^14.2.1
         version: 14.3.0(vue@3.5.39(typescript@6.0.3))
@@ -105,9 +105,6 @@ importers:
       pinia:
         specifier: ^2.3.0
         version: 2.3.1(typescript@6.0.3)(vue@3.5.39(typescript@6.0.3))
-      tailwindcss:
-        specifier: ^4.3.2
-        version: 4.3.2
       vue:
         specifier: ^3.5.39
         version: 3.5.39(typescript@6.0.3)
@@ -790,6 +787,9 @@ packages:
 
   '@types/node@24.13.3':
     resolution: {integrity: sha512-Dh8vAsV36ig5wa9OX4pXvMc9D3Veibfw2wix0CUwYODLD8nkj9UsLjASr49nPg+2eKzxhBV+v7L8pXvT4e639Q==}
+
+  '@types/simple-peer@9.11.9':
+    resolution: {integrity: sha512-6Gdl7TSS5oh9nuwKD4Pl8cSmaxWycYeZz9HLnJBNvIwWjZuGVsmHe9RwW3+9RxfhC1aIR9Z83DvaJoMw6rhkbg==}
 
   '@types/web-bluetooth@0.0.21':
     resolution: {integrity: sha512-oIQLCGWtcFZy2JW77j9k8nHzAOpqMHLQejDA48XXMWH6tjCQHz5RCFz1bzsmROyL6PUm+LLnUiI4BCn221inxA==}
@@ -2769,13 +2769,6 @@ snapshots:
       tailwindcss: 4.3.2
       vite: 6.4.3(@types/node@22.19.21)(jiti@2.7.0)(lightningcss@1.32.0)
 
-  '@tailwindcss/vite@4.3.2(vite@8.1.4(@types/node@24.13.3)(esbuild@0.25.12)(jiti@2.7.0))':
-    dependencies:
-      '@tailwindcss/node': 4.3.2
-      '@tailwindcss/oxide': 4.3.2
-      tailwindcss: 4.3.2
-      vite: 8.1.4(@types/node@24.13.3)(esbuild@0.25.12)(jiti@2.7.0)
-
   '@tanstack/virtual-core@3.17.1': {}
 
   '@tanstack/vue-virtual@3.13.29(vue@3.5.38(typescript@5.9.3))':
@@ -2799,6 +2792,10 @@ snapshots:
   '@types/node@24.13.3':
     dependencies:
       undici-types: 7.18.2
+
+  '@types/simple-peer@9.11.9':
+    dependencies:
+      '@types/node': 24.13.3
 
   '@types/web-bluetooth@0.0.21': {}
 

@@ -5,8 +5,7 @@
     "moduleResolution": "Bundler",
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "jsx": "preserve",
-    "strict": false,
-    "noImplicitAny": false,
+    "strict": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "skipLibCheck": true,
@@ -31,5 +30,11 @@
     "i18n/**/*.ts",
     "auto-imports.d.ts"
   ],
-  "exclude": ["node_modules", "dist", "app/components/call2"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    "app/components/call2",
+    // Unused, and written against call-store fields that no longer exist.
+    "app/components/call/paint-board"
+  ]
 }

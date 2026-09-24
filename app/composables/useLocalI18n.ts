@@ -1,8 +1,8 @@
 import { useI18n } from "vue-i18n";
 import { computed } from "vue";
 
-function mergeLocaleObjects(objects) {
-  return objects.reduce((result, obj: Record<string, any>) => {
+function mergeLocaleObjects(objects: Record<string, any>[]) {
+  return objects.reduce<Record<string, any>>((result, obj) => {
     for (const [key, value] of Object.entries(obj)) {
       result[key] = {
         ...(result[key] || {}),

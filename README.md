@@ -107,7 +107,7 @@ import { ChatPage } from '@yonus_amire01/chat';
 </template>
 ```
 
-All handler interfaces (`ChatHandlers`, `MessagesHandlers`, `MediaHandlers`, `ProfileHandlers`, `CallHandlers`) are exported as types. `e2e/harness/mocks.ts` has a complete in-memory implementation of each.
+All handler interfaces (`ChatHandlers`, `MessagesHandlers`, `MediaHandlers`, `ProfileHandlers`, `CallHandlers`) are exported as types. `fakes/` has an in-memory implementation of each (used by the demo and the e2e tests): `createFakeBackend(data)`, and `createBroadcastCallHandlers()`, which lets two browser tabs call each other with no server.
 
 ### Nuxt 3 / 4
 
@@ -241,6 +241,9 @@ This project provides a reusable Vue 3 chat component designed for integration i
 3. **Render `<ChatPage />`**, or compose your own layout from the exported building blocks (`ChatList`, `ChatConversation`, `ChatHeader`, `ChatMessages`, `ChatInput`).
 
 ## Testing 🧪
+
+The demo (`pnpm demo:build`) runs on the same fakes with a seeded Persian dataset. Open it in two tabs with different `?user=` values and start a call in both to try video calling.
+
 
 `pnpm test:e2e` runs the Playwright suite in `e2e/`: every chat feature against in-memory fake backends, plus real two-tab video calls using Chromium's fake camera and mic. Tests also fail if a template uses a component or directive nobody registered.
 

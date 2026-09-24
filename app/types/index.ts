@@ -1,4 +1,14 @@
-import type { SignalData } from "simple-peer";
+/**
+ * A WebRTC signalling payload: an SDP offer/answer or an ICE candidate. Mirrors simple-peer's
+ * `SignalData`, declared here so the public types don't depend on @types/simple-peer.
+ */
+export interface SignalData {
+  type?: "transceiverRequest" | "renegotiate" | "candidate" | RTCSdpType;
+  sdp?: string;
+  candidate?: RTCIceCandidateInit;
+  renegotiate?: boolean;
+  transceiverRequest?: { kind: string; init?: RTCRtpTransceiverInit };
+}
 
 export type ThemeMode = "light" | "dark";
 
@@ -203,19 +213,22 @@ export interface ProfileHandlers {
   ): Promise<ProfileAttachmentsPage>;
 }
 
-export const enum CallMessageType {
-  Signal = "signal",
-  Join = "join",
-  TrackType = "track_type",
-  Call = "call",
-  Hangup = "hangup",
-}
+// A plain object rather than a `const enum`, which consumers compiling with isolatedModules or
+// erasableSyntaxOnly can't use from a .d.ts.
+export const CallMessageType = {
+  Signal: "signal",
+  Join: "join",
+  TrackType: "track_type",
+  Call: "call",
+  Hangup: "hangup",
+} as const;
+export type CallMessageType = (typeof CallMessageType)[keyof typeof CallMessageType];
 
 export type TrackType = "webcam" | "screen" | "audio" | "webcam_audio";
 
 export type CallMessageSchema =
   | {
-      type: CallMessageType.Signal;
+      type: typeof CallMessageType.Signal;
       payload: {
         signal: SignalData & { sdp: string };
         from: string;
@@ -224,21 +237,21 @@ export type CallMessageSchema =
       };
     }
   | {
-      type: CallMessageType.Join;
+      type: typeof CallMessageType.Join;
       payload: {
         from: string;
         name: string;
       };
     }
   | {
-      type: CallMessageType.TrackType;
+      type: typeof CallMessageType.TrackType;
       payload: {
         from: string;
         types: { id: string; type: TrackType }[];
       };
     }
   | {
-      type: CallMessageType.Call;
+      type: typeof CallMessageType.Call;
       payload: {
         from: string;
         name: string;
@@ -247,7 +260,7 @@ export type CallMessageSchema =
       };
     }
   | {
-      type: CallMessageType.Hangup;
+      type: typeof CallMessageType.Hangup;
       payload: {
         from: string;
         channel: string;

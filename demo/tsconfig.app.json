@@ -4,6 +4,8 @@
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
     "types": ["vite/client"],
     "allowArbitraryExtensions": true,
+    // One Vue for both the demo and the workspace-linked package (see vite.config.ts).
+    "paths": { "vue": ["./node_modules/vue"] },
 
     /* Linting */
     "noUnusedLocals": true,
@@ -11,5 +13,5 @@
     "erasableSyntaxOnly": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.vue"]
+  "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.vue", "../fakes/**/*.ts"]
 }

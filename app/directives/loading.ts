@@ -19,7 +19,7 @@ const transitionClasses = ["!transition-all", "!duration-300", "!ease-in-out"];
 const loadingDirective: Directive & {
   getSSRProps?: (binding: DirectiveBinding) => Record<string, string>;
 } = {
-  getSSRProps(binding: DirectiveBinding) {
+  getSSRProps(binding: DirectiveBinding): Record<string, string> {
     if (binding.value) {
       return {
         class: coreClasses.join(" "),

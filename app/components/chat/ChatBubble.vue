@@ -209,14 +209,14 @@ const longPress = useLongPress(handleRightClick);
                   <FileDisplay
                     v-else-if="messageType === 'file'"
                     :is-mine="isMine"
-                    :url="message.fileUrl"
+                    :url="message.fileUrl ?? ''"
                     :file-name="message.fileName"
                     :message-id="message.id"
                     :is-sent="message.isSent"
                   />
                   <VoiceDisplay
                     v-else-if="messageType === 'voice'"
-                    :url="message.voiceUrl"
+                    :url="message.voiceUrl ?? ''"
                     :message-id="message.id"
                     :is-sent="message.isSent"
                   />

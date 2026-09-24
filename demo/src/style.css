@@ -1,8 +1,8 @@
-@import "tailwindcss";
-@import "../../dist/chat.css";
-@source "../../dist";
+/* The package ships its own compiled styles; no Tailwind needed. */
+@import "@yonus_amire01/chat/style.css";
 
 body,
 #app {
-  height: 100vh !important;
+  height: 100vh;
+  margin: 0;
 }

@@ -9,11 +9,9 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@tailwindcss/vite": "^4.3.2",
     "@vueuse/core": "^14.2.1",
     "@yonus_amire01/chat": "workspace:*",
     "pinia": "^2.3.0",
-    "tailwindcss": "^4.3.2",
     "vue": "^3.5.39",
     "vue-i18n": "^9.14.4"
   },

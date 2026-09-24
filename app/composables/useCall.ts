@@ -504,26 +504,24 @@ export default function useCall() {
           "peer exists:",
           !!peers.value[fromId],
         );
-        if (peers.value[fromId]) {
+        const signal = message.payload.signal as Peer.SignalData;
+        let peer: Peer.Instance | undefined = peers.value[fromId];
+        if (!peer) {
+          await nextTick();
+          _addPeer(fromId, shouldBeInitiator(fromId), message.payload.name);
+          peer = peers.value[fromId];
+        }
+        if (peer) {
           connectionData.value[fromId] = {
             signal: message.payload.signal.sdp,
           };
-          peers.value[fromId].signal(message.payload.signal);
+          peer.signal(signal);
         } else {
-          await nextTick();
-          _addPeer(fromId, shouldBeInitiator(fromId), message.payload.name);
-          if (peers.value[fromId]) {
-            connectionData.value[fromId] = {
-              signal: message.payload.signal.sdp,
-            };
-            peers.value[fromId].signal(message.payload.signal);
-          } else {
-            console.log(
-              "[useCall] Peer still deferred, storing pending signal for",
-              fromId,
-            );
-            pendingSignals.value[fromId] = message.payload.signal;
-          }
+          console.log(
+            "[useCall] Peer still deferred, storing pending signal for",
+            fromId,
+          );
+          pendingSignals.value[fromId] = signal;
         }
       } else if (message.type === CallMessageType.Join) {
         console.log(
