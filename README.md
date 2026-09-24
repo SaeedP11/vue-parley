@@ -22,6 +22,7 @@ The package ships a single composed page component (`<ChatPage />`) plus the hos
 - [Styles](#styles-💅)
 - [Build](#build-🔧)
 - [Project Structure](#project-structure-📁)
+- [Upgrading from 2.x](#upgrading-from-2x-️)
 - [Testing](#testing-🧪)
 - [Contributing](#contributing-🤝)
 - [License](#license-📜)
@@ -258,6 +259,21 @@ This project provides a reusable Vue 3 chat component designed for integration i
 1. **Install Dependencies:** As outlined in the Installation section.
 2. **Install the plugin:** `app.use(createChat({ ... }))` after Pinia and vue-i18n (see Usage).
 3. **Render `<ChatPage />`**, or compose your own layout from the exported building blocks (`ChatList`, `ChatConversation`, `ChatHeader`, `ChatMessages`, `ChatInput`).
+
+## Upgrading from 2.x ⬆️
+
+3.0 needs no new setup, but a few things behave differently:
+
+- **Contacts.** `chatStore.conversationStates` is now a read-only view. Add a conversation no list page has fetched with `chatStore.addContact(contact)` and change one with `chatStore.updateContact(id, changes)`; writing to `conversationStates[...].data` warns in development and has no effect.
+- **Calls.** The running call lives in `callStore.session`, not in the call view. `callStore.endCall()` now also tells the other side (publishes `hangup`) and releases camera and mic. The exported `Call` is an async component; render it while `callStore.session` is set.
+- **WebRTC.** `simple-peer` is gone; calls use the browser API directly. Signalling messages keep the old format, so 2.x tabs and 3.0 tabs can call each other during a rollout. Hosts can drop `simple-peer` and `@types/simple-peer`; `SignalData` is exported by this package.
+- **Styles.** `style.css` is compiled: hosts need no Tailwind of their own, and a Tailwind `@source` pointing at this package can go. Tailwind's reset applies only inside `.vue-chat`.
+- **Registration.** Components import their own directives (`v-file-pick`, `v-image-pick`, `v-loading`) and components (`LottieAnimation`, `UploadProgressOverlay`). Host shims for them are no longer needed.
+- **Package layout.** Dependencies are no longer bundled (they install with the package), and `dist/` has lazy `chunks/`.
+- **Removed defaults.** `chatStore.currentUserBirthDate` defaults to `null`; it and `chosenRole` are deprecated.
+- **Media cache.** The IndexedDB cache format changed and is cleared once; it is now capped at 200 MB.
+
+The recommended setup is now `app.use(createChat({ ... }))` (see Usage); the per-store `setHandlers()` calls and `provideCallHandlers()` keep working.
 
 ## Testing 🧪
 

@@ -1,6 +1,6 @@
 {
   "name": "@yonus_amire01/chat",
-  "version": "2.8.0",
+  "version": "3.0.0",
   "type": "module",
   "description": "Reusable Vue 3 chat dashboard component extracted from the Behayand frontend.",
   "license": "UNLICENSED",
