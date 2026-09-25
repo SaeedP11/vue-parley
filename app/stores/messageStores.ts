@@ -348,8 +348,11 @@ export const useMessagesStore = defineStore("messages-store", () => {
       });
 
       const existing = messagesMap.value[conversationId] ?? [];
+      // Pages count back from the newest message, so each one sent or received shifts them: an
+      // older page can repeat messages already shown.
+      const known = new Set(existing.map((m) => m.id));
       messagesMap.value[conversationId] =
-        page === 1 ? batch : [...batch, ...existing];
+        page === 1 ? batch : [...batch.filter((m) => !known.has(m.id)), ...existing];
       messagesPage.value[conversationId] = page;
       messagesHasNextPage.value[conversationId] = batch.length === pageSize;
     } finally {

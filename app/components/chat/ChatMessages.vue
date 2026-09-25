@@ -160,8 +160,9 @@ const modal = ref<Modal | null>(null);
 const chatStore = useChatStore();
 const callStore = useCallStore();
 const messagesStore = useMessagesStore();
-const { t } = useLocalI18n(chatMessages);
-const { t: tChat } = useLocalI18n(chat);
+// One call: a component gets a single local scope, so a second useLocalI18n() would return the
+// first one's messages.
+const { t } = useLocalI18n(chatMessages, chat);
 const { openToast } = useAppToast();
 const { formatDateShort } = useDate();
 const profileStore = useProfileStore();
@@ -313,7 +314,7 @@ const handleModalConfirm = () => {
     messagesStore.confirmDelete(ids).catch(async () => {
       await removed;
       if (conversationId) messagesStore.restoreMessages(conversationId, snapshot);
-      openToast(tChat("chat.deleteFailed"), "error");
+      openToast(t("chat.deleteFailed"), "error");
     });
   }
 };

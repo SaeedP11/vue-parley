@@ -30,8 +30,8 @@
           />
         </div>
         <div class="min-h-0 w-full flex-1 overflow-hidden">
+          <!-- Renders nothing without a contact, so no v-show: it can't apply to an empty root. -->
           <ChatMessages
-            v-show="selectedChat"
             :contact="selectedChat"
             :options="medicOptions"
           />
