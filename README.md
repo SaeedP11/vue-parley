@@ -1,75 +1,44 @@
-# Vue Chat 🚀
+# @yonus_amire01/chat
 
-Reusable Vue 3 chat component designed for integration into modern web applications.
+A drop-in Vue 3 chat and video-call UI. You supply the backend through a few handler objects; the package brings the screens, the state (Pinia stores), the translations and the styles.
 
-The package ships a single composed page component (`<ChatPage />`) plus the host-adapter wiring needed to drive it.
+- Contact list with search, filters and infinite scroll
+- Virtualised message list with text, image, file, voice and video messages, replies, edits, deletes, drafts and retries on failed sends
+- Voice and video calls with screen sharing over plain browser WebRTC
+- English and Persian translations built in, with RTL layout for `fa` and `ar`
+- Precompiled, scoped CSS: no Tailwind needed in the host, and no leaks into the host's styles
 
-[![MIT License](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![Vue.js Version](https://img.shields.io/badge/Vue.js-^3.5.0-brightgreen)](https://vuejs.org/)
-[![TypeScript Version](https://img.shields.io/badge/TypeScript-^5.7.0-blue)](https://www.typescriptlang.org/)
-[![Tailwind CSS Version](https://img.shields.io/badge/Tailwind%20CSS-^4.3.2-cyan)](https://tailwindcss.com/)
+## Contents
 
-## Table of Contents 📑
-
-- [Features](#features-🌟)
-- [Tech Stack](#tech-stack-🛠️)
-- [Installation](#installation--)
-- [Usage](#usage-💡)
+- [Installation](#installation)
+- [Usage](#usage)
   - [Plain Vue + Vite](#plain-vue--vite)
   - [Nuxt 3 / 4](#nuxt-3--4)
-- [What `createChat()` does](#what-createchat-does-✅)
-- [i18n Keys](#i18n-keys-🌍)
-- [Styles](#styles-💅)
-- [Build](#build-🔧)
-- [Project Structure](#project-structure-📁)
-- [Upgrading from 2.x](#upgrading-from-2x-️)
-- [Testing](#testing-🧪)
-- [Contributing](#contributing-🤝)
-- [License](#license-📜)
-- [Important Links](#important-links-🔗)
-- [Footer](#footer-✨)
+  - [Customising the page](#customising-the-page)
+  - [Calls outside the chat page](#calls-outside-the-chat-page)
+- [What `createChat()` does](#what-createchat-does)
+- [Exports](#exports)
+- [Translations](#translations)
+- [Styles](#styles)
+- [Upgrading from 2.x](#upgrading-from-2x)
+- [Development](#development)
+- [License](#license)
 
-## Features 🌟
-
-- **Reusable Chat Component:** Provides a complete chat UI out-of-the-box.
-- **Vue 3 Composition API:** Leverages modern Vue features for better organization and reactivity.
-- **Real-time Communication:** Supports WebRTC for video calls and screen sharing.
-- **Internationalization (i18n):** Built with `vue-i18n` for multi-language support.
-- **State Management:** Integrates with Pinia for robust state management.
-- **Styling:** Utilizes Tailwind CSS for utility-first styling and theming.
-- **Customizable Adapters:** Allows integration with custom backend services.
-- **Mock Adapter:** Enables UI preview without a backend connection.
-- **Rich Text Editor:** Includes a rich text input with emoji support.
-- **File Uploads:** Supports uploading various file types.
-- **Image Cropping:** Integrated with `vue-advanced-cropper`.
-- **Animations:** Includes `vue3-lottie` for animations.
-
-## Tech Stack 🛠️
-
-| Category        | Technologies                                                                                                                                                                                           | Description                                                                     |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------- |
-| **Frontend**    | Vue.js 3, TypeScript, Vite, Pinia, Vue Router (implied), Vue I18n, VueUse, Tailwind CSS                                                                                                                    | Core technologies for building the reactive UI and component library.           |
-| **APIs/Protocols** | WebRTC, `simple-peer`                                                                                                                                                                                     | For real-time peer-to-peer communication (video calls, screen sharing).         |
-| **Utilities**   | `nanoid` (unique IDs), `signature_pad` (signatures), `vue3-emoji-picker` (emojis), `@phosphor-icons/vue` (icons), `@tanstack/vue-virtual` (virtual scrolling)                                             | Various utilities for enhanced functionality.                                   |
-| **Build Tools** | Vite, Vue-TS, Rollup (via Vite)                                                                                                                                                                          | For development, building, and type checking.                                   |
-| **Other**       | Node.js (runtime), YAML (configuration)                                                                                                                                                                  | Environment and configuration languages.                                        |
-
-## Installation 📦
-
-Install the package and its peer dependencies:
+## Installation
 
 ```bash
-yarn add @yonus_amire01/chat
-
-# Install peer dependencies
-yarn add vue vue-i18n pinia @vueuse/core
+pnpm add @yonus_amire01/chat
+# peer dependencies, if the app doesn't have them yet
+pnpm add vue vue-i18n pinia @vueuse/core
 ```
 
-## Usage 💡
+npm and yarn work the same way. Peer ranges: `vue` ^3.5, `pinia` 2 or 3, `vue-i18n` 9 to 11, `@vueuse/core` 11 to 14.
+
+## Usage
 
 ### Plain Vue + Vite
 
-Install the plugin once in `main.ts`. Pinia and vue-i18n must be installed before it.
+Install the plugin once in `main.ts`. Pinia and vue-i18n (with `legacy: false`) must be installed before it.
 
 ```ts
 // main.ts
@@ -108,7 +77,7 @@ import { ChatPage } from '@yonus_amire01/chat';
 </template>
 ```
 
-All handler interfaces (`ChatHandlers`, `MessagesHandlers`, `MediaHandlers`, `ProfileHandlers`, `CallHandlers`) are exported as types. `fakes/` has an in-memory implementation of each (used by the demo and the e2e tests): `createFakeBackend(data)`, and `createBroadcastCallHandlers()`, which lets two browser tabs call each other with no server.
+All handler interfaces (`ChatHandlers`, `MessagesHandlers`, `MediaHandlers`, `ProfileHandlers`, `CallHandlers`) are exported as types. The repository's `fakes/` folder has an in-memory implementation of each, used by the demo and the e2e tests: `createFakeBackend(data)`, and `createBroadcastCallHandlers()`, which lets two browser tabs call each other with no server. `fakes/` is not part of the published package.
 
 ### Nuxt 3 / 4
 
@@ -123,11 +92,18 @@ export default defineNuxtPlugin((nuxtApp) => {
 });
 ```
 
-## What `createChat()` does ✅
+### Customising the page
 
-- Gives each store its handlers when that store is first created (via a Pinia plugin, because some stores need a component's `setup` to start).
-- Sets the signed-in user on the profile store.
-- Hands the call handlers to the call store. `provideCallHandlers()` in a component does the same, for handlers that only exist further down the tree.
+`<ChatPage />` has four slots:
+
+| Slot               | Where                                              | Slot props                      |
+| ------------------ | -------------------------------------------------- | ------------------------------- |
+| `empty`            | Replaces the "no conversation selected" placeholder | none                            |
+| `header-actions`   | Conversation header, beside the call button        | `{ contact }`                   |
+| `conversation-top` | Between the header and the messages                | `{ conversationId, contact }`   |
+| `above-input`      | Above the input, while the conversation is active  | `{ conversationId, contact }`   |
+
+To build a different layout, use the exported building blocks instead: `ChatList`, `ChatConversation`, `ChatHeader`, `ChatMessages`, `ChatInput` and `ChatBubble`. They read the same stores, so they work together once `createChat()` is installed.
 
 ### Calls outside the chat page
 
@@ -142,125 +118,52 @@ A call belongs to the call store, not to a component, so it keeps running when t
 <ChatPage :render-call="false" />
 ```
 
-Calls use the browser's WebRTC API directly (no `simple-peer`, no Node polyfills). The signalling messages keep simple-peer's format, so tabs still on an older, simple-peer based release can call this one and back; `e2e/tests/interop.spec.ts` checks that.
+`Call` is an async component, so apps that never call don't download it.
 
-Conversations a list page hasn't fetched (say, one opened from a link) are added with `chatStore.addContact(contact)`, and changed with `chatStore.updateContact(id, changes)`. `conversationStates` is a read-only view.
+Calls use the browser's WebRTC API directly (no `simple-peer`, no Node polyfills). The signalling messages keep simple-peer's format, so tabs still on an older, simple-peer based release can call this one and back; `e2e/tests/interop.spec.ts` checks that.
 
 Call handlers also accept `iceTransportPolicy` (default `"relay"`; `"all"` allows direct connections without TURN) and `debug` (logs signalling to the console).
 
+## What `createChat()` does
+
+- Gives each store its handlers when that store is first created (via a Pinia plugin, because some stores need a component's `setup` to start).
+- Sets the signed-in user on the profile store.
+- Hands the call handlers to the call store. `provideCallHandlers()` in a component does the same, for handlers that only exist further down the tree.
+
 Every component and directive the chat uses is imported by the component itself, so nothing else needs to be registered.
 
-## i18n Keys 🌍
+## Exports
 
-The chat UI requires specific keys under `chat.*` for internationalization. At a minimum, the following keys should be provided:
+| Export | What it is |
+| ------ | ---------- |
+| `createChat(options)` | The Vue plugin. See [Usage](#usage). |
+| `provideCallHandlers(handlers)` | Supplies call handlers from inside a component. |
+| `ChatPage` | The whole chat: contact list, conversation and call view. |
+| `Call` | The call view (async). |
+| `ChatList`, `ChatConversation`, `ChatHeader`, `ChatMessages`, `ChatInput`, `ChatBubble` | Building blocks for custom layouts. |
+| `BButton`, `BInput`, `BSelect`, `BModal`, `BPopup`, `BMenu`, `BTab`, `BToast`, `BIcon`, `BImage`, `BLabel`, `BCheckBox`, `BCarousel`, `BEmojiPicker`, `BVirtualVerticalList` | The UI primitives the chat is built from. |
+| `useChatStore`, `useMessagesStore`, `useMediaStore`, `useProfileStore`, `useCallStore` | The Pinia stores. |
+| Types | Handler interfaces, `Contact`, `Message`, `SignalData`, `ChatOptions`, `ChatUser` and the rest of `app/types`. |
 
-```jsonc
-{
-  "chat": {
-    "you": "You",
-    "noConversationSelected": "Select a conversation",
-    "noMessages": "No conversations yet",
-    "copiedMessage": "Copied",
-    "filters": {
-      "online": "Online",
-      "ended": "Ended",
-      "active": "Active"
-    }
-  }
-}
-```
+Working with conversations the list page hasn't fetched (say, one opened from a link): add them with `chatStore.addContact(contact)` and change them with `chatStore.updateContact(id, changes)`. `chatStore.conversationStates` is a read-only view.
 
-Additional translations are necessary for other message types (file/voice/request bubbles, medication picker, etc.) if those features are utilized. The Persian translation set used during development can be found in the host repository.
+## Translations
 
-## Styles 💅
+English (`en`) and Persian (`fa`) ship with the package and load automatically; the host only has to install vue-i18n and set `locale`. The layout switches to right-to-left when the locale starts with `fa` or `ar`.
 
-Importing the main CSS file handles all styling needs:
+## Styles
+
+Import the stylesheet once:
 
 ```ts
-// main.ts or similar entry point
 import '@yonus_amire01/chat/style.css';
 ```
 
-This import includes:
+It holds the compiled Tailwind v4 theme and only the utilities the package uses, with every rule scoped to the `.vue-chat` root. The host needs no Tailwind of its own, and the chat's styles (including its reset) can't override the host's. Images and animations are bundled into the JavaScript, so there are no asset files to serve.
 
-- **Compiled Tailwind v4 theme & utilities:** only the classes the package uses. The host needs no Tailwind of its own, and Tailwind's global reset (preflight) is not included, so the host page's styles are left alone.
-- **Theme Tokens:** Custom CSS variables for theming (e.g., `--color-primary-*`, `--color-surface`) and gradient utilities.
-- **Font Declarations:** `IranYekan` / `IranYekanFaNum` `@font-face` rules (woff files are bundled).
-- **Flag SVGs:** Bundled SVG assets for language flags (e.g., `fa`, `en`, `ar`).
+Colours come from CSS variables such as `--color-chat-primary`, `--color-chat-background` and `--color-chat-on-background` (see `app/assets/css/theme.css`). Adding the `dark` class to an ancestor switches to the dark palette.
 
-There is no need to import separate `theme.css` or `components.css` files.
-
-## Build 🔧
-
-To build the package and its components:
-
-```bash
-yarn build       # Builds the package using Vite
-yarn build:strict # Builds the package and runs type checking with vue-tsc
-yarn dev         # Builds the package in watch mode for development
-```
-
-The build outputs are located in the `dist/` directory:
-
-- `dist/index.mjs` / `dist/index.cjs`: ESM and CJS bundles.
-- `dist/chat.css`: Extracted CSS styles (import once).
-- `dist/assets/`: Bundled fonts, flag SVGs, and library images.
-- `dist/types/`: Generated TypeScript declaration files (`.d.ts`), with the main entry point at `dist/types/index.d.ts`.
-
-## Project Structure 📁
-
-```
-vue-chat/
-├── app/
-│   ├── components/
-│   │   ├── call/
-│   │   ├── chat/
-│   │   ├── global/
-│   │   └── ...
-│   ├── composables/
-│   ├── directives/
-│   ├── polyfills/
-│   ├── provider/
-│   ├── stores/
-│   └── index.ts           # Main entry point for the library
-├── demo/
-│   ├── src/
-│   │   ├── App.vue
-│   │   ├── main.ts
-│   │   └── ...
-│   ├── index.html
-│   ├── package.json
-│   └── vite.config.ts
-├── i18n/
-│   └── locales/
-│       ├── en/
-│       └── fa/
-├── .gitignore
-├── package.json
-├── tsconfig.json
-├── tsconfig.typecheck.json
-└── vite.config.ts
-```
-
-## How to use 🛠️
-
-This project provides a reusable Vue 3 chat component designed for integration into larger applications. The primary entry point is `app/index.ts`, which exports the main `<ChatPage />` component, various utility composables, and store modules.
-
-**Key Components and Composables:**
-
-- **`<ChatPage />`:** The main UI component rendering the chat interface, contact list, and call views.
-- **`useCall()`:** A composable for managing WebRTC video calls, including joining calls, managing media streams, toggling audio/video, screen sharing, and handling call controls.
-- **`useChatMessageList()`:** Manages fetching, displaying, and interacting with chat messages within a conversation.
-- **`useAppPermissions()`:** Handles requesting and checking user permissions for microphone, camera, and screen sharing.
-- **`useAppToast()`:** Provides a global toast notification system.
-
-**Typical Integration Flow:**
-
-1. **Install Dependencies:** As outlined in the Installation section.
-2. **Install the plugin:** `app.use(createChat({ ... }))` after Pinia and vue-i18n (see Usage).
-3. **Render `<ChatPage />`**, or compose your own layout from the exported building blocks (`ChatList`, `ChatConversation`, `ChatHeader`, `ChatMessages`, `ChatInput`).
-
-## Upgrading from 2.x ⬆️
+## Upgrading from 2.x
 
 3.0 needs no new setup, but a few things behave differently:
 
@@ -273,14 +176,25 @@ This project provides a reusable Vue 3 chat component designed for integration i
 - **Removed defaults.** `chatStore.currentUserBirthDate` defaults to `null`; it and `chosenRole` are deprecated.
 - **Media cache.** The IndexedDB cache format changed and is cleared once; it is now capped at 200 MB.
 
-The recommended setup is now `app.use(createChat({ ... }))` (see Usage); the per-store `setHandlers()` calls and `provideCallHandlers()` keep working.
+The recommended setup is now `app.use(createChat({ ... }))` (see [Usage](#usage)); the per-store `setHandlers()` calls and `provideCallHandlers()` keep working.
 
-## Testing 🧪
+## Development
 
-The demo (`pnpm demo:build`) runs on the same fakes with a seeded Persian dataset. Open it in two tabs with different `?user=` values and start a call in both to try video calling.
+```bash
+pnpm install
+pnpm build        # dist/: ESM + CJS bundles, chat.css, lazy chunks/ and types/
+pnpm dev          # build in watch mode
+pnpm typecheck    # vue-tsc
+pnpm demo         # build, then serve the demo
+pnpm demo:build   # build the package and the demo
+pnpm test:e2e     # Playwright suite (test:e2e:ui for the UI runner)
+```
 
+`prepublishOnly` runs `typecheck` and `build`, so a publish always ships a fresh `dist/`.
 
-`pnpm test:e2e` runs the Playwright suite in `e2e/`: every chat feature against in-memory fake backends, plus real two-tab video calls using Chromium's fake camera and mic. Tests also fail if a template uses a component or directive nobody registered.
+The demo (`demo/`, a workspace package that consumes the built `dist/`) runs on the fakes with a seeded Persian dataset. Open it in two tabs with different `?user=` values and start a call in both to try video calling.
+
+`pnpm test:e2e` runs the Playwright suite in `e2e/`: every chat feature against the in-memory fakes, plus real two-tab video calls using Chromium's fake camera and mic. Tests also fail if a template uses a component or directive nobody registered.
 
 On NixOS, use the Nix-built browsers (the nixpkgs `playwright-driver` version must match `@playwright/test`):
 
@@ -288,37 +202,25 @@ On NixOS, use the Nix-built browsers (the nixpkgs `playwright-driver` version mu
 export PLAYWRIGHT_BROWSERS_PATH=$(nix build --no-link --print-out-paths nixpkgs#playwright-driver.browsers)
 ```
 
-## Contributing 🤝
+### Layout
 
-Contributions are welcome! Please follow these steps:
+```
+app/
+  index.ts        package entry: everything listed under Exports
+  plugin.ts       createChat()
+  components/     ChatPage, chat/, call/, global/ (the B* primitives)
+  composables/    including call/: signalling, peers, media
+  stores/         Pinia stores
+  types/          handler interfaces and data types
+  assets/css/     theme tokens and base styles
+i18n/locales/     en and fa translations
+fakes/            in-memory backend and call handlers (not published)
+demo/             demo app (workspace package)
+e2e/              Playwright tests and harness
+```
 
-1.  **Fork the repository** to your GitHub account.
-2.  **Clone the repository** locally: `git clone <your-fork-url>`.
-3.  **Create a new branch** for your feature or bug fix: `git checkout -b feature/your-feature-name`.
-4.  **Make your changes** and ensure they are well-tested.
-5.  **Commit your changes** with clear and concise commit messages.
-6.  **Push your branch** to your fork: `git push origin feature/your-feature-name`.
-7.  **Create a Pull Request** to the main repository.
+## License
 
-Please ensure your contributions adhere to the project's coding standards and include relevant documentation.
+[MIT](LICENSE)
 
-## License 📜
-
-This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
-
-## Important Links 🔗
-
-- **Repository:** [https://github.com/yonus-a/vue-chat](https://github.com/yonus-a/vue-chat)
-
-## Footer ✨
-
-<p align="center">
-  Made with ❤️ by yonus-a
-</p>
-<p align="center">
-  If you find this project helpful, please consider starring ⭐, forking 🍴, and opening issues 🐛.
-</p>
-
-
----
-**<p align="center">Generated by [ReadmeCodeGen](https://www.readmecodegen.com/)</p>**
+Repository: [github.com/yonus-a/vue-chat](https://github.com/yonus-a/vue-chat)
