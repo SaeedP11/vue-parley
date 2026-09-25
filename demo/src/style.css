@@ -1,5 +1,5 @@
 /* The package ships its own compiled styles; no Tailwind needed. */
-@import "@yonus_amire01/chat/style.css";
+@import "vue-parley/style.css";
 
 body,
 #app {

@@ -1,6 +1,8 @@
-# @yonus_amire01/chat
+# vue-parley
 
 A drop-in Vue 3 chat and video-call UI. You supply the backend through a few handler objects; the package brings the screens, the state (Pinia stores), the translations and the styles.
+
+Formerly `@yonus_amire01/chat`. To switch, replace that name with `vue-parley` in `package.json` and in imports; nothing else changed.
 
 - Contact list with search, filters and infinite scroll
 - Virtualised message list with text, image, file, voice and video messages, replies, edits, deletes, drafts and retries on failed sends
@@ -28,7 +30,7 @@ A drop-in Vue 3 chat and video-call UI. You supply the backend through a few han
 ## Installation
 
 ```bash
-pnpm add @yonus_amire01/chat
+pnpm add vue-parley
 # peer dependencies, if the app doesn't have them yet
 pnpm add vue vue-i18n pinia @vueuse/core
 ```
@@ -46,8 +48,8 @@ Install the plugin once in `main.ts`. Pinia and vue-i18n (with `legacy: false`) 
 import { createApp } from 'vue';
 import { createPinia } from 'pinia';
 import { createI18n } from 'vue-i18n';
-import { createChat } from '@yonus_amire01/chat';
-import '@yonus_amire01/chat/style.css';
+import { createChat } from 'vue-parley';
+import 'vue-parley/style.css';
 import App from './App.vue';
 
 createApp(App)
@@ -70,7 +72,7 @@ Then render `<ChatPage />` anywhere:
 
 ```vue
 <script setup lang="ts">
-import { ChatPage } from '@yonus_amire01/chat';
+import { ChatPage } from 'vue-parley';
 </script>
 
 <template>
@@ -85,8 +87,8 @@ All handler interfaces (`ChatHandlers`, `MessagesHandlers`, `MediaHandlers`, `Pr
 Create `app/plugins/chat.client.ts` (Pinia and i18n come from `@pinia/nuxt` and `@nuxtjs/i18n`):
 
 ```ts
-import { createChat } from '@yonus_amire01/chat';
-import '@yonus_amire01/chat/style.css';
+import { createChat } from 'vue-parley';
+import 'vue-parley/style.css';
 
 export default defineNuxtPlugin((nuxtApp) => {
   nuxtApp.vueApp.use(createChat({ chat, messages, media, call, user }));
@@ -129,10 +131,10 @@ Call handlers also accept `iceTransportPolicy` (default `"relay"`; `"all"` allow
 
 ### Fake backend
 
-`@yonus_amire01/chat/fakes` is an in-memory implementation of every handler, for demos, playgrounds and tests. It is a separate entry, so apps that don't import it don't ship it.
+`vue-parley/fakes` is an in-memory implementation of every handler, for demos, playgrounds and tests. It is a separate entry, so apps that don't import it don't ship it.
 
 ```ts
-import { createFakeBackend, createBroadcastCallHandlers, demoData } from '@yonus_amire01/chat/fakes';
+import { createFakeBackend, createBroadcastCallHandlers, demoData } from 'vue-parley/fakes';
 
 const backend = createFakeBackend(demoData('me'), { latency: 300 });
 
@@ -174,7 +176,7 @@ Every component and directive the chat uses is imported by the component itself,
 | `BButton`, `BInput`, `BSelect`, `BModal`, `BPopup`, `BMenu`, `BTab`, `BToast`, `BIcon`, `BImage`, `BLabel`, `BCheckBox`, `BCarousel`, `BEmojiPicker`, `BVirtualVerticalList` | The UI primitives the chat is built from. |
 | `useChatStore`, `useMessagesStore`, `useMediaStore`, `useProfileStore`, `useCallStore` | The Pinia stores. |
 | Types | Handler interfaces, `Contact`, `Message`, `SignalData`, `ChatOptions`, `ChatUser` and the rest of `app/types`. |
-| `@yonus_amire01/chat/fakes` | `createFakeBackend`, `createBroadcastCallHandlers`, `demoData`, `e2eData`: see [Fake backend](#fake-backend). |
+| `vue-parley/fakes` | `createFakeBackend`, `createBroadcastCallHandlers`, `demoData`, `e2eData`: see [Fake backend](#fake-backend). |
 
 Working with conversations the list page hasn't fetched (say, one opened from a link): add them with `chatStore.addContact(contact)` and change them with `chatStore.updateContact(id, changes)`. `chatStore.conversationStates` is a read-only view.
 
@@ -187,7 +189,7 @@ English (`en`) and Persian (`fa`) ship with the package and load automatically; 
 Import the stylesheet once:
 
 ```ts
-import '@yonus_amire01/chat/style.css';
+import 'vue-parley/style.css';
 ```
 
 It holds the compiled Tailwind v4 theme and only the utilities the package uses, with every rule scoped to the `.vue-chat` root. The host needs no Tailwind of its own, and the chat's styles (including its reset) can't override the host's. Images and animations are bundled into the JavaScript, so there are no asset files to serve.
@@ -245,7 +247,7 @@ app/
   types/          handler interfaces and data types
   assets/css/     theme tokens and base styles
 i18n/locales/     en and fa translations
-fakes/            in-memory backend and call handlers (published as `@yonus_amire01/chat/fakes`)
+fakes/            in-memory backend and call handlers (published as `vue-parley/fakes`)
 demo/             demo app (workspace package)
 e2e/              Playwright tests and harness
 ```

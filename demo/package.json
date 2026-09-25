@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@vueuse/core": "^14.2.1",
-    "@yonus_amire01/chat": "workspace:*",
+    "vue-parley": "workspace:*",
     "pinia": "^2.3.0",
     "vue": "^3.5.39",
     "vue-i18n": "^9.14.4"

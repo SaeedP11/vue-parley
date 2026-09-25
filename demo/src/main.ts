@@ -1,8 +1,8 @@
 import { createApp } from "vue";
 import { createPinia } from "pinia";
 import { createI18n } from "vue-i18n";
-import { createChat } from "@yonus_amire01/chat";
-import { createBroadcastCallHandlers, createFakeBackend, demoData } from "@yonus_amire01/chat/fakes";
+import { createChat } from "vue-parley";
+import { createBroadcastCallHandlers, createFakeBackend, demoData } from "vue-parley/fakes";
 import App from "./App.vue";
 import "./style.css";
 

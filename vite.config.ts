@@ -94,6 +94,8 @@ export default defineConfig({
         fakes: resolve(__dirname, "fakes/index.ts"),
       },
       formats: ["es", "cjs"],
+      // Otherwise named after the package; the "./style.css" export points here.
+      cssFileName: "chat",
     },
     rollupOptions: {
       external: (id) => external.some((dep) => id === dep || id.startsWith(`${dep}/`)),

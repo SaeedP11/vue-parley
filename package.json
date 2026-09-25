@@ -1,5 +1,5 @@
 {
-  "name": "@yonus_amire01/chat",
+  "name": "vue-parley",
   "version": "3.1.0",
   "type": "module",
   "description": "Drop-in Vue 3 chat and video-call UI, driven by your own backend handlers.",

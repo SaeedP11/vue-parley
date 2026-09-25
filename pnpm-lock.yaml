@@ -87,9 +87,6 @@ importers:
       '@vueuse/core':
         specifier: ^14.2.1
         version: 14.3.0(vue@3.5.39(typescript@6.0.3))
-      '@yonus_amire01/chat':
-        specifier: workspace:*
-        version: link:..
       pinia:
         specifier: ^2.3.0
         version: 2.3.1(typescript@6.0.3)(vue@3.5.39(typescript@6.0.3))
@@ -99,6 +96,9 @@ importers:
       vue-i18n:
         specifier: ^9.14.4
         version: 9.14.4(vue@3.5.39(typescript@6.0.3))
+      vue-parley:
+        specifier: workspace:*
+        version: link:..
     devDependencies:
       '@types/node':
         specifier: ^24.13.2
