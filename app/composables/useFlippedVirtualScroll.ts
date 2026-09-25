@@ -48,6 +48,7 @@ export function useFlippedVirtualScroll(options: ScrollOptions) {
   let scrollTimer: ReturnType<typeof setTimeout> | null = null;
   let animationFrame: number | null = null;
 
+  // Newest messages sit at the max scrollTop, so "away from newest" is the distance from the bottom.
   const canScroll = computed(() => scrollOffset.value > 100);
 
   // --- Scroll Handlers ---
@@ -56,7 +57,7 @@ export function useFlippedVirtualScroll(options: ScrollOptions) {
     const el = scrollContainer.value;
     if (!el) return;
 
-    scrollOffset.value = el.scrollTop;
+    scrollOffset.value = el.scrollHeight - el.clientHeight - el.scrollTop;
     const currentScroll = el.scrollTop;
 
     // Floating Header Logic
@@ -106,10 +107,11 @@ export function useFlippedVirtualScroll(options: ScrollOptions) {
     if (isLocked.value || !scrollContainer.value || itemCount.value === 0)
       return;
 
-    if (targetScroll.value === 0)
-      targetScroll.value = scrollContainer.value.scrollTop;
+    // Start from where the list actually is, not a target left over from an earlier wheel or a
+    // touch/keyboard scroll the loop never saw.
+    if (!animationFrame) targetScroll.value = scrollContainer.value.scrollTop;
 
-    // In a flipped list, positive deltaY means moving UP the DOM (towards older messages)
+    // Newest messages are at the max scrollTop, so wheeling down (positive deltaY) moves toward them.
     targetScroll.value += e.deltaY;
 
     const maxScroll =
@@ -135,10 +137,15 @@ export function useFlippedVirtualScroll(options: ScrollOptions) {
   };
 
   const resetScroll = () => {
-    if (scrollContainer.value) {
-      targetScroll.value = 0;
-      if (!animationFrame) smoothScrollLoop();
-    }
+    const el = scrollContainer.value;
+    if (!el) return;
+    // Hand the jump to the browser: the per-frame wheel loop reads scrollTop back each frame and
+    // loses to anything else moving the list mid-flight (virtualizer size corrections), stalling
+    // short of the newest message.
+    if (animationFrame) cancelAnimationFrame(animationFrame);
+    animationFrame = null;
+    targetScroll.value = 0;
+    el.scrollTo({ top: el.scrollHeight - el.clientHeight, behavior: "smooth" });
   };
 
   const cleanup = () => {
