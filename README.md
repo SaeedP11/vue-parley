@@ -35,7 +35,7 @@ pnpm add vue-parley
 pnpm add vue vue-i18n pinia @vueuse/core
 ```
 
-npm and yarn work the same way. Peer ranges: `vue` ^3.5, `pinia` 2.2+ or 3, `vue-i18n` 9 to 11, `@vueuse/core` 11 to 14.
+npm and yarn work the same way. Peer ranges: `vue` ^3.5, `pinia` 2.2+, 3 or 4, `vue-i18n` 9 to 11, `@vueuse/core` 11 to 14.
 
 ## Usage
 
