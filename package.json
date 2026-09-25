@@ -34,6 +34,11 @@
       "import": "./dist/index.mjs",
       "require": "./dist/index.cjs"
     },
+    "./fakes": {
+      "types": "./dist/types/fakes.d.ts",
+      "import": "./dist/fakes.mjs",
+      "require": "./dist/fakes.cjs"
+    },
     "./style.css": "./dist/chat.css",
     "./package.json": "./package.json"
   },
@@ -55,7 +60,7 @@
   },
   "peerDependencies": {
     "@vueuse/core": "^11.0.0 || ^12.0.0 || ^13.0.0 || ^14.0.0",
-    "pinia": "^2.0.0 || ^3.0.0",
+    "pinia": "^2.2.0 || ^3.0.0",
     "vue": "^3.5.0",
     "vue-i18n": "^9.0.0 || ^10.0.0 || ^11.0.0"
   },

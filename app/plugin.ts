@@ -12,6 +12,7 @@ import { useChatStore } from "./stores/chatStore";
 import { useMessagesStore } from "./stores/messageStores";
 import { useMediaStore } from "./stores/mediaStore";
 import { useProfileStore } from "./stores/profileStore";
+import { provideHostI18n } from "./composables/useHostI18n";
 
 export interface ChatUser {
   id: string;
@@ -53,8 +54,10 @@ export function createChat(options: ChatOptions): Plugin {
         );
       }
 
-      // Some stores call useI18n() while being created, which only works inside a component's
-      // setup, so they can't be created here. Configure each one when it first comes to life.
+      // Lets stores translate without a component, so they can be created anywhere.
+      provideHostI18n(app);
+
+      // Configure each store when it first comes to life, whoever creates it.
       pinia.use(({ store }) => {
         switch (store.$id) {
           case useChatStore.$id:

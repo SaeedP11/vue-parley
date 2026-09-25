@@ -28,6 +28,7 @@
     "app/**/*.d.ts",
     "app/**/*.vue",
     "i18n/**/*.ts",
+    "fakes/**/*.ts",
     "auto-imports.d.ts"
   ],
   "exclude": [

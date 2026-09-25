@@ -16,6 +16,7 @@ A drop-in Vue 3 chat and video-call UI. You supply the backend through a few han
   - [Nuxt 3 / 4](#nuxt-3--4)
   - [Customising the page](#customising-the-page)
   - [Calls outside the chat page](#calls-outside-the-chat-page)
+  - [Fake backend](#fake-backend)
 - [What `createChat()` does](#what-createchat-does)
 - [Exports](#exports)
 - [Translations](#translations)
@@ -32,7 +33,7 @@ pnpm add @yonus_amire01/chat
 pnpm add vue vue-i18n pinia @vueuse/core
 ```
 
-npm and yarn work the same way. Peer ranges: `vue` ^3.5, `pinia` 2 or 3, `vue-i18n` 9 to 11, `@vueuse/core` 11 to 14.
+npm and yarn work the same way. Peer ranges: `vue` ^3.5, `pinia` 2.2+ or 3, `vue-i18n` 9 to 11, `@vueuse/core` 11 to 14.
 
 ## Usage
 
@@ -77,7 +78,7 @@ import { ChatPage } from '@yonus_amire01/chat';
 </template>
 ```
 
-All handler interfaces (`ChatHandlers`, `MessagesHandlers`, `MediaHandlers`, `ProfileHandlers`, `CallHandlers`) are exported as types. The repository's `fakes/` folder has an in-memory implementation of each, used by the demo and the e2e tests: `createFakeBackend(data)`, and `createBroadcastCallHandlers()`, which lets two browser tabs call each other with no server. `fakes/` is not part of the published package.
+All handler interfaces (`ChatHandlers`, `MessagesHandlers`, `MediaHandlers`, `ProfileHandlers`, `CallHandlers`) are exported as types. For demos, playgrounds and tests there is an in-memory implementation of each; see [Fake backend](#fake-backend).
 
 ### Nuxt 3 / 4
 
@@ -91,6 +92,8 @@ export default defineNuxtPlugin((nuxtApp) => {
   nuxtApp.vueApp.use(createChat({ chat, messages, media, call, user }));
 });
 ```
+
+Render the chat inside `<ClientOnly>`: its handlers are only installed in the browser, and it needs browser APIs (IndexedDB, WebRTC, the camera and mic). Importing the package on the server is safe, and so is creating its stores from a plugin or middleware.
 
 ### Customising the page
 
@@ -124,9 +127,36 @@ Calls use the browser's WebRTC API directly (no `simple-peer`, no Node polyfills
 
 Call handlers also accept `iceTransportPolicy` (default `"relay"`; `"all"` allows direct connections without TURN) and `debug` (logs signalling to the console).
 
+### Fake backend
+
+`@yonus_amire01/chat/fakes` is an in-memory implementation of every handler, for demos, playgrounds and tests. It is a separate entry, so apps that don't import it don't ship it.
+
+```ts
+import { createFakeBackend, createBroadcastCallHandlers, demoData } from '@yonus_amire01/chat/fakes';
+
+const backend = createFakeBackend(demoData('me'), { latency: 300 });
+
+app.use(
+  createChat({
+    chat: backend.chat,
+    messages: backend.messages,
+    media: backend.media,
+    profile: backend.profile,
+    call: createBroadcastCallHandlers(),
+    user: { id: 'me', name: 'Me' },
+  }),
+);
+```
+
+- `demoData(userId, count?)` seeds conversations and messages (Persian text); `e2eData(userId)` is the smaller set the e2e tests use.
+- `backend.state` makes the next send, edit or delete fail, to try the retry and error paths.
+- `createBroadcastCallHandlers()` signals over a `BroadcastChannel`, so two tabs of the same browser can call each other with no server. Give the tabs different user ids.
+
+Nothing is persisted, and calls never leave the browser: don't use it in production.
+
 ## What `createChat()` does
 
-- Gives each store its handlers when that store is first created (via a Pinia plugin, because some stores need a component's `setup` to start).
+- Gives each store its handlers when that store is first created (via a Pinia plugin), whether a component, a Nuxt plugin or a route guard creates it.
 - Sets the signed-in user on the profile store.
 - Hands the call handlers to the call store. `provideCallHandlers()` in a component does the same, for handlers that only exist further down the tree.
 
@@ -144,6 +174,7 @@ Every component and directive the chat uses is imported by the component itself,
 | `BButton`, `BInput`, `BSelect`, `BModal`, `BPopup`, `BMenu`, `BTab`, `BToast`, `BIcon`, `BImage`, `BLabel`, `BCheckBox`, `BCarousel`, `BEmojiPicker`, `BVirtualVerticalList` | The UI primitives the chat is built from. |
 | `useChatStore`, `useMessagesStore`, `useMediaStore`, `useProfileStore`, `useCallStore` | The Pinia stores. |
 | Types | Handler interfaces, `Contact`, `Message`, `SignalData`, `ChatOptions`, `ChatUser` and the rest of `app/types`. |
+| `@yonus_amire01/chat/fakes` | `createFakeBackend`, `createBroadcastCallHandlers`, `demoData`, `e2eData`: see [Fake backend](#fake-backend). |
 
 Working with conversations the list page hasn't fetched (say, one opened from a link): add them with `chatStore.addContact(contact)` and change them with `chatStore.updateContact(id, changes)`. `chatStore.conversationStates` is a read-only view.
 
@@ -214,7 +245,7 @@ app/
   types/          handler interfaces and data types
   assets/css/     theme tokens and base styles
 i18n/locales/     en and fa translations
-fakes/            in-memory backend and call handlers (not published)
+fakes/            in-memory backend and call handlers (published as `@yonus_amire01/chat/fakes`)
 demo/             demo app (workspace package)
 e2e/              Playwright tests and harness
 ```

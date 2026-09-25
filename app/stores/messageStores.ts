@@ -5,7 +5,7 @@ import {
   UploadProgressEvent,
 } from "~/types";
 import { useAppToast } from "~/composables/useAppToast";
-import useLocalI18n from "~/composables/useLocalI18n";
+import { useStoreI18n } from "~/composables/useHostI18n";
 import { useProfileStore } from "./profileStore";
 import { useDate } from "~/composables/useDate";
 import { useChatStore } from "./chatStore";
@@ -13,7 +13,7 @@ import { chat } from "@i18n/locales";
 import { defineStore } from "pinia";
 
 export const useMessagesStore = defineStore("messages-store", () => {
-  const { t } = useLocalI18n(chat);
+  const { t } = useStoreI18n(chat);
   const { openToast } = useAppToast();
   const { formatDateShort, formatTime } = useDate();
   const chatStore = useChatStore();

@@ -3,13 +3,12 @@ import { markRaw, ref, shallowRef } from "vue";
 import type { CallHandlers } from "~/types";
 import type { CallSession } from "~/composables/call/session";
 import { useAppToast } from "~/composables/useAppToast";
-import useLocalI18n from "~/composables/useLocalI18n";
+import { useStoreI18n } from "~/composables/useHostI18n";
 import { useProfileStore } from "./profileStore";
 import { chat } from "@i18n/locales";
 
 export const useCallStore = defineStore("call-modal", () => {
-  // Created in a component's setup (like the messages store): translations need it.
-  const { t } = useLocalI18n(chat);
+  const { t } = useStoreI18n(chat);
   const { openToast } = useAppToast();
   const profileStore = useProfileStore();
 

@@ -2,9 +2,7 @@ import { createApp } from "vue";
 import { createPinia } from "pinia";
 import { createI18n } from "vue-i18n";
 import { createChat } from "@yonus_amire01/chat";
-import { createFakeBackend } from "../../fakes/backend";
-import { createBroadcastCallHandlers } from "../../fakes/call";
-import { demoData } from "../../fakes/data";
+import { createBroadcastCallHandlers, createFakeBackend, demoData } from "@yonus_amire01/chat/fakes";
 import App from "./App.vue";
 import "./style.css";
 

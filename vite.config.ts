@@ -89,7 +89,10 @@ export default defineConfig({
     sourcemap: true,
     lib: {
       name: "VueChat",
-      entry: resolve(__dirname, "app/index.ts"),
+      entry: {
+        index: resolve(__dirname, "app/index.ts"),
+        fakes: resolve(__dirname, "fakes/index.ts"),
+      },
       formats: ["es", "cjs"],
     },
     rollupOptions: {
@@ -98,12 +101,12 @@ export default defineConfig({
       output: [
         {
           format: "es",
-          entryFileNames: "index.mjs",
+          entryFileNames: "[name].mjs",
           chunkFileNames: "chunks/[name]-[hash].mjs",
         },
         {
           format: "cjs",
-          entryFileNames: "index.cjs",
+          entryFileNames: "[name].cjs",
           chunkFileNames: "chunks/[name]-[hash].cjs",
         },
       ],

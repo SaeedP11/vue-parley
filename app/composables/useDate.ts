@@ -1,10 +1,10 @@
-import { useI18n } from "vue-i18n";
+import { useHostLocale } from "./useHostI18n";
 
 export const useDate = () => {
-  const { locale } = useI18n();
+  const locale = useHostLocale();
 
   const getLang = (): string => {
-    const current = locale.value as string;
+    const current = locale.value;
     if (current.includes("fa")) return "fa";
     if (current.includes("ar")) return "ar";
     return "en";
