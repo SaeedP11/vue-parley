@@ -5,7 +5,7 @@
       class="relative z-50 flex h-16 w-full items-center justify-between gap-x-4 border-b border-b-chat-outline-variant bg-chat-background py-4 px-5 md:h-20"
     >
       <div
-        class="relative flex w-full flex-row-reverse items-center justify-end gap-x-4 md:flex-row md:justify-between"
+        class="relative flex w-full items-center justify-between gap-x-4"
       >
         <Button
           text
@@ -22,7 +22,7 @@
             </div>
             <div
               v-if="selectedChat.lastSeen"
-              class="text-body-sm text-chat-on-background/50"
+              class="text-body-sm text-chat-muted"
             >
               {{
                 t("lastSeen", {
@@ -52,6 +52,24 @@
                 class="hidden! md:inline-flex!"
                 @click="initCall"
               />
+              <IconButton
+                v-if="options.length"
+                icon="PhDotsThreeVertical"
+                icon-class="size-6"
+                :label="t('actions.moreOptions')"
+                aria-haspopup="true"
+                data-testid="chat-more-options"
+                @click="optionsMenuRef?.toggle($event)"
+              />
+              <Menu ref="optionsMenu" :model="menuItems" popup class="vue-chat">
+                <template #itemicon="{ item }">
+                  <BIcon
+                    :icon="item.phIcon"
+                    class="size-5"
+                    :class="item.danger ? 'text-chat-error' : 'text-chat-muted'"
+                  />
+                </template>
+              </Menu>
             </div>
             <!-- <div
               class="hidden items-center gap-x-4 md:flex"
@@ -63,7 +81,7 @@
                 :class="[
                   canDelete
                     ? 'cursor-pointer fill-chat-error'
-                    : 'cursor-not-allowed fill-chat-on-background/50',
+                    : 'cursor-not-allowed fill-chat-muted',
                 ]"
                 @click="deleteMessages"
               />
@@ -128,6 +146,9 @@
 <script setup lang="ts">
 import vLoading from "~/directives/loading";
 import Button from "primevue/button";
+import Menu from "primevue/menu";
+import type { MenuItem } from "primevue/menuitem";
+import type { MenuOption } from "~/types/components/menu-options";
 import IconButton from "~/components/general/IconButton.vue";
 import { useMessagesStore } from "~/stores/messageStores.js";
 import ContactAvatar from "./contact/ContactAvatar.vue";
@@ -138,12 +159,13 @@ import { useDate } from "~/composables/useDate.js";
 import { formatDuration } from "~/utils/format";
 import { chatPageBar } from "@i18n/locales";
 import type { Contact } from "~/types";
-import { computed } from "vue";
+import { computed, useTemplateRef } from "vue";
 
 const props = withDefaults(
   defineProps<{
     contact: Contact | null;
-    options: any[];
+    /** Actions for the open conversation, listed in the header's "more options" menu. */
+    options: MenuOption[];
   }>(),
   {
     contact: null,
@@ -154,7 +176,18 @@ const props = withDefaults(
 const emit = defineEmits<{
   call: [];
   "open-profile": [];
+  select: [key: string];
 }>();
+
+const optionsMenuRef = useTemplateRef<InstanceType<typeof Menu>>("optionsMenu");
+const menuItems = computed<MenuItem[]>(() =>
+  props.options.map((option) => ({
+    label: option.label,
+    phIcon: option.icon,
+    danger: option.color === "error",
+    command: () => emit("select", option.key),
+  })),
+);
 
 const messagesStore = useMessagesStore();
 const { formatRelativeDate } = useDate();

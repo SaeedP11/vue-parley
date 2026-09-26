@@ -24,7 +24,7 @@
         <div v-if="title.trim()" class="text-label-lg text-chat-on-background">
           {{ title }}
         </div>
-        <div v-if="text.trim()" class="text-body-md text-chat-on-background/50">
+        <div v-if="text.trim()" class="text-body-md text-chat-muted">
           {{ text }}
         </div>
       </div>

@@ -51,7 +51,7 @@ const lastMessageIcon = computed(() => {
   if (!msg.isSent)
     return { color: "fill-chat-on-background/30", icon: "PhClock" };
   if (!msg.isRead)
-    return { color: "fill-chat-on-background/50", icon: "PhCheck" };
+    return { color: "fill-chat-muted", icon: "PhCheck" };
   return { color: "fill-chat-primary", icon: "PhChecks" };
 });
 
@@ -109,7 +109,7 @@ const lastMessageText = computed(() => {
 
 const lastMessageColor = computed(() => {
   const msg = props.contact.lastMessage;
-  if (!msg) return "text-chat-on-background/50";
+  if (!msg) return "text-chat-muted";
 
   if ((!msg.text && msg.type !== "text") || msg.request)
     return "text-chat-primary font-medium";
@@ -117,7 +117,7 @@ const lastMessageColor = computed(() => {
   if (unreadCount.value > 0)
     return "text-chat-on-background font-medium";
 
-  return "text-chat-on-background/50";
+  return "text-chat-muted";
 });
 </script>
 <template>
@@ -146,7 +146,7 @@ const lastMessageColor = computed(() => {
         >
           <div
             v-loading="isLoading"
-            class="text-chat-on-background/50 text-[11px]"
+            class="text-chat-muted text-[11px]"
           >
             {{ lastMessageTime }}
           </div>
@@ -169,7 +169,7 @@ const lastMessageColor = computed(() => {
             <SafeEmojiText
               truncate
               :text="draft"
-              class="text-chat-on-background/50"
+              class="text-chat-muted"
             />
           </div>
 

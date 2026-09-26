@@ -48,7 +48,7 @@ const iconSize = computed(() => props.size * 0.4);
         :cx="center"
         :cy="center"
         :r="radius"
-        class="stroke-chat-on-background/20"
+        class="stroke-chat-on-background/45"
         :stroke-width="strokeWidth"
         fill="none"
       />

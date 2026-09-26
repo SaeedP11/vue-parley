@@ -318,7 +318,7 @@ const fetchMoreFiles = async () => {
             >
               <div
                 v-loading="isLoading"
-                class="text-body-sm text-chat-on-background/50"
+                class="text-body-sm text-chat-muted"
               >
                 {{ info.title }}
               </div>
@@ -341,7 +341,7 @@ const fetchMoreFiles = async () => {
               v-if="fileAttachements.length > 0"
               class="flex w-full shrink-0 flex-col gap-y-1"
             >
-              <div class="text-body-sm text-chat-on-background/50">
+              <div class="text-body-sm text-chat-muted">
                 {{ t("info.files") }}
               </div>
               <FileDisplay
@@ -355,7 +355,7 @@ const fetchMoreFiles = async () => {
               v-if="mediaAttachements.length > 0"
               class="flex flex-1 flex-col gap-y-1"
             >
-              <div class="shrink-0 text-body-sm text-chat-on-background/50">
+              <div class="shrink-0 text-body-sm text-chat-muted">
                 {{ t("info.media") }}
               </div>
               <div ref="imagesSection" class="w-full flex-1">

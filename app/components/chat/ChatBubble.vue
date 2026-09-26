@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, useTemplateRef } from "vue";
-import type { Contact, ExtendedMessage } from "~/types";
+import type { Contact, ExtendedMessage, Message } from "~/types";
 import ImageGroupDisplay from "./chat-bubbles/ImageGroupDisplay.vue";
 import BubbleOptions from "./chat-bubbles/BubbleOptions.vue";
 import VoiceDisplay from "./chat-bubbles/VoiceDisplay.vue";
@@ -13,6 +13,7 @@ import BubbleImages from "./chat-bubbles/BubbleImages.vue";
 import BubbleSelectionMark from "./chat-bubbles/BubbleSelectionMark.vue";
 import BubbleRequest from "./chat-bubbles/BubbleRequest.vue";
 import BubbleStatus from "./chat-bubbles/BubbleStatus.vue";
+import BubbleMeta from "./chat-bubbles/BubbleMeta.vue";
 import ReplyPreview from "./chat-bubbles/ReplyPreview.vue";
 
 import { useMessagesStore } from "~/stores/messageStores.js";
@@ -70,37 +71,34 @@ const isTextBased = computed(() =>
   ["text", "file", "voice"].includes(messageType.value),
 );
 
-const isSameDayNext = computed(() => {
-  if (!props.message.nextMessage) return false;
-  return (
-    new Date(props.message.date).toDateString() ===
-    new Date(props.message.nextMessage.date).toDateString()
-  );
-});
+// Consecutive messages from one sender on one day form a group: they sit close together, share
+// one avatar (on the last) and round off into each other on the sender's side.
+const sameGroup = (a?: Message | null, b?: Message | null) =>
+  !!a &&
+  !!b &&
+  !a.request &&
+  !b.request &&
+  a.senderId === b.senderId &&
+  new Date(a.date).toDateString() === new Date(b.date).toDateString();
 
-const roundingClasses = computed(() => {
-  const isPrevSameSender =
-    props.message.prevMessage?.senderId === props.message.senderId;
-  if (isMine.value)
-    return isPrevSameSender ? "rounded-r-none" : "rounded-br-none";
-  return isPrevSameSender ? "rounded-l-none" : "rounded-bl-none";
-});
-
-const shouldShowStatus = computed(() => {
-  const nextMsg = props.message.nextMessage;
-  if (!nextMsg) return true;
-  const isNextSameSender = nextMsg.senderId === props.message.senderId;
-  if (!isNextSameSender || !isSameDayNext.value) return true;
-  const currentTime = new Date(props.message.date).getTime();
-  const nextTime = new Date(nextMsg.date).getTime();
-  return nextTime - currentTime > 2 * 60 * 1000; // 2 minutes
-});
-
-const isSameSenderNext = computed(
-  () => props.message.nextMessage?.senderId === props.message.senderId,
+// The unread divider splits a group, like the date divider does.
+const groupedWithPrev = computed(
+  () =>
+    !props.isFirstUnread && sameGroup(props.message.prevMessage, props.message),
+);
+const groupedWithNext = computed(() =>
+  sameGroup(props.message, props.message.nextMessage),
 );
 
-
+// Logical corners, so the sender's side is right whichever way the host lays the chat out: your
+// messages sit at the start, theirs at the end. The last bubble of a group keeps a tail.
+const roundingClasses = computed(() => {
+  const prev = groupedWithPrev.value;
+  const next = groupedWithNext.value;
+  if (isMine.value)
+    return [prev && "rounded-ss-md", next ? "rounded-es-md" : "rounded-es-xs"];
+  return [prev && "rounded-se-md", next ? "rounded-ee-md" : "rounded-ee-xs"];
+});
 
 const uploadData = computed(() =>
   messagesStore.uploadProgress.get(props.message.id),
@@ -159,8 +157,10 @@ const longPress = useLongPress(handleRightClick);
 
     <!-- Message Row -->
     <div
-      class="w-full px-5 pt-2 transition-all duration-200 flex items-center ease-in-out"
+      class="w-full px-5 transition-all duration-200 flex items-center ease-in-out"
       :class="{
+        'pt-0.5': groupedWithPrev,
+        'pt-3': !groupedWithPrev,
         'bg-on-surface/5 gap-x-3': isSelectMode && isSelected,
         'bg-on-surface/0 gap-x-0': !(isSelectMode && isSelected),
         'cursor-pointer select-none': isSelectMode,
@@ -179,7 +179,7 @@ const longPress = useLongPress(handleRightClick);
       <!-- Standard Message Bubble -->
       <div
         v-else
-        class="flex items-center flex-1 relative"
+        class="flex items-center flex-1 min-w-0 relative"
         :class="{ 'justify-start': isMine, 'justify-end': !isMine }"
         @click="handleLeftClick"
         v-on="longPress"
@@ -189,16 +189,16 @@ const longPress = useLongPress(handleRightClick);
             class="w-full flex items-center"
             :class="{ 'justify-start': isMine, 'justify-end': !isMine }"
           >
-            <div class="flex max-w-4/5 items-end gap-x-3">
-              <div class="flex-1">
+            <div class="flex max-w-4/5 items-end gap-x-2">
+              <div class="flex-1 min-w-0">
                 <!-- Text / File / Voice Bubble Wrapper -->
                 <div
                   v-if="isTextBased"
-                  class="p-1 rounded-xl"
+                  class="relative rounded-2xl p-1 shadow-xs"
                   :class="[
                     roundingClasses,
-                    isMine ? 'bg-surface-variant-2' : 'bg-surface',
-                    { 'text-body-sm text-on-surface': messageType === 'text' },
+                    isMine ? 'bg-chat-bubble-mine' : 'bg-chat-bubble',
+                    { 'text-chat-base text-chat-on-background': messageType === 'text' },
                   ]"
                 >
                   <ReplyPreview
@@ -208,9 +208,24 @@ const longPress = useLongPress(handleRightClick);
                     :is-mine="isMine"
                     :current-user-id="currentUserId"
                   />
-                  <p v-if="messageType === 'text'" class="p-3 max-w-full">
+                  <p
+                    v-if="messageType === 'text'"
+                    class="max-w-full wrap-break-word px-2.5 py-1.5"
+                  >
                     <SafeEmojiText :text="message.text" />
+                    <!-- Holds the last line clear of the time, which sits over the bubble's end corner. -->
+                    <span
+                      aria-hidden="true"
+                      class="inline-block h-3"
+                      :class="isMine ? 'w-14' : 'w-10'"
+                    />
                   </p>
+                  <BubbleMeta
+                    v-if="messageType === 'text'"
+                    :message="message"
+                    :is-mine="isMine"
+                    class="absolute end-3 bottom-2"
+                  />
                   <FileDisplay
                     v-else-if="messageType === 'file'"
                     :is-mine="isMine"
@@ -225,38 +240,43 @@ const longPress = useLongPress(handleRightClick);
                     :message-id="message.id"
                     :is-sent="message.isSent"
                   />
+                  <div v-if="messageType !== 'text'" class="flex justify-end px-2 pb-1">
+                    <BubbleMeta :message="message" :is-mine="isMine" />
+                  </div>
                 </div>
 
-                <BubbleImages
-                  v-else-if="messageType === 'image' || messageType === 'multiImage'"
-                  :images="message.imageUrl!"
-                  :is-sent="message.isSent"
-                  :upload="uploadData"
-                  @preview="previewImage"
-                />
+                <!-- Photos and video carry the time as a pill over their end corner. -->
+                <div v-else class="relative">
+                  <BubbleImages
+                    v-if="messageType === 'image' || messageType === 'multiImage'"
+                    :images="message.imageUrl!"
+                    :is-sent="message.isSent"
+                    :upload="uploadData"
+                    @preview="previewImage"
+                  />
+                  <BubbleVideo
+                    v-else-if="messageType === 'video'"
+                    :video-url="message.videoUrl"
+                    mode="playback"
+                  />
+                  <BubbleMeta
+                    :message="message"
+                    :is-mine="isMine"
+                    overlay
+                    class="absolute end-2 bottom-2 z-20"
+                  />
+                </div>
 
-                <!-- Video Bubble -->
-                <BubbleVideo
-                  v-else-if="messageType === 'video'"
-                  :video-url="message.videoUrl"
-                  mode="playback"
-                />
-
-                <BubbleStatus
-                  v-if="(isMine && message.isFailed) || shouldShowStatus"
-                  :message="message"
-                  :is-mine="isMine"
-                />
+                <BubbleStatus v-if="isMine && message.isFailed" :message="message" />
               </div>
 
-              <!-- Avatar -->
-              <div class="shrink-0 w-10 pb-8">
-                <div
-                  v-if="!isMine && (!isSameSenderNext || !isSameDayNext)"
-                  class="w-10 h-10"
-                >
-                  <ContactAvatar :contact="contact" :show-online="false" />
-                </div>
+              <!-- Avatar, once per group, level with its last bubble. -->
+              <div v-if="!isMine" class="size-8 shrink-0">
+                <ContactAvatar
+                  v-if="!groupedWithNext"
+                  :contact="contact"
+                  :show-online="false"
+                />
               </div>
             </div>
           </div>

@@ -10,7 +10,7 @@
     />
     <Menu ref="menu" :model="menuItems" popup class="vue-chat">
       <template #itemicon="{ item }">
-        <BIcon :icon="item.phIcon" class="size-5 text-chat-on-background/50" />
+        <BIcon :icon="item.phIcon" class="size-5 text-chat-muted" />
       </template>
     </Menu>
 

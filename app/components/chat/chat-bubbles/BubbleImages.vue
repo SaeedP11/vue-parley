@@ -27,7 +27,7 @@ const showUpload = computed(() => !props.isSent && !!props.upload);
     v-if="images.length === 1"
     data-testid="bubble-image"
     @click.stop="emit('preview', 0)"
-    class="relative cursor-pointer overflow-hidden rounded-xl max-w-4/5 md:max-w-85 w-85 h-40.5"
+    class="relative cursor-pointer overflow-hidden rounded-xl max-w-full md:max-w-85 w-85 h-40.5"
   >
     <MediaImage :src="images[0]" class="size-full rounded-xl" />
     <UploadProgressOverlay

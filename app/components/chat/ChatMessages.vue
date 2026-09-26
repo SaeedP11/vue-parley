@@ -11,11 +11,8 @@
       dir="rtl"
       id="list"
       ref="scrollContainer"
-      class="h-full w-full max-w-dvw overflow-x-hidden overflow-y-auto pb-4 hide-scrollbar flip-vertical bg-chat-surface/30"
-      :class="[
-        !scroll.showOptionsBar.value ? 'pt-16' : 'pt-4',
-        lockScroll ? 'overflow-hidden' : '',
-      ]"
+      class="h-full w-full max-w-dvw overflow-x-hidden overflow-y-auto pt-4 pb-4 chat-scrollbar flip-vertical bg-chat-surface/30"
+      :class="{ 'overflow-hidden': lockScroll }"
       @scroll="scroll.handleScroll"
       @wheel.prevent="scroll.handleWheel"
     >
@@ -59,27 +56,25 @@
           </div>
         </div>
 
-        <div
-          v-show="msgList.isLoading.value"
-          class="w-full flex h-16 justify-center items-center shrink-0 overflow-hidden transition-all duration-300 flip-vertical py-4"
-        >
-          <ProgressSpinner class="size-12!" stroke-width="4" />
+        <!-- Older messages on their way in, above the ones already shown. -->
+        <div v-show="msgList.isLoading.value" class="w-full shrink-0 flip-vertical">
+          <MessagesSkeleton :count="2" />
         </div>
       </div>
 
       <!-- Empty States -->
       <div
         v-show="msgList.messages.value.length === 0 && !msgList.isLoading.value"
-        class="h-full flex items-center justify-center text-chat-on-background/50 text-body-md flip-vertical"
+        class="h-full flex items-center justify-center text-chat-muted text-body-md flip-vertical"
       >
         <NoDataDisplay :title="t('noMessages')" :image-path="NoMessages" />
       </div>
 
       <div
         v-show="msgList.messages.value.length === 0 && msgList.isLoading.value"
-        class="w-full flex h-full flip-vertical items-center justify-center"
+        class="w-full flex h-full flip-vertical items-end"
       >
-        <ProgressSpinner class="size-12!" stroke-width="4" />
+        <MessagesSkeleton />
       </div>
 
       <div
@@ -88,45 +83,35 @@
       ></div>
     </div>
 
-    <!-- Bottom UI (Options & Scroll to Bottom) -->
     <div
       class="absolute pointer-events-none bottom-0 right-0 w-full transition-all duration-300 ease-in-out"
       @click.self.stop
     >
-      <div class="flex flex-col pointer-events-none" @click.self.stop>
-        <ScrollToBottomButton
-          :visible="scroll.canScroll.value"
-          :unseen="newWhileScrolledUp"
-          @click="scroll.resetScroll()"
-        />
-        <ConversationOptionsBar
-          :options="options"
-          :visible="!scroll.showOptionsBar.value"
-          @select="handleOption"
-        />
-      </div>
+      <ScrollToBottomButton
+        :visible="scroll.canScroll.value"
+        :unseen="newWhileScrolledUp"
+        @click="scroll.resetScroll()"
+      />
     </div>
   </div>
 
-  <ConfirmModal ref="modal" :loading="modalBusy" @action="handleModalConfirm" />
+  <ConfirmModal ref="modal" @action="handleModalConfirm" />
 </template>
 
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onBeforeUnmount } from "vue";
-import ProgressSpinner from "primevue/progressspinner";
 import ConfirmModal from "~/components/general/ConfirmModal.vue";
 import useLocalI18n from "~/composables/useLocalI18n";
 import { chat, chatMessages } from "@i18n/locales";
 import { useAppToast } from "~/composables/useAppToast";
 import ChatBubble from "./ChatBubble.vue";
+import MessagesSkeleton from "./messages/MessagesSkeleton.vue";
 import FloatingDateHeader from "./messages/FloatingDateHeader.vue";
 import ScrollToBottomButton from "./messages/ScrollToBottomButton.vue";
-import ConversationOptionsBar from "./messages/ConversationOptionsBar.vue";
 import type { Contact, ExtendedMessage } from "~/types";
 import NoDataDisplay from "../general/NoDataDisplay.vue";
 import NoMessages from "~/assets/lib-images/chat/empty-state.webp";
 import type { Modal } from "~/types/components/modal";
-import type { MenuOption } from "~/types/components/menu-options";
 import { useMessagesStore } from "~/stores/messageStores";
 import { useChatStore } from "~/stores/chatStore";
 import { useCallStore } from "~/stores/callStore";
@@ -135,10 +120,7 @@ import { useChatMessageList } from "~/composables/useChatMessageList.js";
 import { useFlippedVirtualScroll } from "~/composables/useFlippedVirtualScroll.js";
 import { useProfileStore } from "~/stores/profileStore.js";
 
-const props = withDefaults(
-  defineProps<{ contact: Contact | null; options: MenuOption[] }>(),
-  { contact: null, options: () => [] },
-);
+withDefaults(defineProps<{ contact: Contact | null }>(), { contact: null });
 
 const modal = ref<Modal | null>(null);
 const chatStore = useChatStore();
@@ -168,7 +150,6 @@ const scroll = useFlippedVirtualScroll({
   scrollContainer,
   hasCall,
   isLoading: msgList.isLoading,
-  chosenRole: computed(() => chatStore.chosenRole),
   isLocked: lockScroll,
   onLoadMore: msgList.loadNextPage,
 });
@@ -227,24 +208,7 @@ msgList.subscribeToBus({
 });
 
 // --- Modal / Delete Actions (UI specific logic stays in component) ---
-// The modal is shared, and a cancelled delete leaves `selectedToDelete` behind.
-const modalAction = ref<"delete" | "end-chat" | null>(null);
-const modalBusy = ref(false);
-
-const handleOption = (key: string) => {
-  if (key !== "end-chat" || !chatId.value) return;
-  modalAction.value = "end-chat";
-  modal.value?.openModal(
-    t("endChat.title"),
-    t("endChat.message"),
-    "error",
-    true,
-    t("endChat.confirm"),
-  );
-};
-
 const handleDeleteMessages = (idsToDelete: string[]) => {
-  modalAction.value = "delete";
   selectedToDelete.value = idsToDelete;
   const isRequestDeletion =
     idsToDelete.length === 1 &&
@@ -264,24 +228,7 @@ const handleDeleteMessages = (idsToDelete: string[]) => {
 };
 
 const handleModalConfirm = () => {
-  const action = modalAction.value;
-  modalAction.value = null;
-
-  if (action === "end-chat" && chatId.value) {
-    // Stay open with the button spinning until the server answers; the host reports failures.
-    if (modalBusy.value) return;
-    modalBusy.value = true;
-    chatStore
-      .endConversation(chatId.value)
-      .catch(() => {})
-      .finally(() => {
-        modalBusy.value = false;
-        modal.value?.closeModal();
-      });
-    return;
-  }
-
-  if (action === "delete" && selectedToDelete.value.length > 0) {
+  if (selectedToDelete.value.length > 0) {
     modal.value?.closeModal();
     const ids = [...selectedToDelete.value];
     const conversationId = chatId.value;
@@ -345,9 +292,6 @@ watch(
 [data-index] {
   will-change: transform;
   backface-visibility: hidden;
-}
-.hide-scrollbar::-webkit-scrollbar {
-  display: none;
 }
 
 @keyframes slide-in-right {

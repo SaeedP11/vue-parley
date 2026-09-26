@@ -2,7 +2,7 @@
   <div
     ref="parentRef"
     class="h-full w-full overflow-y-auto"
-    :class="[scrollbar ? '' : 'hide-scrollbar']"
+    :class="[scrollbar ? 'chat-scrollbar' : 'hide-scrollbar']"
   >
     <div
       :style="{
@@ -35,10 +35,10 @@
     <div
       v-show="pagination && hasNextPage"
       ref="sentinelRef"
-      class="flex h-13 w-full items-center justify-center"
+      class="flex min-h-13 w-full flex-col justify-center"
     >
       <slot v-if="hasNextPage" name="loader">
-        <ProgressSpinner class="size-10!" stroke-width="4" />
+        <Skeleton height="2.75rem" border-radius="0.75rem" />
       </slot>
     </div>
   </div>
@@ -47,7 +47,7 @@
 <script setup lang="ts" generic="T extends Record<string, any>">
 import { ref, onMounted, onUnmounted } from "vue";
 import { useVirtualizer } from "@tanstack/vue-virtual";
-import ProgressSpinner from "primevue/progressspinner";
+import Skeleton from "primevue/skeleton";
 
 const props = withDefaults(
   defineProps<{

@@ -3,5 +3,10 @@
     "endChat": "End conversation",
     "deleteMessages": "Delete messages"
   },
-  "chatEnded": "This conversation has ended"
+  "chatEnded": "This conversation has ended",
+  "endChat": {
+    "title": "End conversation",
+    "message": "Are you sure you want to end this conversation? No more messages can be sent.",
+    "confirm": "End"
+  }
 }

@@ -5,6 +5,7 @@ import NoData from "~/assets/lib-images/chat/empty-state.webp";
 import NoDataDisplay from "~/components/general/NoDataDisplay.vue";
 import type { ChatFilter, StateKeys } from "~/types";
 import ChatContactDisplay from "./ChatContactDisplay.vue";
+import ContactSkeleton from "./ContactSkeleton.vue";
 import { useChatStore } from "~/stores/chatStore.js";
 import ChatListSearch from "./ChatListSearch.vue";
 import useLocalI18n from "~/composables/useLocalI18n";
@@ -99,9 +100,13 @@ onBeforeUnmount(() => {
           :items="chats"
           :loading="currentState.loading"
           :has-next-page="currentState.hasNextPage"
+          scrollbar
           class="h-full w-full"
           @load-more="chatStore.loadNextPage(activeFilter)"
         >
+          <template #loader>
+            <ContactSkeleton v-for="n in 2" :key="n" />
+          </template>
           <template #item="{ item }">
             <ChatContactDisplay
               :contact="item"

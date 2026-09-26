@@ -295,6 +295,20 @@
   --color-chat-error: var(--color-error);
   --color-chat-on-error: var(--color-on-error);
   --color-chat-success: var(--color-secondary);
+  /* Secondary text and icons (times, previews, "last seen"): as faint as it can be while still
+     clearing WCAG AA (4.5:1) on the background and on your own tinted bubbles. */
+  --color-chat-muted: color-mix(
+    in oklab,
+    var(--color-chat-on-background) 65%,
+    transparent
+  );
+  /* Your own messages take a tint of the accent, so they read apart from the other side's. */
+  --color-chat-bubble: var(--color-chat-background);
+  --color-chat-bubble-mine: color-mix(
+    in oklab,
+    var(--color-chat-primary) 14%,
+    var(--color-chat-background)
+  );
 
   --font-chat-family: "Vazirmatn", system-ui, sans-serif;
   --text-chat-base: 14px;
@@ -338,6 +352,23 @@
     --color-chat-warning: var(--color-warning-400);
     --color-chat-error: var(--color-error-400);
     --color-chat-success: var(--color-secondary-400);
+    --color-chat-muted: color-mix(
+      in oklab,
+      var(--color-chat-on-background) 70%,
+      transparent
+    );
+    /* A shadow doesn't show on a dark surface, so the other side's bubbles are lifted a step
+       above the message area (the chat surface) instead. */
+    --color-chat-bubble: color-mix(
+      in oklab,
+      var(--color-chat-on-background) 10%,
+      var(--color-chat-surface)
+    );
+    --color-chat-bubble-mine: color-mix(
+      in oklab,
+      var(--color-chat-primary) 22%,
+      var(--color-chat-background)
+    );
 
     --background-image-diamond-surface: radial-gradient(
       circle at 70% 0%,

@@ -272,6 +272,7 @@ test.describe("conversation lifecycle", () => {
 
   test("ends an active conversation", async ({ page }) => {
     await openConversation(page, "c1");
+    await page.getByTestId("chat-more-options").click();
     await page.getByText("End conversation", { exact: true }).click();
     await page.getByRole("button", { name: "End", exact: true }).click();
 

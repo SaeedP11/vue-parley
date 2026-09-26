@@ -14,6 +14,7 @@
             :contact="selectedChat"
             :options="medicOptions"
             @open-profile="openProfile"
+            @select="handleOption"
           >
             <template v-if="$slots['header-actions']" #actions="{ contact }">
               <slot name="header-actions" :contact="contact" />
@@ -30,16 +31,10 @@
         </div>
         <div class="min-h-0 w-full flex-1 overflow-hidden">
           <!-- Renders nothing without a contact, so no v-show: it can't apply to an empty root. -->
-          <ChatMessages
-            :contact="selectedChat"
-            :options="medicOptions"
-          />
+          <ChatMessages :contact="selectedChat" />
           <!-- The open conversation's contact is still being fetched (e.g. a deep link). -->
-          <div
-            v-if="isResolving"
-            class="flex h-full w-full items-center justify-center"
-          >
-            <ProgressSpinner class="size-12!" stroke-width="4" />
+          <div v-if="isResolving" class="flex h-full w-full items-end">
+            <MessagesSkeleton />
           </div>
         </div>
         <slot
@@ -53,11 +48,13 @@
           ref="chatInput"
           :is-active="true"
         />
+        <!-- In place of the input, so the thread keeps its full height. -->
         <div
           v-else-if="selectedChat"
-          class="flex w-full items-center justify-center py-6"
+          class="flex w-full items-center justify-center gap-x-2 border-t border-t-chat-outline-variant bg-chat-background px-5 py-4 text-body-md text-chat-on-background/60"
         >
-          <NoDataDisplay :image-path="ChatEnded" :title="t('chatEnded')" />
+          <BIcon icon="PhLockKey" class="size-5 shrink-0" />
+          <span>{{ t("chatEnded") }}</span>
         </div>
       </div>
 
@@ -68,23 +65,24 @@
     </div>
 
     <PermissionPopup />
+    <ConfirmModal ref="modal" :loading="ending" @action="endConversation" />
     <Toast :group="TOAST_GROUP" position="bottom-center" class="vue-chat" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, nextTick, watch } from "vue";
-import ProgressSpinner from "primevue/progressspinner";
 import Toast from "primevue/toast";
 import PermissionPopup from "~/components/chat/chat-input/PermissionPopup.vue";
 import ChatProfileOverview from "~/components/chat/ChatProfileOverview.vue";
 import type { ChatTextField } from "~/types/components/chat-input";
 import type { MenuOption } from "~/types/components/menu-options";
 import ChatMessages from "~/components/chat/ChatMessages.vue";
+import MessagesSkeleton from "~/components/chat/messages/MessagesSkeleton.vue";
 import ChatPageBar from "~/components/chat/ChatPageBar.vue";
 import ChatInput from "~/components/chat/ChatInput.vue";
-import NoDataDisplay from "~/components/general/NoDataDisplay.vue";
-import ChatEnded from "~/assets/lib-images/chat/empty-state.webp";
+import ConfirmModal from "~/components/general/ConfirmModal.vue";
+import type { Modal } from "~/types/components/modal";
 import { TOAST_GROUP } from "~/composables/useAppToast";
 import useLocalI18n from "~/composables/useLocalI18n";
 import { useChatStore } from "~/stores/chatStore";
@@ -113,10 +111,38 @@ const medicOptions = computed<MenuOption[]>(() =>
           label: t("barOptions.endChat"),
           icon: "PhXSquare",
           key: "end-chat",
+          color: "error",
         },
       ]
     : [],
 );
+
+const modal = ref<Modal | null>(null);
+const ending = ref(false);
+
+const handleOption = (key: string) => {
+  if (key !== "end-chat" || !chatId.value) return;
+  modal.value?.openModal(
+    t("endChat.title"),
+    t("endChat.message"),
+    "error",
+    true,
+    t("endChat.confirm"),
+  );
+};
+
+const endConversation = () => {
+  // Stay open with the button spinning until the server answers; the host reports failures.
+  if (ending.value || !chatId.value) return;
+  ending.value = true;
+  chatStore
+    .endConversation(chatId.value)
+    .catch(() => {})
+    .finally(() => {
+      ending.value = false;
+      modal.value?.closeModal();
+    });
+};
 
 const openProfile = () => {
   chatStore.openProfile();

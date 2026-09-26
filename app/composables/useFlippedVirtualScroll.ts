@@ -5,7 +5,6 @@ interface ScrollOptions {
   scrollContainer: Ref<HTMLElement | null>;
   hasCall: Ref<boolean>;
   isLoading: Ref<boolean>;
-  chosenRole: Ref<string | undefined>;
   isLocked: Ref<boolean>;
   onLoadMore: () => void;
 }
@@ -15,7 +14,6 @@ export function useFlippedVirtualScroll(options: ScrollOptions) {
     scrollContainer,
     hasCall,
     isLoading,
-    chosenRole,
     isLocked,
     onLoadMore,
   } = options;
@@ -43,8 +41,6 @@ export function useFlippedVirtualScroll(options: ScrollOptions) {
   const scrollOffset = ref(0);
   const topVisibleMessageIndex = ref(0);
   const targetScroll = ref(0);
-  const showOptionsBar = ref(false);
-  let lastScrollTop = 0;
   let scrollTimer: ReturnType<typeof setTimeout> | null = null;
   let animationFrame: number | null = null;
 
@@ -59,7 +55,6 @@ export function useFlippedVirtualScroll(options: ScrollOptions) {
     if (!el) return;
 
     scrollOffset.value = el.scrollTop;
-    const currentScroll = el.scrollTop;
 
     // Floating Header Logic
     headerOpacity.value = 1;
@@ -73,14 +68,6 @@ export function useFlippedVirtualScroll(options: ScrollOptions) {
     if (distanceToTop < 100 && !isLoading.value && itemCount.value > 0) {
       onLoadMore();
     }
-
-    // Options Bar Visibility
-    if (currentScroll < lastScrollTop) {
-      showOptionsBar.value = false;
-    } else {
-      showOptionsBar.value = chosenRole.value !== "user";
-    }
-    lastScrollTop = currentScroll;
 
     // Track Top Visible Message for Floating Header
     const items = virtualizer.value.getVirtualItems();
@@ -157,7 +144,6 @@ export function useFlippedVirtualScroll(options: ScrollOptions) {
   return {
     virtualizer,
     headerOpacity,
-    showOptionsBar,
     canScroll,
     topVisibleMessageIndex,
     handleScroll,

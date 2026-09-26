@@ -47,7 +47,7 @@
             @keyup="editor.saveCursorPosition"
             @mouseup="editor.saveCursorPosition"
             :data-placeholder="inputPlaceholder"
-            class="text-body-md text-on-surface outline-none flex-1 bg-transparent z-10 max-h-[144px] overflow-y-auto hide-scrollbar leading-6 py-1 cursor-text whitespace-pre-wrap break-words empty:before:content-[attr(data-placeholder)] empty:before:text-on-surface/50 pointer-events-auto"
+            class="text-body-md text-on-surface outline-none flex-1 bg-transparent z-10 max-h-[144px] overflow-y-auto hide-scrollbar leading-6 py-1 cursor-text whitespace-pre-wrap break-words empty:before:content-[attr(data-placeholder)] empty:before:text-chat-muted pointer-events-auto"
           ></div>
         </div>
         <div class="z-10 flex h-11 shrink-0 items-center gap-x-2">

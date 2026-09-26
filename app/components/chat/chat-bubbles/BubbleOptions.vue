@@ -96,7 +96,7 @@ const items = computed<MenuItem[]>(() => [
         <BIcon
           :icon="item.phIcon"
           class="size-5"
-          :class="item.danger ? 'text-chat-error' : 'text-chat-on-background/50'"
+          :class="item.danger ? 'text-chat-error' : 'text-chat-muted'"
         />
         <span v-bind="itemProps.label">{{ item.label }}</span>
       </a>

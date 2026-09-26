@@ -16,7 +16,7 @@
         {{ popupContent.title }}
       </div>
     </div>
-    <p class="text-body-md text-chat-on-background/50 select-none">
+    <p class="text-body-md text-chat-muted select-none">
       {{ popupContent.description }}
     </p>
     <div class="flex w-full items-center gap-x-3 pt-5">

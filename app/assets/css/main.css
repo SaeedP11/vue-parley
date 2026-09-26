@@ -24,6 +24,15 @@
   scrollbar-width: none;
 }
 
+/* A thin scrollbar in the chat's own colours, for the conversation and message lists. The gutter
+   is kept even while nothing overflows, so rows don't shift when the bar appears. */
+.chat-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklab, var(--color-chat-on-background) 22%, transparent)
+    transparent;
+  scrollbar-gutter: stable;
+}
+
 .emoji-glyph {
   font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji",
     "Twemoji Mozilla", "EmojiOne Color", "Android Emoji", sans-serif;

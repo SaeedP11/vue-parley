@@ -26,7 +26,7 @@ const { t } = useLocalI18n(chatInput);
       class="w-5 h-5 fill-on-surface shrink-0"
     />
     <div class="flex-1 flex items-center gap-x-2">
-      <div v-if="mode === 'reply'" class="shrink-0 text-on-surface/50">
+      <div v-if="mode === 'reply'" class="shrink-0 text-chat-muted">
         {{ name }} :
       </div>
       <div class="flex-1">
