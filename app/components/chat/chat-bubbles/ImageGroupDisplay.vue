@@ -34,8 +34,8 @@ watch(
 );
 
 // Swiping the photo moves to the neighbouring one, in reading direction.
-const stage = useTemplateRef<HTMLElement>("stage");
-useSwipe(stage, {
+const stageRef = useTemplateRef<HTMLElement>("stage");
+useSwipe(stageRef, {
   onSwipeEnd: (_, direction) => {
     if (direction !== "left" && direction !== "right") return;
     const forward = (direction === "left") === (dir.value !== "rtl");

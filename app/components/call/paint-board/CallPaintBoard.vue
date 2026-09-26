@@ -19,7 +19,7 @@
         class="relative mt-4 min-h-117 w-full shrink-0 overflow-hidden rounded-2xl border-2 border-chat-primary bg-white"
       >
         <canvas
-          ref="canvasRef"
+          ref="canvas"
           class="absolute top-0 left-0 h-full w-full touch-none"
         />
       </div>
@@ -46,7 +46,7 @@
               severity="secondary"
               rounded
               aria-haspopup="true"
-              @click="pagesMenu?.toggle($event)"
+              @click="pagesMenuRef?.toggle($event)"
             >
               <template #icon>
                 <BIcon icon="PhFiles" class="size-6" />
@@ -63,7 +63,7 @@
             severity="secondary"
             rounded
             :aria-label="t('board.selectColor')"
-            @click="colorPicker?.open()"
+            @click="colorPickerRef?.open()"
           >
             <template #icon>
               <span
@@ -85,7 +85,7 @@
             :label="t('board.brushSize')"
             v-bind="toolButton"
             aria-haspopup="true"
-            @click="brushPopover?.toggle($event)"
+            @click="brushPopoverRef?.toggle($event)"
           />
           <Popover ref="brushPopover" class="vue-chat">
             <BrushSizeSlider v-model="brushSize" :color="selectedColor" />
@@ -162,12 +162,12 @@ const emit = defineEmits<{
 const { t } = useLocalI18n(callPaintBoard);
 const callStore = useCallStore();
 const { openToast } = useAppToast();
-const colorPicker = useTemplateRef<BoardColorPickerExposed>("colorPicker");
-const pagesMenu = useTemplateRef<InstanceType<typeof Menu>>("pagesMenu");
-const brushPopover = useTemplateRef<InstanceType<typeof Popover>>("brushPopover");
+const colorPickerRef = useTemplateRef<BoardColorPickerExposed>("colorPicker");
+const pagesMenuRef = useTemplateRef<InstanceType<typeof Menu>>("pagesMenu");
+const brushPopoverRef = useTemplateRef<InstanceType<typeof Popover>>("brushPopover");
 
 const toolButton = { text: false, iconClass: "size-6" } as const;
-const canvasRef = useTemplateRef<HTMLCanvasElement>("canvasRef");
+const canvasRef = useTemplateRef<HTMLCanvasElement>("canvas");
 
 const colors = ref([
   "#2C2727",

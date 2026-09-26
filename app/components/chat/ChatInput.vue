@@ -1,7 +1,7 @@
 <template>
   <div dir="rtl" class="vue-chat w-full relative">
     <VideoRecordDisplay
-      ref="videoDisplayRef"
+      ref="videoDisplay"
       :stream="mediaStream"
       :is-paused="isPaused"
       :recording-time="currentRecordingSeconds"
@@ -37,7 +37,7 @@
       <div v-show="!isRecording" class="flex-1 flex items-end gap-x-5">
         <div class="min-h-11 flex items-center w-full">
           <div
-            ref="inputRef"
+            ref="input"
             data-testid="chat-input"
             contenteditable="true"
             @keydown.enter.exact.prevent="handleEnterKey"
@@ -154,11 +154,11 @@ const profileStore = useProfileStore();
 const currentUserId = computed(() => profileStore.userId);
 
 // Template Refs (Properly typed, no 'any')
-const rootElements = useTemplateRef<HTMLElement>("rootElements");
-const inputRef = useTemplateRef<HTMLDivElement>("inputRef");
-const emojiPopover = useTemplateRef<InstanceType<typeof Popover>>("emojiPopover");
+const rootElementsRef = useTemplateRef<HTMLElement>("rootElements");
+const inputRef = useTemplateRef<HTMLDivElement>("input");
+const emojiPopoverRef = useTemplateRef<InstanceType<typeof Popover>>("emojiPopover");
 const videoDisplayRef =
-  useTemplateRef<InstanceType<typeof VideoRecordDisplay>>("videoDisplayRef");
+  useTemplateRef<InstanceType<typeof VideoRecordDisplay>>("videoDisplay");
 
 // Local State
 const showMobileEmojiPicker = ref(false);
@@ -172,7 +172,7 @@ const secondaryMessageType = ref<"video" | "voice">("voice");
 // Composables
 const editor = useRichTextEditor(inputRef);
 const { restoreDraft } = useInputDraft(editor, () => textMode.value === "edit");
-const inputWidth = computed(() => rootElements.value?.clientWidth || 0);
+const inputWidth = computed(() => rootElementsRef.value?.clientWidth || 0);
 
 // --- Computed UI States ---
 const inputDisabled = computed(() => !props.isActive);
@@ -389,7 +389,7 @@ const handlePointerDown = (event: PointerEvent) => {
     sendMessage();
     return;
   }
-  emojiPopover.value?.hide();
+  emojiPopoverRef.value?.hide();
   recording.onPointerDown(event);
 
   // NOTE: The 300ms setTimeout has been completely removed from here.
@@ -404,7 +404,7 @@ const handleEnterKey = (e: KeyboardEvent) => {
 
 const openEmojiPopover = (event: MouseEvent) => {
   emojiUsed.value = true;
-  emojiPopover.value?.toggle(event);
+  emojiPopoverRef.value?.toggle(event);
 };
 
 const toggleMobileEmoji = () => {
