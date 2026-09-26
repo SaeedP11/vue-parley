@@ -1,28 +1,42 @@
 <script setup lang="ts">
 /** Jumps back to the newest message; shows how many arrived while the user was scrolled up. */
+import Badge from "primevue/badge";
+import IconButton from "~/components/general/IconButton.vue";
+import useLocalI18n from "~/composables/useLocalI18n";
+import { chatMessages } from "@i18n/locales";
+
 defineProps<{ visible: boolean; unseen: number }>();
 const emit = defineEmits<{ click: [] }>();
+
+const { t } = useLocalI18n(chatMessages);
 </script>
 
 <template>
-  <div class="relative pr-3 pb-1 w-11">
+  <div class="relative w-14 pr-3 pb-1">
     <div
-      @click="emit('click')"
       :class="[
         visible
-          ? 'scale-100 pointer-events-auto opacity-100'
-          : 'opacity-0 pointer-events-none scale-0',
+          ? 'pointer-events-auto scale-100 opacity-100'
+          : 'pointer-events-none scale-0 opacity-0',
       ]"
-      class="w-11 origin-bottom transition-all duration-200 ease-in-out h-11 rounded-full overflow-hidden bg-chat-background shadow-floating flex items-center justify-center cursor-pointer"
+      class="origin-bottom transition-all duration-200 ease-in-out"
     >
-      <BIcon icon="PhArrowDown" class="fill-chat-on-background w-6 h-6" />
+      <IconButton
+        icon="PhArrowDown"
+        icon-class="size-6"
+        :label="t('actions.scrollToLatest')"
+        :text="false"
+        raised
+        size="large"
+        :tabindex="visible ? undefined : -1"
+        @click="emit('click')"
+      />
     </div>
-    <div
+    <Badge
       v-if="visible && unseen > 0"
       dir="ltr"
-      class="absolute -top-2 right-3 min-w-5 h-5 px-1.5 rounded-full bg-gradient-primary-secondary flex items-center justify-center text-white text-[10px] font-bold select-none pointer-events-none"
-    >
-      {{ unseen > 99 ? "99+" : unseen }}
-    </div>
+      :value="unseen > 99 ? '99+' : unseen"
+      class="pointer-events-none absolute! -top-2 right-3"
+    />
   </div>
 </template>

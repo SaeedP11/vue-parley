@@ -1,5 +1,12 @@
 <script setup lang="ts">
+import Button from "primevue/button";
+import Tab from "primevue/tab";
+import TabList from "primevue/tablist";
+import Tabs from "primevue/tabs";
+import Tag from "primevue/tag";
 import vLoading from "~/directives/loading";
+import IconButton from "~/components/general/IconButton.vue";
+import MediaImage from "~/components/general/MediaImage.vue";
 import profileBackground from "~/assets/lib-images/chat/profile-background.webp";
 import { useProfileStore } from "~/stores/profileStore.js";
 import ContactAvatar from "./contact/ContactAvatar.vue";
@@ -227,23 +234,27 @@ const fetchMoreFiles = async () => {
   <div
     class="h-full shrink-0 overflow-hidden bg-chat-background transition-none md:transition-all md:duration-300 md:ease-in-out ltr:border-r-chat-surface rtl:border-l-chat-surface ltr:border-r rtl:border-l"
     :class="[isOpen ? 'w-dvw md:w-80' : 'w-0 border-none!']"
+    :aria-hidden="!isOpen"
+    :inert="!isOpen"
   >
     <div class="flex h-full w-full flex-col">
       <div class="flex h-full w-full flex-col md:px-2 md:pt-16.5">
         <div class="relative w-full shrink-0">
           <div class="h-29 w-full">
-            <BImage
+            <MediaImage
               :src="profileBackground"
-              class="h-full w-full min-h-full min-w-full max-h-full max-w-full overflow-hidden md:rounded-xl"
+              no-loading
+              class="size-full md:rounded-xl"
             >
-              <div class="h-full w-full p-2">
-                <BIcon
+              <div class="p-1">
+                <IconButton
                   icon="PhX"
-                  class="h-5 w-5 cursor-pointer fill-white"
+                  :label="t('actions.close')"
+                  class="text-white!"
                   @click="closeSidebar"
                 />
               </div>
-            </BImage>
+            </MediaImage>
           </div>
           <div
             class="flex w-full -translate-y-1/2 items-center justify-center absolute z-20"
@@ -264,44 +275,35 @@ const fetchMoreFiles = async () => {
           >
             {{ localProfile?.name }}
           </div>
-          <BLabel
-            v-if="localProfile?.isOnline"
-            v-loading="isLoading"
-            color="primary"
-            :text="t('online')"
+          <Tag
+            v-if="localProfile?.isOnline && !isLoading"
+            rounded
+            :value="t('online')"
           />
         </div>
 
         <div class="w-full shrink-0 px-6">
           <div class="flex w-full items-center justify-center gap-x-2 py-4">
-            <div
+            <Button
               v-for="action in actionButtons"
               :key="action.key"
               v-loading="isLoading"
-              class="flex aspect-square w-15.5 flex-col items-center justify-center gap-y-0.5 rounded-xl bg-chat-surface transition-all duration-200 ease-in-out"
-              :class="[
-                action.active
-                  ? 'cursor-pointer opacity-100'
-                  : 'cursor-not-allowed opacity-50',
-              ]"
+              :label="action.title"
+              icon-pos="top"
+              severity="secondary"
+              :disabled="!action.active"
+              class="aspect-square w-15.5 gap-y-0.5! p-1! text-[10px]!"
               @click="handleAction(action)"
             >
-              <BIcon
-                :icon="action.icon"
-                weight="fill"
-                class="h-6 w-6"
-                :class="[
-                  action.color === 'error'
-                    ? 'fill-chat-error'
-                    : 'fill-chat-primary',
-                ]"
-              />
-              <div
-                class="select-none text-center text-[10px] text-chat-on-background"
-              >
-                {{ action.title }}
-              </div>
-            </div>
+              <template #icon>
+                <BIcon
+                  :icon="action.icon"
+                  weight="fill"
+                  class="size-6"
+                  :class="action.color === 'error' ? 'text-chat-error' : 'text-chat-primary'"
+                />
+              </template>
+            </Button>
           </div>
 
           <div class="w-full">
@@ -363,10 +365,7 @@ const fetchMoreFiles = async () => {
                     :key="index"
                     class="aspect-square md:h-14 md:w-14 overflow-hidden rounded-xl"
                   >
-                    <BImage
-                      :src="media"
-                      class="h-full w-full min-h-full min-w-full max-h-full max-w-full"
-                    />
+                    <MediaImage :src="media" class="size-full" />
                   </div>
                 </div>
               </div>
@@ -374,7 +373,13 @@ const fetchMoreFiles = async () => {
           </div>
 
           <div v-else class="flex h-full w-full min-h-0 flex-col gap-y-2">
-            <BTab v-model="currentTab" :tabs="tabs" class="shrink-0 min-h-0" />
+            <Tabs v-model:value="currentTab" class="shrink-0">
+              <TabList>
+                <Tab v-for="(tab, index) in tabs" :key="index" :value="index">
+                  {{ tab }}
+                </Tab>
+              </TabList>
+            </Tabs>
             <div class="w-full flex-1 min-h-0 overflow-hidden">
               <div
                 class="flex h-full w-[200%] min-h-0 transition-all duration-200 ease-in-out"
@@ -398,10 +403,7 @@ const fetchMoreFiles = async () => {
                           :key="idx"
                           class="aspect-square md:h-14 md:w-14 overflow-hidden rounded-xl"
                         >
-                          <BImage
-                            :src="media"
-                            class="h-full w-full min-h-full min-w-full max-h-full max-w-full"
-                          />
+                          <MediaImage :src="media" class="size-full" />
                         </div>
                       </div>
                     </template>

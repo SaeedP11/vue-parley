@@ -1,9 +1,11 @@
 import { createApp } from "vue";
 import { createPinia } from "pinia";
 import { createI18n } from "vue-i18n";
+import PrimeVue from "primevue/config";
 import { createChat } from "vue-parley";
 import { createBroadcastCallHandlers, createFakeBackend, demoData } from "vue-parley/fakes";
 import App from "./App.vue";
+import { primeVueOptions } from "./theme";
 import "./style.css";
 
 // Open the demo in two tabs and start a call from both: they signal over a BroadcastChannel and
@@ -15,6 +17,7 @@ const backend = createFakeBackend(demoData(userId), { latency: 300 });
 createApp(App)
   .use(createPinia())
   .use(createI18n({ legacy: false, locale: "fa", fallbackLocale: "en", messages: {} }))
+  .use(PrimeVue, primeVueOptions)
   .use(
     createChat({
       chat: backend.chat,

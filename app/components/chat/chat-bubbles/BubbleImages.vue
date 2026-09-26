@@ -6,6 +6,7 @@
 import { computed } from "vue";
 import type { UploadProgressEvent } from "~/types";
 import UploadProgressOverlay from "./UploadProgressOverlay.vue";
+import MediaImage from "~/components/general/MediaImage.vue";
 
 const MAX_VISIBLE_IMAGES = 3;
 
@@ -28,11 +29,7 @@ const showUpload = computed(() => !props.isSent && !!props.upload);
     @click.stop="emit('preview', 0)"
     class="relative cursor-pointer overflow-hidden rounded-xl max-w-4/5 md:max-w-85 w-85 h-40.5"
   >
-    <BImage
-      fit="cover"
-      :src="images[0]"
-      class="w-full h-full rounded-xl overflow-hidden"
-    />
+    <MediaImage :src="images[0]" class="size-full rounded-xl" />
     <UploadProgressOverlay
       v-if="showUpload"
       :progress="upload!.progress"
@@ -57,10 +54,7 @@ const showUpload = computed(() => !props.isSent && !!props.upload);
       @click.stop="emit('preview', index)"
       class="relative h-full rounded-xl cursor-pointer overflow-hidden aspect-square"
     >
-      <BImage
-        :src="image"
-        class="min-w-full min-h-full max-w-full max-h-full h-full w-full"
-      />
+      <MediaImage :src="image" class="size-full" />
       <UploadProgressOverlay
         v-if="showUpload"
         :progress="upload!.progress"

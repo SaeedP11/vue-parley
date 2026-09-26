@@ -7,6 +7,9 @@
     "sendImages": "Send images",
     "sendImage": "Send image"
   },
+  "errors": {
+    "maxFilesReached": "You can send up to 10 images at a time."
+  },
   "caption": "Caption",
   "send": "Send"
 }

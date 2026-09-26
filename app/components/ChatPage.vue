@@ -43,29 +43,21 @@ defineSlots<{
 
 const slots = useSlots();
 
-const { width } = useWindowSize();
 const chatStore = useChatStore();
 const callStore = useCallStore();
 const { t } = useLocalI18n(chatPage);
 
-const isMobile = computed(() => width.value < 768);
 const isInChat = computed(() => chatStore.activeConversationId !== null);
-
-const showContactList = computed(() => {
-  if (isMobile.value) return !isInChat.value;
-  return true;
-});
-
-const showMessagingSection = computed(() => {
-  if (isMobile.value) return isInChat.value;
-  return true;
-});
 </script>
 <template>
   <div
     class="vue-chat flex w-full h-full max-h-full overflow-hidden font-chat-family text-chat-base text-chat-on-background bg-chat-background"
   >
-    <div v-if="showMessagingSection" class="h-full flex-1 relative">
+    <!-- On phones only one pane shows: the list, or the open conversation. -->
+    <div
+      class="relative h-full flex-1"
+      :class="isInChat ? 'block' : 'hidden md:block'"
+    >
       <!-- Each is forwarded only when filled, so ChatView's `$slots[...]` checks stay accurate. -->
       <ChatView v-if="isInChat">
         <template v-if="slots['header-actions']" #header-actions="scope">
@@ -89,8 +81,8 @@ const showMessagingSection = computed(() => {
     </div>
 
     <div
-      v-if="showContactList"
-      class="md:w-80 w-full h-full shrink-0 border-l border-chat-outline-variant"
+      class="h-full w-full shrink-0 border-l border-chat-outline-variant md:w-80"
+      :class="isInChat ? 'hidden md:block' : 'block'"
     >
       <ChatList />
     </div>

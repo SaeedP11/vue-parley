@@ -4,6 +4,12 @@
     "selectColor": "انتخاب رنگ",
     "savedSuccessfully": "تصویر با موفقیت ذخیره سازی شد.",
     "page": "صفحه {page}",
-    "addPage": "صفحه جدید"
+    "addPage": "صفحه جدید",
+    "save": "ذخیره تصویر",
+    "erase": "پاک کردن",
+    "undo": "واگرد",
+    "redo": "ازنو",
+    "brushSize": "اندازه قلم",
+    "pages": "صفحه‌ها"
   }
 }

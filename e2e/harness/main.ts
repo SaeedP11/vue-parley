@@ -1,7 +1,9 @@
 import { createApp } from "vue";
 import { createPinia } from "pinia";
 import { createI18n } from "vue-i18n";
+import PrimeVue from "primevue/config";
 import { createChat } from "~/index";
+import { primeVueOptions } from "../../demo/src/theme";
 import { ME, MY_NAME, backend, call } from "./backend";
 import App from "./App.vue";
 import "./style.css";
@@ -17,6 +19,7 @@ const i18n = createI18n({
 createApp(App)
   .use(createPinia())
   .use(i18n)
+  .use(PrimeVue, primeVueOptions)
   .use(
     createChat({
       chat: backend.chat,

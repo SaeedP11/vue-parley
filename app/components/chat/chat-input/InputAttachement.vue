@@ -1,143 +1,105 @@
 <template>
   <div>
-    <BMenu ref="attachementMenu">
-      <template #trigger>
-        <BIcon
-          icon="PhPaperclip"
-          data-testid="chat-attach"
-          class="h-6 w-6 shrink-0 cursor-pointer fill-chat-on-background"
-        />
+    <IconButton
+      icon="PhPaperclip"
+      :label="t('actions.attach')"
+      icon-class="size-6"
+      data-testid="chat-attach"
+      aria-haspopup="true"
+      @click="menu?.toggle($event)"
+    />
+    <Menu ref="menu" :model="menuItems" popup class="vue-chat">
+      <template #itemicon="{ item }">
+        <BIcon :icon="item.phIcon" class="size-5 text-chat-on-background/50" />
       </template>
-      <div class="flex w-41 flex-col gap-y-1 rounded-2xl bg-chat-background p-3">
-        <div
-          v-image-pick="{ multiple: true, onSelect: handleMediaSelected }"
-          class="flex h-11 w-full cursor-pointer select-none items-center gap-x-2 rounded-xl bg-transparent px-3 transition-all duration-200 ease-in-out hover:bg-chat-surface-2"
-          @click="resetSelections"
-        >
-          <BIcon icon="PhImage" class="h-5 w-5 fill-chat-on-background/50" />
-          <div class="text-body-sm text-chat-on-background/70">
-            {{ t("file.attachMedia") }}
-          </div>
-        </div>
+    </Menu>
+
+    <ResponsiveDialog
+      v-model:visible="dialogOpen"
+      :header="dialogTitle"
+      width="28.5rem"
+      @after-hide="resetSelections"
+    >
+      <div class="flex w-full flex-col items-center gap-y-3">
+        <MediaImage
+          v-if="dialogMode === 'single-image'"
+          :src="selectedMedia[0]?.path"
+          fit="contain"
+          class="max-h-109 w-full rounded-xl"
+        />
 
         <div
-          v-file-pick="{ multiple: true, onSelect: handleFilesSelected }"
-          class="flex h-11 w-full cursor-pointer select-none items-center gap-x-2 rounded-xl bg-transparent px-3 transition-all duration-200 ease-in-out hover:bg-chat-surface-2"
-          @click="resetSelections"
+          v-else-if="dialogMode === 'multi-image'"
+          class="grid max-h-109 w-full grid-cols-4 gap-3 overflow-y-auto"
         >
-          <BIcon icon="PhFile" class="h-5 w-5 fill-chat-on-background/50" />
-          <div class="text-body-sm text-chat-on-background/70">
-            {{ t("file.attachFile") }}
-          </div>
-        </div>
-      </div>
-    </BMenu>
-
-    <BPopup ref="popup" no-padding @closed="resetSelections">
-      <div class="w-dvw md:max-w-114">
-        <div
-          class="flex w-full items-center gap-x-3 border-b border-b-chat-outline-variant p-5"
-        >
-          <BIcon
-            icon="PhX"
-            class="h-5 w-5 cursor-pointer fill-chat-on-background/50"
-            @click="closePopup"
-          />
-          <div class="select-none text-label-md text-chat-on-background">
-            {{ popupTitle }}
-          </div>
-        </div>
-
-        <div
-          class="flex w-full flex-col items-center gap-y-3 px-5 pt-5 md:max-w-114"
-        >
-          <div v-if="popupMode === 'single-image'" class="w-full">
-            <div class="h-full w-full">
-              <BImage
-                :src="selectedMedia[0]?.path"
-                auto-size
-                fit="cover"
-                class="w-full overflow-hidden rounded-xl"
-              />
-            </div>
-          </div>
-
-          <div
-            v-else-if="popupMode === 'multi-image'"
-            class="max-h-109 w-full overflow-y-auto"
-          >
-            <div class="grid w-full grid-cols-4 gap-x-3">
-              <div
-                v-for="(image, index) in selectedMedia"
-                :key="index"
-                class="h-25"
-              >
-                <BImage
-                  :src="image.path"
-                  fit="cover"
-                  class="h-full w-full min-h-full min-w-full max-h-full max-w-full overflow-hidden rounded-xl"
-                />
-              </div>
-            </div>
-          </div>
-
-          <div
-            v-else-if="popupMode === 'file'"
-            class="flex w-full max-h-109 flex-col gap-y-3 overflow-y-auto"
-          >
-            <AttachementFileDisplay
-              v-for="(file, index) in selectedFiles"
-              :key="index"
-              :file="file"
-            />
-          </div>
-
-          <BInput
-            v-model="caption"
-            class="min-w-full"
-            textarea
-            :placeholder="t('caption')"
+          <MediaImage
+            v-for="(image, index) in selectedMedia"
+            :key="index"
+            :src="image.path"
+            class="h-25 w-full rounded-xl"
           />
         </div>
 
         <div
-          class="flex w-full items-center gap-x-3 border-t border-t-chat-outline-variant p-5"
+          v-else
+          class="flex max-h-109 w-full flex-col gap-y-3 overflow-y-auto"
         >
-          <div class="basis-1/2">
-            <BButton
-              class="min-w-full"
-              :text="t('send')"
-              @click="sendMessages"
-            />
-          </div>
-          <div class="basis-1/2">
-            <BButton
-              class="min-w-full"
-              color="secondary"
-              :text="t('file.cancel')"
-              @click="closePopup"
-            />
-          </div>
+          <AttachementFileDisplay
+            v-for="(file, index) in selectedFiles"
+            :key="index"
+            :file="file"
+          />
         </div>
+
+        <Textarea
+          v-model="caption"
+          :placeholder="t('caption')"
+          rows="3"
+          auto-resize
+          class="max-h-40 w-full"
+        />
       </div>
-    </BPopup>
+
+      <template #footer>
+        <div class="flex w-full items-center gap-x-3">
+          <Button class="flex-1" :label="t('send')" @click="sendMessages" />
+          <Button
+            class="flex-1"
+            severity="secondary"
+            :label="t('file.cancel')"
+            @click="dialogOpen = false"
+          />
+        </div>
+      </template>
+    </ResponsiveDialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import vFilePick from "~/directives/filePicker";
-import vImagePick from "~/directives/imagePicker";
 import { ref, computed, watch } from "vue";
-import type { Menu } from "~/types/components/menu";
-import type { Popup } from "~/types/components/popup";
+import Button from "primevue/button";
+import Menu from "primevue/menu";
+import Textarea from "primevue/textarea";
+import type { MenuItem } from "primevue/menuitem";
+import IconButton from "~/components/general/IconButton.vue";
+import MediaImage from "~/components/general/MediaImage.vue";
+import ResponsiveDialog from "~/components/general/ResponsiveDialog.vue";
 import AttachementFileDisplay from "./AttachementFileDisplay.vue";
-import { useAppToast } from "~/composables/useAppToast.js";
+import {
+  useAttachmentPicker,
+  type PickedFile,
+  type PickedImage,
+} from "~/composables/useAttachmentPicker";
+import { useAppToast } from "~/composables/useAppToast";
 import useLocalI18n from "~/composables/useLocalI18n";
 import { inputAttachement } from "@i18n/locales";
-type PopupMode = "single-image" | "multi-image" | "file";
+
+type DialogMode = "single-image" | "multi-image" | "file";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AttachmentData = any;
+
+const MAX_IMAGES = 10;
 
 const props = withDefaults(
   defineProps<{
@@ -155,13 +117,12 @@ const emit = defineEmits<{
 const { t } = useLocalI18n(inputAttachement);
 const { openToast } = useAppToast();
 
-const popup = ref<Popup | null>(null);
-const attachementMenu = ref<Menu | null>(null);
-
-const popupMode = ref<PopupMode>("file");
+const menu = ref<InstanceType<typeof Menu> | null>(null);
+const dialogOpen = ref(false);
+const dialogMode = ref<DialogMode>("file");
 const caption = ref("");
-const selectedMedia = ref<AttachmentData[]>([]);
-const selectedFiles = ref<AttachmentData[]>([]);
+const selectedMedia = ref<PickedImage[]>([]);
+const selectedFiles = ref<PickedFile[]>([]);
 
 watch(
   () => props.initialCaption,
@@ -171,20 +132,8 @@ watch(
   { immediate: true },
 );
 
-const handleMediaSelected = (
-  pathOrArray: string | AttachmentData[],
-  file?: File,
-) => {
-  let incoming: AttachmentData[] = [];
-
-  if (Array.isArray(pathOrArray)) {
-    incoming = pathOrArray;
-  } else if (typeof pathOrArray === "string" && file) {
-    incoming = [{ path: pathOrArray, file }];
-  }
-
-  const maxAllowed = 10;
-  const remaining = maxAllowed - selectedMedia.value.length;
+const handleMediaSelected = (incoming: PickedImage[]) => {
+  const remaining = MAX_IMAGES - selectedMedia.value.length;
 
   if (remaining <= 0) {
     openToast(t("errors.maxFilesReached"), "error");
@@ -195,31 +144,48 @@ const handleMediaSelected = (
     ...selectedMedia.value,
     ...incoming.slice(0, remaining),
   ];
-  popupMode.value =
+  dialogMode.value =
     selectedMedia.value.length === 1 ? "single-image" : "multi-image";
-
-  popup.value?.open();
+  dialogOpen.value = true;
 };
 
-const handleFilesSelected = (files: AttachmentData[]) => {
+const handleFilesSelected = (files: PickedFile[]) => {
   selectedFiles.value = [...selectedFiles.value, ...files];
-  popupMode.value = "file";
-
-  popup.value?.open();
+  dialogMode.value = "file";
+  dialogOpen.value = true;
 };
 
-const closePopup = () => {
-  popup.value?.close();
-};
+const { pickImages, pickFiles } = useAttachmentPicker({
+  onImages: handleMediaSelected,
+  onFiles: handleFilesSelected,
+});
 
 const resetSelections = () => {
   selectedMedia.value = [];
   selectedFiles.value = [];
-  attachementMenu.value?.close();
 };
 
-const popupTitle = computed(() => {
-  switch (popupMode.value) {
+const menuItems = computed<MenuItem[]>(() => [
+  {
+    label: t("file.attachMedia"),
+    phIcon: "PhImage",
+    command: () => {
+      resetSelections();
+      pickImages();
+    },
+  },
+  {
+    label: t("file.attachFile"),
+    phIcon: "PhFile",
+    command: () => {
+      resetSelections();
+      pickFiles();
+    },
+  },
+]);
+
+const dialogTitle = computed(() => {
+  switch (dialogMode.value) {
     case "file":
       return t("file.sendFile");
     case "multi-image":
@@ -247,19 +213,16 @@ const sendMessages = () => {
     });
   }
 
-  if (selectedFiles.value.length > 0) {
-    selectedFiles.value.forEach((fileData) => {
-      messagesToEmit.push({
-        type: "file",
-        fileUrl: fileData.path,
-        file: fileData.file,
-        fileName: fileData.name,
-      });
+  selectedFiles.value.forEach((fileData) => {
+    messagesToEmit.push({
+      type: "file",
+      fileUrl: fileData.path,
+      file: fileData.file,
+      fileName: fileData.name,
     });
-  }
+  });
 
   emit("send-attachments", messagesToEmit);
-  closePopup();
-  resetSelections();
+  dialogOpen.value = false;
 };
 </script>

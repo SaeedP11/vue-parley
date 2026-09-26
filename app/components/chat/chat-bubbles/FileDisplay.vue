@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import Button from "primevue/button";
 import FileFormatDisplay from "~/components/general/FileFormatDisplay.vue";
 import LoadingStatus from "~/components/general/LoadingStatus.vue";
 import { useMessagesStore } from "~/stores/messageStores";
@@ -61,6 +62,11 @@ const fileName = computed(() => {
   } catch {
     return "File";
   }
+});
+
+const actionLabel = computed(() => {
+  if (status.value === "downloading") return t("actions.cancelDownload");
+  return t("actions.download");
 });
 
 const fileExt = computed(() => {
@@ -172,20 +178,26 @@ onMounted(() => {
         </div>
       </div>
     </div>
-    <FileFormatDisplay
-      :width="30"
-      :height="33"
-      :label="fileExt"
-      v-if="status === 'downloaded' && !isUploading"
+    <Button
+      text
+      rounded
+      class="size-11! shrink-0 p-0!"
+      :aria-label="actionLabel"
+      :disabled="isUploading"
       @click="toggleDownload"
-    />
-    <LoadingStatus
-      v-else
-      :class="[isUploading ? 'cursor-default' : 'cursor-pointer']"
-      :progress="displayProgress"
-      :is-uploading="isUploading"
-      :is-downloading="status === 'downloading'"
-      @click="toggleDownload"
-    />
+    >
+      <FileFormatDisplay
+        v-if="status === 'downloaded' && !isUploading"
+        :width="30"
+        :height="33"
+        :label="fileExt"
+      />
+      <LoadingStatus
+        v-else
+        :progress="displayProgress"
+        :is-uploading="isUploading"
+        :is-downloading="status === 'downloading'"
+      />
+    </Button>
   </div>
 </template>

@@ -11,20 +11,8 @@ export {}
 /* prettier-ignore */
 declare module 'vue' {
   export interface GlobalComponents {
-    BButton: typeof import('./app/components/global/BButton.vue')['default']
-    BCarousel: typeof import('./app/components/global/BCarousel.vue')['default']
-    BCheckBox: typeof import('./app/components/global/BCheckBox.vue')['default']
     BEmojiPicker: typeof import('./app/components/global/BEmojiPicker.vue')['default']
     BIcon: typeof import('./app/components/global/BIcon.vue')['default']
-    BImage: typeof import('./app/components/global/BImage.vue')['default']
-    BInput: typeof import('./app/components/global/BInput.vue')['default']
-    BLabel: typeof import('./app/components/global/BLabel.vue')['default']
-    BMenu: typeof import('./app/components/global/BMenu.vue')['default']
-    BModal: typeof import('./app/components/global/BModal.vue')['default']
-    BPopup: typeof import('./app/components/global/BPopup.vue')['default']
-    BSelect: typeof import('./app/components/global/BSelect.vue')['default']
-    BTab: typeof import('./app/components/global/BTab.vue')['default']
-    BToast: typeof import('./app/components/global/BToast.vue')['default']
     BVirtualVerticalList: typeof import('./app/components/global/BVirtualVerticalList.vue')['default']
   }
 }

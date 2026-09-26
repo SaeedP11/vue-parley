@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import Badge from "primevue/badge";
 import vLoading from "~/directives/loading";
 import SafeEmojiText from "~/components/general/SafeEmojiText.vue";
 import { useProfileStore } from "~/stores/profileStore.js";
@@ -192,15 +193,12 @@ const lastMessageColor = computed(() => {
         </div>
 
         <div class="h-full flex items-center shrink-0 ms-2">
-          <div
-            v-loading="isLoading"
-            v-if="unreadCount > 0"
-            class="rounded-full justify-center min-w-6 px-1.5 h-5 flex bg-gradient-error items-center select-none"
-          >
-            <div dir="ltr" class="text-white text-[10px] font-bold text-center">
-              {{ unreadCount > 99 ? "+99" : unreadCount }}
-            </div>
-          </div>
+          <Badge
+            v-if="unreadCount > 0 && !isLoading"
+            dir="ltr"
+            severity="danger"
+            :value="unreadCount > 99 ? '+99' : unreadCount"
+          />
         </div>
       </div>
     </div>

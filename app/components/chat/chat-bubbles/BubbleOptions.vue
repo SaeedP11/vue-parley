@@ -1,9 +1,9 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, ref } from "vue";
+import { computed, ref } from "vue";
+import ContextMenu from "primevue/contextmenu";
+import type { MenuItem } from "primevue/menuitem";
 import { useMessagesStore } from "~/stores/messageStores";
-import type { Menu } from "~/types/components/menu";
 import type { ExtendedMessage } from "~/types";
-import BMenu from "~/components/global/BMenu.vue";
 import useLocalI18n from "~/composables/useLocalI18n";
 import { bubbleOptions } from "@i18n/locales";
 const props = defineProps<{
@@ -12,31 +12,20 @@ const props = defineProps<{
 
 const { t } = useLocalI18n(bubbleOptions);
 const messagesStore = useMessagesStore();
-const isOpen = ref(false);
 
-const menuRef = ref<Menu | null>(null);
-const position = ref({ x: 0, y: 0 });
+const menu = ref<InstanceType<typeof ContextMenu> | null>(null);
 
-const openMenu = (x: number, y: number) => {
-  const adjustedX = Math.min(x, window.innerWidth - 250);
-  const adjustedY = Math.min(y, window.innerHeight - 300);
-
-  position.value = { x: adjustedX, y: adjustedY };
-  isOpen.value = true;
+/** Opens at the pointer: a right click, or where a long press began. */
+const openMenu = (event: MouseEvent | PointerEvent) => {
   messagesStore.isOptionMenuOpen = true;
-
-  nextTick(() => {
-    menuRef.value?.open();
-  });
+  menu.value?.show(event);
 };
 
 const closeMenu = () => {
-  menuRef.value?.close();
-  messagesStore.isOptionMenuOpen = false;
+  menu.value?.hide();
 };
 
 const onMenuClosed = () => {
-  isOpen.value = false;
   messagesStore.isOptionMenuOpen = false;
 };
 
@@ -48,112 +37,69 @@ const showAsDeselect = computed(() => {
     messagesStore.selectedMessages.has(props.message.id)
   );
 });
-const options = computed(() => {
-  const allOptions = [
-    {
-      icon: "PhArrowBendUpLeft",
-      key: "reply",
-      label: t("messageOptions.reply"),
-      canShow: props.message.isSent,
-    },
-    {
-      icon: "PhPencilSimpleLine",
-      key: "edit",
-      label: t("messageOptions.edit"),
-      canShow: messagesStore.canEdit,
-    },
-    {
-      icon: "PhCopy",
-      key: "copy",
-      label: t("messageOptions.copy"),
-      canShow: true,
-    },
-    {
-      icon: showAsDeselect.value ? "PhXCircle" : "PhCheckCircle",
-      key: "select_toggle",
-      label: showAsDeselect.value
-        ? t("messageOptions.deselect")
-        : t("messageOptions.select"),
-      canShow: true,
-    },
-    {
-      icon: "PhTrash",
-      key: "delete",
-      label: t("messageOptions.delete"),
-      canShow: messagesStore.canDelete,
-      color: "error",
-    },
-  ];
-  return allOptions.filter((option) => option.canShow);
-});
 
-const handleOption = (key: string) => {
-  const targetIds =
-    messagesStore.isSelectMode &&
-    messagesStore.selectedMessages.has(props.message.id)
-      ? messagesStore.selectedArray.map((m) => m.id)
-      : [props.message.id];
+const targetIds = () =>
+  messagesStore.isSelectMode &&
+  messagesStore.selectedMessages.has(props.message.id)
+    ? messagesStore.selectedArray.map((m) => m.id)
+    : [props.message.id];
 
-  closeMenu();
-
-  // Defer the action so the menu's exit animation finishes first.
-  // Track the timer so we can cancel it if the component unmounts mid-delay.
-  pendingAction = setTimeout(() => {
-    pendingAction = null;
-    switch (key) {
-      case "delete":
-        messagesStore.triggerDelete(targetIds);
-        break;
-      case "select_toggle":
-        if (!messagesStore.isSelectMode) {
-          messagesStore.startSelectMode(props.message);
-        } else {
-          messagesStore.toggleSelection(props.message);
-        }
-        break;
-      case "edit":
-        messagesStore.triggerEdit(props.message);
-        break;
-      case "reply":
-        if (!props.message.isSent) return;
-        messagesStore.replyingTo = props.message;
-        break;
-      case "copy":
-        messagesStore.copyMessageText();
-        break;
-    }
-  }, 300);
-};
-
-let pendingAction: ReturnType<typeof setTimeout> | null = null;
-
-onBeforeUnmount(() => {
-  if (pendingAction) clearTimeout(pendingAction);
-});
+const items = computed<MenuItem[]>(() => [
+  {
+    phIcon: "PhArrowBendUpLeft",
+    label: t("messageOptions.reply"),
+    visible: props.message.isSent,
+    command: () => {
+      messagesStore.replyingTo = props.message;
+    },
+  },
+  {
+    phIcon: "PhPencilSimpleLine",
+    label: t("messageOptions.edit"),
+    visible: messagesStore.canEdit,
+    command: () => messagesStore.triggerEdit(props.message),
+  },
+  {
+    phIcon: "PhCopy",
+    label: t("messageOptions.copy"),
+    command: () => messagesStore.copyMessageText(),
+  },
+  {
+    phIcon: showAsDeselect.value ? "PhXCircle" : "PhCheckCircle",
+    label: showAsDeselect.value
+      ? t("messageOptions.deselect")
+      : t("messageOptions.select"),
+    command: () => {
+      if (!messagesStore.isSelectMode) {
+        messagesStore.startSelectMode(props.message);
+      } else {
+        messagesStore.toggleSelection(props.message);
+      }
+    },
+  },
+  {
+    phIcon: "PhTrash",
+    label: t("messageOptions.delete"),
+    visible: messagesStore.canDelete,
+    danger: true,
+    command: () => messagesStore.triggerDelete(targetIds()),
+  },
+]);
 </script>
 <template>
-  <Teleport to="body">
-    <div
-      class="vue-chat"
-      :style="{
-        position: 'fixed',
-        top: `${position.y}px`,
-        left: `${position.x}px`,
-        zIndex: 99999,
-        pointerEvents: 'none',
-      }"
-      dir="rtl"
-    >
-      <BMenu
-        @select="handleOption"
-        :options="options"
-        ref="menuRef"
-        @close="onMenuClosed"
+  <ContextMenu ref="menu" :model="items" class="vue-chat" @hide="onMenuClosed">
+    <template #item="{ item, props: itemProps }">
+      <a
+        v-bind="itemProps.action"
+        :class="item.danger && 'text-chat-error!'"
       >
-        <template #trigger>
-          <div style="width: 1px; height: 1px"></div>
-        </template>
-      </BMenu>
-    </div>
-  </Teleport>
+        <BIcon
+          :icon="item.phIcon"
+          class="size-5"
+          :class="item.danger ? 'text-chat-error' : 'text-chat-on-background/50'"
+        />
+        <span v-bind="itemProps.label">{{ item.label }}</span>
+      </a>
+    </template>
+  </ContextMenu>
 </template>

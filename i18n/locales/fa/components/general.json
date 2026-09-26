@@ -7,5 +7,25 @@
   "themes": {
     "dark": "تاریک",
     "light": "روشن"
+  },
+  "actions": {
+    "close": "بستن",
+    "back": "بازگشت",
+    "call": "تماس",
+    "returnToCall": "بازگشت به تماس",
+    "attach": "پیوست",
+    "emoji": "ایموجی",
+    "sendMessage": "ارسال پیام",
+    "recordVoice": "ضبط پیام صوتی",
+    "recordVideo": "ضبط پیام ویدیویی",
+    "pause": "توقف",
+    "resume": "ادامه",
+    "play": "پخش",
+    "download": "دانلود",
+    "cancelDownload": "لغو دانلود",
+    "retry": "تلاش مجدد",
+    "scrollToLatest": "رفتن به آخرین پیام‌ها",
+    "flipCamera": "تغییر دوربین",
+    "flashlight": "چراغ‌قوه"
   }
 }

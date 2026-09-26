@@ -7,6 +7,9 @@
     "sendImages": "ارسال تصاویر",
     "sendImage": "ارسال تصویر"
   },
+  "errors": {
+    "maxFilesReached": "در هر ارسال حداکثر ۱۰ تصویر مجاز است."
+  },
   "caption": "کپشن",
   "send": "ارسال"
 }

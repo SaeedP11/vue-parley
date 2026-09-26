@@ -8,6 +8,7 @@ Formerly `@yonus_amire01/chat`. To switch, replace that name with `vue-parley` i
 - Virtualised message list with text, image, file, voice and video messages, replies, edits, deletes, drafts and retries on failed sends
 - Voice and video calls with screen sharing over plain browser WebRTC
 - English and Persian translations built in, with RTL layout for `fa` and `ar`
+- Built from PrimeVue components, laid out with Tailwind; it takes its look from the host's PrimeVue theme
 - Precompiled, scoped CSS: no Tailwind needed in the host, and no leaks into the host's styles
 
 ## Contents
@@ -23,6 +24,7 @@ Formerly `@yonus_amire01/chat`. To switch, replace that name with `vue-parley` i
 - [Exports](#exports)
 - [Translations](#translations)
 - [Styles](#styles)
+- [Upgrading from 3.x](#upgrading-from-3x)
 - [Upgrading from 2.x](#upgrading-from-2x)
 - [Development](#development)
 - [License](#license)
@@ -32,22 +34,24 @@ Formerly `@yonus_amire01/chat`. To switch, replace that name with `vue-parley` i
 ```bash
 pnpm add vue-parley
 # peer dependencies, if the app doesn't have them yet
-pnpm add vue vue-i18n pinia @vueuse/core
+pnpm add vue vue-i18n pinia @vueuse/core primevue@^4.5 @primeuix/themes@^1
 ```
 
-npm and yarn work the same way. Peer ranges: `vue` ^3.5, `pinia` 2.2+, 3 or 4, `vue-i18n` 9 to 11, `@vueuse/core` 11 to 14.
+npm and yarn work the same way. Peer ranges: `vue` ^3.5, `pinia` 2.2+, 3 or 4, `vue-i18n` 9 to 11, `@vueuse/core` 11 to 14, `primevue` 4.5+ (4.x). PrimeVue 5 is not supported: it moved from MIT to a commercial licence that needs a key and does not allow redistribution inside a component library.
 
 ## Usage
 
 ### Plain Vue + Vite
 
-Install the plugin once in `main.ts`. Pinia and vue-i18n (with `legacy: false`) must be installed before it.
+Install the plugin once in `main.ts`. Pinia, vue-i18n (with `legacy: false`) and PrimeVue (styled mode, with any preset) must be installed before it.
 
 ```ts
 // main.ts
 import { createApp } from 'vue';
 import { createPinia } from 'pinia';
 import { createI18n } from 'vue-i18n';
+import PrimeVue from 'primevue/config';
+import Aura from '@primeuix/themes/aura';
 import { createChat } from 'vue-parley';
 import 'vue-parley/style.css';
 import App from './App.vue';
@@ -55,6 +59,7 @@ import App from './App.vue';
 createApp(App)
   .use(createPinia())
   .use(createI18n({ legacy: false, locale: 'fa', fallbackLocale: 'en' }))
+  .use(PrimeVue, { theme: { preset: Aura, options: { darkModeSelector: '.dark' } } })
   .use(
     createChat({
       chat: chatHandlers,         // ChatHandlers: fetch/delete/end conversations
@@ -84,7 +89,7 @@ All handler interfaces (`ChatHandlers`, `MessagesHandlers`, `MediaHandlers`, `Pr
 
 ### Nuxt 3 / 4
 
-Create `app/plugins/chat.client.ts` (Pinia and i18n come from `@pinia/nuxt` and `@nuxtjs/i18n`):
+Create `app/plugins/chat.client.ts` (Pinia, i18n and PrimeVue come from `@pinia/nuxt`, `@nuxtjs/i18n` and `@primevue/nuxt-module`):
 
 ```ts
 import { createChat } from 'vue-parley';
@@ -158,6 +163,7 @@ Nothing is persisted, and calls never leave the browser: don't use it in product
 
 ## What `createChat()` does
 
+- Checks that Pinia, vue-i18n and PrimeVue are installed, and installs PrimeVue's `ToastService` if the host hasn't. The chat's own toasts use the group `vue-parley`, rendered by `ChatConversation`, so they never show up in the host's `<Toast />`.
 - Gives each store its handlers when that store is first created (via a Pinia plugin), whether a component, a Nuxt plugin or a route guard creates it.
 - Sets the signed-in user on the profile store.
 - Hands the call handlers to the call store. `provideCallHandlers()` in a component does the same, for handlers that only exist further down the tree.
@@ -173,7 +179,7 @@ Every component and directive the chat uses is imported by the component itself,
 | `ChatPage` | The whole chat: contact list, conversation and call view. |
 | `Call` | The call view (async). |
 | `ChatList`, `ChatConversation`, `ChatHeader`, `ChatMessages`, `ChatInput`, `ChatBubble` | Building blocks for custom layouts. |
-| `BButton`, `BInput`, `BSelect`, `BModal`, `BPopup`, `BMenu`, `BTab`, `BToast`, `BIcon`, `BImage`, `BLabel`, `BCheckBox`, `BCarousel`, `BEmojiPicker`, `BVirtualVerticalList` | The UI primitives the chat is built from. |
+| `BIcon`, `BEmojiPicker`, `BVirtualVerticalList` | A Phosphor icon by name, the emoji picker and the virtualised list the chat uses. Every other control is a PrimeVue component. |
 | `useChatStore`, `useMessagesStore`, `useMediaStore`, `useProfileStore`, `useCallStore` | The Pinia stores. |
 | Types | Handler interfaces, `Contact`, `Message`, `SignalData`, `ChatOptions`, `ChatUser` and the rest of `app/types`. |
 | `vue-parley/fakes` | `createFakeBackend`, `createBroadcastCallHandlers`, `demoData`, `e2eData`: see [Fake backend](#fake-backend). |
@@ -194,7 +200,18 @@ import 'vue-parley/style.css';
 
 It holds the compiled Tailwind v4 theme and only the utilities the package uses, with every rule scoped to the `.vue-chat` root. The host needs no Tailwind of its own, and the chat's styles (including its reset) can't override the host's. Images and animations are bundled into the JavaScript, so there are no asset files to serve.
 
-Colours come from CSS variables such as `--color-chat-primary`, `--color-chat-background` and `--color-chat-on-background` (see `app/assets/css/theme.css`). Adding the `dark` class to an ancestor switches to the dark palette.
+Controls (buttons, inputs, dialogs, menus, tabs, toasts, the image viewer) are PrimeVue components, so they follow the host's PrimeVue preset. The chat's own surfaces use CSS variables such as `--color-chat-primary`, `--color-chat-background` and `--color-chat-on-background` (see `app/assets/css/theme.css`); the accent, `--color-chat-primary`, is taken from the preset's primary colour. Adding the `dark` class to an ancestor switches the chat to its dark palette; set PrimeVue's `darkModeSelector` to `.dark` so both switch together.
+
+The chat themes PrimeVue components through their props and design tokens; the few size and visibility tweaks it makes on them use important utilities, so it works whether or not the host puts PrimeVue in a CSS layer.
+
+## Upgrading from 3.x
+
+The UI is now built from PrimeVue (4.x) and Tailwind, so:
+
+- **PrimeVue is a peer dependency.** Install `primevue` 4.5+ and a theme, and `app.use(PrimeVue, { theme })` before `createChat()`; it throws otherwise. Hosts that already use PrimeVue need nothing more.
+- **Removed exports.** `BButton`, `BInput`, `BSelect`, `BModal`, `BPopup`, `BMenu`, `BTab`, `BToast`, `BImage`, `BLabel`, `BCheckBox` and `BCarousel` are gone; use PrimeVue's `Button`, `InputText`, `Select`, `Dialog`, `Menu`/`Popover`, `Tabs`, `Toast`, `Image`, `Tag`, `Checkbox` and `Galleria`.
+- **Look.** Controls take their colours, radii and focus rings from the host's PrimeVue preset, and the chat's accent colour follows the preset's primary colour.
+- **Dependencies.** `vue3-lottie` is no longer used; loading spinners are PrimeVue's `ProgressSpinner`.
 
 ## Upgrading from 2.x
 
@@ -241,7 +258,7 @@ export PLAYWRIGHT_BROWSERS_PATH=$(nix build --no-link --print-out-paths nixpkgs#
 app/
   index.ts        package entry: everything listed under Exports
   plugin.ts       createChat()
-  components/     ChatPage, chat/, call/, global/ (the B* primitives)
+  components/     ChatPage, chat/, call/, general/ (small PrimeVue compositions), global/ (BIcon and friends)
   composables/    including call/: signalling, peers, media
   stores/         Pinia stores
   types/          handler interfaces and data types

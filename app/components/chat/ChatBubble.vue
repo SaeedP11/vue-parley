@@ -127,10 +127,7 @@ const handleRightClick = async (event: MouseEvent | PointerEvent) => {
     optionsMounted.value = true;
     await nextTick();
   }
-  bubbleOptionsRef.value?.openMenu(
-    (event as MouseEvent).clientX,
-    (event as MouseEvent).clientY,
-  );
+  bubbleOptionsRef.value?.openMenu(event);
 };
 
 const handleLeftClick = () => {

@@ -7,8 +7,10 @@
       <div
         class="relative flex w-full flex-row-reverse items-center justify-end gap-x-4 md:flex-row md:justify-between"
       >
-        <div
-          class="flex cursor-pointer items-center gap-x-3"
+        <Button
+          text
+          severity="secondary"
+          class="gap-x-3! p-1! text-start"
           @click="openProfile"
         >
           <div class="relative h-10 w-10 shrink-0">
@@ -29,27 +31,27 @@
               }}
             </div>
           </div>
-        </div>
+        </Button>
 
-        <div class="relative z-[1001] h-6">
+        <div class="relative z-[1001] h-10">
           <div
             class="relative transition-all duration-200 ease-in-out"
-            :class="[isSelectMode ? '-translate-y-6' : 'translate-y-0']"
+            :class="[isSelectMode ? '-translate-y-10' : 'translate-y-0']"
           >
             <div
               class="relative flex items-center gap-x-4 transition-all duration-200 ease-in-out"
             >
               <!-- Host actions for the open conversation, beside the call button. -->
               <slot name="actions" :contact="selectedChat" />
-              <div class="hidden md:block">
-                <BIcon
-                  icon="PhPhone"
-                  class="h-6 w-6 cursor-pointer fill-chat-on-background/50"
-                  data-testid="chat-start-call"
-                  @click="initCall"
-                  v-if="selectedChat.serviceType !== 'chat'"
-                />
-              </div>
+              <IconButton
+                v-if="selectedChat.serviceType !== 'chat'"
+                icon="PhPhone"
+                icon-class="size-6"
+                :label="t('actions.call')"
+                data-testid="chat-start-call"
+                class="hidden! md:inline-flex!"
+                @click="initCall"
+              />
             </div>
             <!-- <div
               class="hidden items-center gap-x-4 md:flex"
@@ -74,9 +76,11 @@
           </div>
         </div>
       </div>
-      <BIcon
+      <IconButton
         icon="PhArrowLeft"
-        class="md:hidden h-6 w-6 cursor-pointer fill-chat-on-background/50"
+        icon-class="size-6"
+        :label="t('actions.back')"
+        class="md:hidden!"
         @click="goBack"
       />
     </div>
@@ -108,9 +112,11 @@
           <div class="flex-1 select-none text-label-md text-white">
             {{ callData.duration }}
           </div>
-          <BIcon
+          <IconButton
             icon="PhFrameCorners"
-            class="h-5 w-5 shrink-0 cursor-pointer fill-white"
+            :label="t('actions.returnToCall')"
+            size="small"
+            class="shrink-0 text-white!"
             @click="backToCall"
           />
         </div>
@@ -121,6 +127,8 @@
 
 <script setup lang="ts">
 import vLoading from "~/directives/loading";
+import Button from "primevue/button";
+import IconButton from "~/components/general/IconButton.vue";
 import { useMessagesStore } from "~/stores/messageStores.js";
 import ContactAvatar from "./contact/ContactAvatar.vue";
 import useLocalI18n from "~/composables/useLocalI18n";

@@ -4,6 +4,12 @@
     "selectColor": "Select color",
     "savedSuccessfully": "Image saved successfully.",
     "page": "Page {page}",
-    "addPage": "New page"
+    "addPage": "New page",
+    "save": "Save image",
+    "erase": "Clear",
+    "undo": "Undo",
+    "redo": "Redo",
+    "brushSize": "Brush size",
+    "pages": "Pages"
   }
 }

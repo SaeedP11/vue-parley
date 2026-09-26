@@ -3,10 +3,10 @@
     class="relative w-dvw overflow-hidden whitespace-nowrap text-wrap select-none md:max-w-135"
   >
     <div class="flex h-full w-full flex-col p-4">
-      <div class="flex shrink-0 items-center gap-x-3">
-        <BIcon
+      <div class="flex shrink-0 items-center gap-x-2">
+        <IconButton
           icon="PhX"
-          class="h-5 w-5 cursor-pointer fill-chat-on-background/50"
+          :label="t('actions.close')"
           @click="$emit('close')"
         />
         <div class="text-label-sm text-chat-on-background">
@@ -25,112 +25,94 @@
       </div>
 
       <div class="mt-2 flex shrink-0 items-center justify-between">
-        <BButton
-          icon="PhTrayArrowDown"
-          color="primary"
-          type="fill"
-          @click="saveToFiles"
-        />
+        <Button rounded :aria-label="t('board.save')" @click="saveToFiles">
+          <template #icon>
+            <BIcon icon="PhTrayArrowDown" class="size-5" />
+          </template>
+        </Button>
 
         <div dir="rtl" class="flex items-center gap-x-2">
-          <div
+          <IconButton
             v-if="pages.length === 1"
-            class="flex h-11 w-11 aspect-square cursor-pointer items-center justify-center rounded-full bg-chat-surface"
-            @click.stop="handleAction('add-page')"
+            icon="PhPlus"
+            :label="t('board.addPage')"
+            v-bind="toolButton"
+            @click="handleAction('add-page')"
+          />
+          <template v-else>
+            <Button
+              :label="`+${pages.length - 1}`"
+              :aria-label="t('board.pages')"
+              severity="secondary"
+              rounded
+              aria-haspopup="true"
+              @click="pagesMenu?.toggle($event)"
+            >
+              <template #icon>
+                <BIcon icon="PhFiles" class="size-6" />
+              </template>
+            </Button>
+            <Menu ref="pagesMenu" :model="pageItems" popup class="vue-chat">
+              <template #itemicon="{ item }">
+                <BIcon :icon="item.phIcon" class="size-5 text-chat-primary" />
+              </template>
+            </Menu>
+          </template>
+
+          <Button
+            severity="secondary"
+            rounded
+            :aria-label="t('board.selectColor')"
+            @click="colorPicker?.open()"
           >
-            <BIcon icon="PhPlus" class="h-6 w-6 fill-chat-on-background" />
-          </div>
-
-          <BMenu v-else :options="pageOptions" @select="handlePageSelect">
-            <template #trigger>
-              <div
-                class="relative flex h-11 items-center justify-center gap-x-2.5 rounded-full bg-chat-surface p-2.5"
-              >
-                <div class="select-none text-label-sm text-chat-on-background">
-                  +{{ pages.length - 1 }}
-                </div>
-                <BIcon icon="PhFiles" class="h-6 w-6 fill-chat-on-background" />
-              </div>
+            <template #icon>
+              <span
+                class="block size-6 rounded-full"
+                :style="{ backgroundColor: selectedColor }"
+              />
             </template>
-          </BMenu>
+          </Button>
 
-          <BMenu ref="colorPickerMenu" align="top">
-            <template #trigger>
-              <div
-                class="relative flex h-11 w-11 aspect-square cursor-pointer items-center justify-center overflow-hidden rounded-full bg-chat-surface"
-                @click.stop="handleAction('color')"
-              >
-                <div
-                  class="pointer-events-none aspect-square h-6 w-6 rounded-full"
-                  :style="{ backgroundColor: selectedColor }"
-                />
-              </div>
-            </template>
-            <div class="flex flex-col gap-y-4 p-3">
-              <div class="select-none text-label-md text-chat-on-background">
-                {{ t("board.selectColor") }}
-              </div>
-              <div class="hidden w-50 grid-cols-5 gap-1 md:grid">
-                <div
-                  v-for="color in colors"
-                  :key="color"
-                  class="aspect-square w-8 cursor-pointer rounded-lg border transition-all duration-200 ease-in-out"
-                  :class="[
-                    selectedColor === color
-                      ? 'border-chat-primary'
-                      : 'border-chat-primary/0',
-                  ]"
-                  :style="{ backgroundColor: color }"
-                  @click="setColor(color)"
-                />
-              </div>
-            </div>
-          </BMenu>
-
-          <div
-            class="flex h-11 w-11 aspect-square cursor-pointer items-center justify-center rounded-full bg-chat-surface"
+          <IconButton
+            icon="PhEraser"
+            :label="t('board.erase')"
+            v-bind="toolButton"
             @click="handleAction('erase')"
-          >
-            <BIcon icon="PhEraser" class="h-6 w-6 fill-chat-on-background" />
-          </div>
+          />
 
-          <BMenu align="top">
-            <template #trigger="{ isOpen }">
-              <div
-                class="flex h-11 w-11 aspect-square cursor-pointer items-center justify-center rounded-full bg-chat-surface"
-              >
-                <BIcon icon="PhPencilLine" class="h-6 w-6 fill-chat-on-background" />
-              </div>
-            </template>
-            <!-- @click.stop prevents the BPopup from closing when you click the menu -->
-            <div class="py-2" @click.stop @pointerdown.stop>
-              <BrushSizeSlider v-model="brushSize" :color="selectedColor" />
-            </div>
-          </BMenu>
+          <IconButton
+            icon="PhPencilLine"
+            :label="t('board.brushSize')"
+            v-bind="toolButton"
+            aria-haspopup="true"
+            @click="brushPopover?.toggle($event)"
+          />
+          <Popover ref="brushPopover" class="vue-chat">
+            <BrushSizeSlider v-model="brushSize" :color="selectedColor" />
+          </Popover>
 
-          <div
-            class="flex h-11 w-11 aspect-square cursor-pointer items-center justify-center rounded-full bg-chat-surface"
+          <IconButton
+            icon="PhArrowUUpRight"
+            :label="t('board.redo')"
+            v-bind="toolButton"
             @click="handleAction('redo')"
-          >
-            <BIcon icon="PhArrowUUpRight" class="h-6 w-6 fill-chat-on-background" />
-          </div>
+          />
 
-          <div
-            class="flex h-11 w-11 aspect-square cursor-pointer items-center justify-center rounded-full bg-chat-surface"
+          <IconButton
+            icon="PhArrowUUpLeft"
+            :label="t('board.undo')"
+            v-bind="toolButton"
             @click="handleAction('undo')"
-          >
-            <BIcon icon="PhArrowUUpLeft" class="h-6 w-6 fill-chat-on-background" />
-          </div>
+          />
         </div>
       </div>
     </div>
 
     <BoardColorPicker
-      ref="boardColorPicker"
-      v-show="isMobile"
+      ref="colorPicker"
       v-model="selectedColor"
       :colors="colors"
-      class="md:hidden"
+      :title="t('board.selectColor')"
     />
   </div>
 </template>
@@ -150,7 +132,11 @@ import BoardColorPicker from "./BoardColorPicker.vue";
 import type { BoardColorPickerExposed } from "./BoardColorPicker.vue";
 import { useAppToast } from "~/composables/useAppToast.js";
 import { useCallStore } from "~/stores/callStore.js";
-import type { Menu } from "~/types/components/menu";
+import Button from "primevue/button";
+import Menu from "primevue/menu";
+import Popover from "primevue/popover";
+import type { MenuItem } from "primevue/menuitem";
+import IconButton from "~/components/general/IconButton.vue";
 import useLocalI18n from "~/composables/useLocalI18n";
 import { callPaintBoard } from "@i18n/locales";
 import { storeToRefs } from "pinia";
@@ -176,12 +162,11 @@ const emit = defineEmits<{
 const { t } = useLocalI18n(callPaintBoard);
 const callStore = useCallStore();
 const { openToast } = useAppToast();
-const { width } = useWindowSize();
+const colorPicker = useTemplateRef<BoardColorPickerExposed>("colorPicker");
+const pagesMenu = useTemplateRef<InstanceType<typeof Menu>>("pagesMenu");
+const brushPopover = useTemplateRef<InstanceType<typeof Popover>>("brushPopover");
 
-const isMobile = computed(() => width.value < 768);
-const boardColorPicker =
-  useTemplateRef<BoardColorPickerExposed>("boardColorPicker");
-const colorPickerMenu = useTemplateRef<Menu>("colorPickerMenu");
+const toolButton = { text: false, iconClass: "size-6" } as const;
 const canvasRef = useTemplateRef<HTMLCanvasElement>("canvasRef");
 
 const colors = ref([
@@ -196,11 +181,6 @@ const colors = ref([
   "#F37040",
   "#F34040",
 ]);
-
-const setColor = (color: string) => {
-  selectedColor.value = color;
-  colorPickerMenu.value?.close();
-};
 
 const {
   boardPages: pages,
@@ -311,13 +291,6 @@ const handleAction = (action: string) => {
       redoHistory.value = [];
       break;
     }
-    case "color":
-      if (isMobile.value) {
-        boardColorPicker.value?.open();
-      } else {
-        colorPickerMenu.value?.open();
-      }
-      break;
     case "add-page":
       pages.value[selectedPage.value] = {
         data: signaturePadInstance.toData(),
@@ -349,23 +322,18 @@ const handleAction = (action: string) => {
   }
 };
 
-const pageOptions = computed(() => {
-  const options = pages.value.map((_, index) => ({
-    key: (index + 1).toString(),
+const pageItems = computed<MenuItem[]>(() => [
+  ...pages.value.map((_, index) => ({
     label: t("board.page", { page: index + 1 }),
-    icon: "PhFiles",
-    color: "primary",
-  }));
-
-  options.push({
-    key: "add-new-page",
+    phIcon: "PhFiles",
+    command: () => handlePageSelect(String(index + 1)),
+  })),
+  {
     label: t("board.addPage"),
-    icon: "PhPlus",
-    color: "primary",
-  });
-
-  return options;
-});
+    phIcon: "PhPlus",
+    command: () => handlePageSelect("add-new-page"),
+  },
+]);
 
 const switchPage = (index: number) => {
   if (!signaturePadInstance || index === selectedPage.value) return;

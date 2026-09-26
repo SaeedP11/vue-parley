@@ -8,7 +8,6 @@
 
 @import "./reset.css";
 @import "./theme.css";
-@import "./components.css";
 
 /* --- Base Styles (scoped to .behayand-chat-scope to avoid host-page leak) --- */
 [class*="backdrop-blur"] {
@@ -42,3 +41,9 @@
   background-clip: padding-box, border-box !important;
 }
 
+
+/* PrimeVue teleports overlays (dialogs, menus, popovers, toasts, the image viewer) to <body>,
+   outside the chat root that sets the font; give them the chat's font too. */
+:where(.vue-chat):where(.p-dialog, .p-contextmenu, .p-menu, .p-popover, .p-toast, .p-galleria-mask) {
+  font-family: var(--font-chat-family);
+}

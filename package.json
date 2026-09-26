@@ -1,6 +1,6 @@
 {
   "name": "vue-parley",
-  "version": "3.1.0",
+  "version": "4.0.0",
   "type": "module",
   "description": "Drop-in Vue 3 chat and video-call UI, driven by your own backend handlers.",
   "keywords": [
@@ -11,7 +11,9 @@
     "webrtc",
     "video-call",
     "pinia",
-    "component"
+    "component",
+    "primevue",
+    "tailwindcss"
   ],
   "homepage": "https://github.com/yonus-a/vue-chat#readme",
   "repository": {
@@ -61,6 +63,7 @@
   "peerDependencies": {
     "@vueuse/core": "^11.0.0 || ^12.0.0 || ^13.0.0 || ^14.0.0",
     "pinia": "^2.2.0 || ^3.0.0 || ^4.0.0",
+    "primevue": "^4.5.0",
     "vue": "^3.5.0",
     "vue-i18n": "^9.0.0 || ^10.0.0 || ^11.0.0"
   },
@@ -68,11 +71,11 @@
     "@phosphor-icons/vue": "^2.2.1",
     "@tanstack/vue-virtual": "^3.13.24",
     "nanoid": "^6.0.0",
-    "vue3-emoji-picker": "^1.1.8",
-    "vue3-lottie": "^3.3.1"
+    "vue3-emoji-picker": "^1.1.8"
   },
   "devDependencies": {
     "@playwright/test": "1.52.0",
+    "@primeuix/themes": "^1.2.5",
     "@tailwindcss/vite": "4.3.2",
     "@types/node": "^22.10.0",
     "@types/simple-peer": "^9.11.9",
@@ -80,6 +83,7 @@
     "@vueuse/core": "^14.2.1",
     "pinia": "^2.3.0",
     "postcss": "^8.5.17",
+    "primevue": "^4.5.5",
     "simple-peer": "^9.11.1",
     "tailwindcss": "4.3.2",
     "typescript": "^5.7.0",

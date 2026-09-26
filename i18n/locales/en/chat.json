@@ -127,6 +127,25 @@
         "screenShareStartFailed": "Failed to start screen sharing",
         "cameraUnavailable": "Camera not available",
         "flashlightToggleFailed": "Failed to toggle flashlight"
+      },
+      "controls": {
+        "endCall": "End call",
+        "minimize": "Minimize",
+        "maximize": "Return to call",
+        "mute": "Mute",
+        "unmute": "Unmute",
+        "cameraOff": "Turn camera off",
+        "cameraOn": "Turn camera on",
+        "shareScreen": "Share screen",
+        "stopSharing": "Stop sharing",
+        "fullscreen": "Full screen",
+        "exitFullscreen": "Exit full screen",
+        "flashlight": "Flashlight",
+        "cameras": "Available cameras",
+        "chooseCamera": "Choose camera",
+        "pauseVideo": "Pause video",
+        "playVideo": "Play video",
+        "nextParticipant": "Show next participant"
       }
     },
     "board": {

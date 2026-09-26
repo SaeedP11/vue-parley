@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onBeforeUnmount } from "vue";
+import SelectButton from "primevue/selectbutton";
 import NoData from "~/assets/lib-images/chat/empty-state.webp";
 import NoDataDisplay from "~/components/general/NoDataDisplay.vue";
 import type { ChatFilter, StateKeys } from "~/types";
@@ -33,12 +34,6 @@ const filters = computed<ChatFilter[]>(() => [
 const setFilter = (type: StateKeys) => {
   if (activeFilter.value === type) return;
   activeFilter.value = type;
-};
-
-const filterProps = (type: StateKeys) => {
-  return activeFilter.value === type
-    ? { color: "primary" as const, icon: "PhX" }
-    : { color: "neutral" as const, icon: "" };
 };
 
 // Handle Filter Changes
@@ -85,16 +80,13 @@ onBeforeUnmount(() => {
 
     <div class="flex w-full flex-1 flex-col overflow-hidden">
       <div class="flex w-full shrink-0 items-center gap-x-2 px-5 py-2">
-        <BLabel
-          v-for="filter in filters"
-          :key="filter.key"
-          size="lg"
-          :text="filter.label"
-          :icon="filterProps(filter.key).icon"
-          :color="filterProps(filter.key).color"
-          class="cursor-pointer"
-          @click="setFilter(filter.key)"
-          @action="setFilter('')"
+        <SelectButton
+          :model-value="activeFilter || null"
+          :options="filters"
+          option-label="label"
+          option-value="key"
+          size="small"
+          @update:model-value="(key) => setFilter(key ?? '')"
         />
       </div>
 

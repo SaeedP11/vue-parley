@@ -1,7 +1,11 @@
 <script setup lang="ts">
 // @ts-nocheck — grandfathered legacy chat-tree type errors; lift incrementally
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import Button from "primevue/button";
+import IconButton from "~/components/general/IconButton.vue";
 import LoadingStatus from "~/components/general/LoadingStatus.vue";
+import useLocalI18n from "~/composables/useLocalI18n";
+import { chatBubblesFileDisplay } from "@i18n/locales";
 import { useMessagesStore } from "~/stores/messageStores";
 import { useMediaStore } from "~/stores/mediaStore";
 
@@ -16,6 +20,7 @@ const props = withDefaults(
   },
 );
 
+const { t } = useLocalI18n(chatBubblesFileDisplay);
 const messagesStore = useMessagesStore();
 const mediaStore = useMediaStore();
 const status = ref<"idle" | "downloading" | "downloaded">("idle");
@@ -187,32 +192,33 @@ onBeforeUnmount(() => {
       </div>
     </div>
 
-    <div
-      class="shrink-0 w-11 h-11 relative flex items-center justify-center transition-colors duration-200"
-      :class="[
-        status === 'downloaded' && !isUploading
-          ? 'bg-diamond-surface rounded-xl cursor-pointer'
-          : 'rounded-full group',
-        !isUploading ? 'cursor-pointer' : 'cursor-default',
-      ]"
+    <IconButton
+      v-if="status === 'downloaded' && !isUploading"
+      :icon="isPlaying ? 'PhPause' : 'PhPlay'"
+      :label="isPlaying ? t('actions.pause') : t('actions.play')"
+      weight="fill"
+      :text="false"
+      severity="contrast"
+      size="large"
+      class="shrink-0"
+      @click="handleAction"
+    />
+    <Button
+      v-else
+      text
+      rounded
+      class="size-11! shrink-0 p-0!"
+      :aria-label="status === 'downloading' ? t('actions.cancelDownload') : t('actions.download')"
+      :disabled="isUploading"
       @click="handleAction"
     >
       <LoadingStatus
-        v-if="status !== 'downloaded' || isUploading"
         :size="44"
         :stroke-width="2.5"
         :progress="displayProgress"
         :is-uploading="isUploading"
         :is-downloading="status === 'downloading'"
       />
-
-      <BIcon
-        v-else-if="status === 'downloaded' && !isUploading"
-        :icon="isPlaying ? 'PhPause' : 'PhPlay'"
-        weight="light"
-        class="w-5 h-5 text-chat-background transition-transform duration-300"
-        :class="[isPlaying ? 'scale-90' : 'scale-100']"
-      />
-    </div>
+    </Button>
   </div>
 </template>

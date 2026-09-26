@@ -1,6 +1,9 @@
 <script setup lang="ts">
 /** The strip above the input while replying to or editing a message. */
 import SafeEmojiText from "~/components/general/SafeEmojiText.vue";
+import IconButton from "~/components/general/IconButton.vue";
+import useLocalI18n from "~/composables/useLocalI18n";
+import { chatInput } from "@i18n/locales";
 
 defineProps<{
   mode: "normal" | "edit" | "reply";
@@ -9,6 +12,8 @@ defineProps<{
   text: string;
 }>();
 const emit = defineEmits<{ cancel: [] }>();
+
+const { t } = useLocalI18n(chatInput);
 </script>
 
 <template>
@@ -32,9 +37,11 @@ const emit = defineEmits<{ cancel: [] }>();
         </div>
       </div>
     </div>
-    <BIcon
+    <IconButton
       icon="PhX"
-      class="cursor-pointer w-5 shrink-0 h-5 fill-on-surface/50"
+      :label="t('cancel')"
+      size="small"
+      class="shrink-0"
       @click="emit('cancel')"
     />
   </div>

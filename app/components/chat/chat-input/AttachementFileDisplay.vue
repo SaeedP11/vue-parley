@@ -49,4 +49,3 @@ const fileName = computed(() => props.file?.name || "Unknown File");
 
 const formattedSize = computed(() => formatBytes(props.file?.size || 0));
 </script>
-```

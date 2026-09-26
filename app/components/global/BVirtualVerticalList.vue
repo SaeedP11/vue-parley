@@ -38,27 +38,16 @@
       class="flex h-13 w-full items-center justify-center"
     >
       <slot v-if="hasNextPage" name="loader">
-        <LottieAnimation
-          :animation-data="loadingAnimation"
-          :height="52"
-          :width="52"
-          :loop="true"
-          :auto-play="true"
-        />
+        <ProgressSpinner class="size-10!" stroke-width="4" />
       </slot>
     </div>
   </div>
 </template>
 
 <script setup lang="ts" generic="T extends Record<string, any>">
-import { ref, onMounted, onUnmounted, defineAsyncComponent } from "vue";
+import { ref, onMounted, onUnmounted } from "vue";
 import { useVirtualizer } from "@tanstack/vue-virtual";
-import loadingAnimation from "~/assets/lottie/loading.json";
-
-// lottie-web is large; fetch it the first time a spinner shows.
-const LottieAnimation = defineAsyncComponent(() =>
-  import("vue3-lottie").then((m) => m.Vue3Lottie),
-);
+import ProgressSpinner from "primevue/progressspinner";
 
 const props = withDefaults(
   defineProps<{

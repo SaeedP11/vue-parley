@@ -5,13 +5,17 @@ import { chat } from "@i18n/locales";
 import useCall from "~/composables/useCall";
 import { useDraggable, useWindowSize } from "@vueuse/core";
 import { ref, computed, watch, onMounted, nextTick } from "vue";
+import Button from "primevue/button";
+import Listbox from "primevue/listbox";
+import IconButton from "~/components/general/IconButton.vue";
+import ResponsiveDialog from "~/components/general/ResponsiveDialog.vue";
 
 const callStore = useCallStore();
 
 // ارجاع به المان مینیمایز شده برای VueUse
 const minimizedRef = ref<HTMLElement | null>(null);
 const bodyRef = ref<HTMLElement | null>(null);
-const cameraPopup = ref<{ open: () => void; close: () => void } | null>(null);
+const cameraPickerOpen = ref(false);
 const { t, locale } = useLocalI18n(chat);
 const { dir } = useDirection();
 
@@ -46,6 +50,45 @@ const {
   remoteScreenRefs,
   remoteVideos,
 } = useCall();
+
+const pickCamera = (deviceId: string) => {
+  cameraPickerOpen.value = false;
+  switchCamera(deviceId);
+};
+
+// The call screen is dark whatever the host's colour scheme, so its round controls use fixed
+// translucent tokens instead of the theme's secondary and contrast colours.
+const translucent = {
+  background: "rgb(255 255 255 / 0.12)",
+  hoverBackground: "rgb(255 255 255 / 0.2)",
+  activeBackground: "rgb(255 255 255 / 0.28)",
+  borderColor: "transparent",
+  hoverBorderColor: "transparent",
+  activeBorderColor: "transparent",
+  color: "#ffffff",
+  hoverColor: "#ffffff",
+  activeColor: "#ffffff",
+};
+const lit = {
+  background: "#ffffff",
+  hoverBackground: "rgb(255 255 255 / 0.9)",
+  activeBackground: "rgb(255 255 255 / 0.8)",
+  borderColor: "#ffffff",
+  hoverBorderColor: "#ffffff",
+  activeBorderColor: "#ffffff",
+  color: "#151823",
+  hoverColor: "#151823",
+  activeColor: "#151823",
+};
+const callScheme = { root: { secondary: translucent, contrast: lit } };
+const callButtonDt = { colorScheme: { light: callScheme, dark: callScheme } };
+
+const footerButton = {
+  dt: callButtonDt,
+  text: false,
+  size: "large",
+  iconClass: "size-6",
+} as const;
 
 // --- PIP BACKGROUND VIDEO ---
 // در حالت مینیمایز، پس‌زمینه PIP یک ویدیوی زنده است: اگر کاربر ریموت فعال باشد
@@ -227,29 +270,37 @@ const clampedStyle = computed(() => {
           </div>
         </div>
 
-        <div
-          class="flex aspect-square w-9 cursor-pointer items-center justify-center rounded-full bg-diamond-error transition-all duration-200 ease-in-out hover:scale-110"
+        <IconButton
+          icon="PhPhoneX"
+          :label="t('chat.call.controls.endCall')"
+          severity="danger"
+          :text="false"
+          icon-class="size-4"
           data-testid="call-pip-end"
+          @pointerdown.stop
           @click.stop="endCall"
-        >
-          <BIcon icon="PhPhoneX" class="h-4 w-4 fill-white" />
-        </div>
+        />
       </div>
 
       <div
         class="absolute right-3 bottom-3 left-3 z-10 flex items-center justify-between"
       >
         <div class="flex items-center gap-2">
-          <div
-            class="flex items-center gap-x-1.5 rounded-full bg-black/50 px-2.5 py-1 backdrop-blur-sm transition-colors"
-            :class="hasRemoteVideos ? 'cursor-pointer hover:bg-black/70' : ''"
+          <Button
+            :label="String(participantCount)"
+            :aria-label="t('chat.call.controls.nextParticipant')"
+            :disabled="!hasRemoteVideos"
+            :dt="callButtonDt"
+            severity="secondary"
+            size="small"
+            rounded
+            @pointerdown.stop
             @click.stop="cycleRemote"
           >
-            <BIcon icon="PhUsers" class="h-3 w-3 fill-white/70" />
-            <span class="text-label-sm text-white/90 select-none">{{
-              participantCount
-            }}</span>
-          </div>
+            <template #icon>
+              <BIcon icon="PhUsers" class="size-3" />
+            </template>
+          </Button>
 
           <div v-if="!isAudioOn || !isVideoOn" class="flex gap-1">
             <div
@@ -267,13 +318,16 @@ const clampedStyle = computed(() => {
           </div>
         </div>
 
-        <div
-          class="flex aspect-square w-9 cursor-pointer items-center justify-center rounded-full bg-black/50 backdrop-blur-md transition-all duration-200 ease-in-out hover:scale-105 hover:bg-black/80"
+        <IconButton
+          icon="PhResize"
+          :label="t('chat.call.controls.maximize')"
+          :dt="callButtonDt"
+          :text="false"
+          icon-class="size-4"
           data-testid="call-maximize"
+          @pointerdown.stop
           @click.stop="callStore.maximize()"
-        >
-          <BIcon icon="PhResize" class="h-4 w-4 fill-white" />
-        </div>
+        />
       </div>
     </div>
   </div>
@@ -319,13 +373,13 @@ const clampedStyle = computed(() => {
             }}
           </div>
         </div>
-        <div
-          class="flex aspect-square w-9 cursor-pointer items-center justify-center rounded-full bg-black-500 transition-all duration-200 ease-in-out sm:w-12"
+        <IconButton
+          icon="PhCaretDown"
+          :label="t('chat.call.controls.minimize')"
+          v-bind="footerButton"
           data-testid="call-minimize"
-        @click="callStore.minimize"
-        >
-          <BIcon icon="PhCaretDown" class="h-4 w-4 fill-white sm:h-6 sm:w-6" />
-        </div>
+          @click="callStore.minimize"
+        />
       </div>
     </div>
 
@@ -363,24 +417,30 @@ const clampedStyle = computed(() => {
             >
               <BIcon icon="PhMonitor" class="h-4 w-4 fill-white" />
             </div>
-            <div
-              class="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-black-500 transition-all duration-200 ease-in-out"
+            <IconButton
+              :icon="videoPaused['self_screen'] ? 'PhPlay' : 'PhPause'"
+              :label="videoPaused['self_screen'] ? t('chat.call.controls.playVideo') : t('chat.call.controls.pauseVideo')"
+              :dt="callButtonDt"
+              :text="false"
+              icon-class="size-4"
               @click="toggleVideoPause('self_screen', localScreen as any)"
-            >
-              <BIcon
-                :icon="videoPaused['self_screen'] ? 'PhPlay' : 'PhPause'"
-                class="h-4 w-4 fill-white"
-              />
-            </div>
-            <div
-              class="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-black-500 transition-all duration-200 ease-in-out"
+            />
+            <IconButton
+              :icon="isFullscreen ? 'PhCornersIn' : 'PhFrameCorners'"
+              :label="
+
+                isFullscreen
+
+                  ? t('chat.call.controls.exitFullscreen')
+
+                  : t('chat.call.controls.fullscreen')
+
+              "
+              :dt="callButtonDt"
+              :text="false"
+              icon-class="size-4"
               @click="toggleRemote(`self_screen`)"
-            >
-              <BIcon
-                :icon="isFullscreen ? 'PhCornersIn' : 'PhFrameCorners'"
-                class="h-4 w-4 fill-white"
-              />
-            </div>
+            />
           </div>
         </div>
         <div
@@ -409,33 +469,39 @@ const clampedStyle = computed(() => {
             >
               {{ stream.name.slice(0, 15) }}
             </div>
-            <div
-              class="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-black-500 transition-all duration-200 ease-in-out"
+            <IconButton
+              :icon="videoPaused[`remote_video_${remoteUserId}`] ? 'PhPlay' : 'PhPause'"
+              :label="
+                videoPaused[`remote_video_${remoteUserId}`]
+                  ? t('chat.call.controls.playVideo')
+                  : t('chat.call.controls.pauseVideo')
+              "
+              :dt="callButtonDt"
+              :text="false"
+              icon-class="size-4"
               @click="
                 toggleVideoPause(
                   `remote_video_${remoteUserId}`,
                   remoteRefs[remoteUserId] as any,
                 )
               "
-            >
-              <BIcon
-                :icon="
-                  videoPaused[`remote_video_${remoteUserId}`]
-                    ? 'PhPlay'
-                    : 'PhPause'
-                "
-                class="h-4 w-4 fill-white"
-              />
-            </div>
-            <div
-              class="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-black-500 transition-all duration-200 ease-in-out"
+            />
+            <IconButton
+              :icon="isFullscreen ? 'PhCornersIn' : 'PhFrameCorners'"
+              :label="
+
+                isFullscreen
+
+                  ? t('chat.call.controls.exitFullscreen')
+
+                  : t('chat.call.controls.fullscreen')
+
+              "
+              :dt="callButtonDt"
+              :text="false"
+              icon-class="size-4"
               @click="toggleRemote(`remote_video_${remoteUserId}`)"
-            >
-              <BIcon
-                :icon="isFullscreen ? 'PhCornersIn' : 'PhFrameCorners'"
-                class="h-4 w-4 fill-white"
-              />
-            </div>
+            />
           </div>
         </div>
 
@@ -471,33 +537,39 @@ const clampedStyle = computed(() => {
             >
               <BIcon icon="PhMonitor" class="h-4 w-4 fill-white" />
             </div>
-            <div
-              class="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-black-500 transition-all duration-200 ease-in-out"
+            <IconButton
+              :icon="videoPaused[`remote_screen_${remoteUserId}`] ? 'PhPlay' : 'PhPause'"
+              :label="
+                videoPaused[`remote_screen_${remoteUserId}`]
+                  ? t('chat.call.controls.playVideo')
+                  : t('chat.call.controls.pauseVideo')
+              "
+              :dt="callButtonDt"
+              :text="false"
+              icon-class="size-4"
               @click="
                 toggleVideoPause(
                   `remote_screen_${remoteUserId}`,
                   remoteScreenRefs[remoteUserId] || null,
                 )
               "
-            >
-              <BIcon
-                :icon="
-                  videoPaused[`remote_screen_${remoteUserId}`]
-                    ? 'PhPlay'
-                    : 'PhPause'
-                "
-                class="h-4 w-4 fill-white"
-              />
-            </div>
-            <div
-              class="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-black-500 transition-all duration-200 ease-in-out"
+            />
+            <IconButton
+              :icon="isFullscreen ? 'PhCornersIn' : 'PhFrameCorners'"
+              :label="
+
+                isFullscreen
+
+                  ? t('chat.call.controls.exitFullscreen')
+
+                  : t('chat.call.controls.fullscreen')
+
+              "
+              :dt="callButtonDt"
+              :text="false"
+              icon-class="size-4"
               @click="toggleRemote(`remote_screen_${remoteUserId}`)"
-            >
-              <BIcon
-                :icon="isFullscreen ? 'PhCornersIn' : 'PhFrameCorners'"
-                class="h-4 w-4 fill-white"
-              />
-            </div>
+            />
           </div>
         </div>
       </div>
@@ -536,24 +608,30 @@ const clampedStyle = computed(() => {
             >
               <BIcon icon="PhMicrophoneSlash" class="h-3 w-3 fill-white" />
             </div>
-            <div
-              class="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-black-500 transition-all duration-200 ease-in-out"
+            <IconButton
+              :icon="videoPaused['self_cam'] ? 'PhPlay' : 'PhPause'"
+              :label="videoPaused['self_cam'] ? t('chat.call.controls.playVideo') : t('chat.call.controls.pauseVideo')"
+              :dt="callButtonDt"
+              :text="false"
+              icon-class="size-4"
               @click="toggleVideoPause('self_cam', localVideo as any)"
-            >
-              <BIcon
-                :icon="videoPaused['self_cam'] ? 'PhPlay' : 'PhPause'"
-                class="h-4 w-4 fill-white"
-              />
-            </div>
-            <div
-              class="flex h-10 w-10 cursor-pointer items-center justify-center rounded-full bg-black-500 transition-all duration-200 ease-in-out"
+            />
+            <IconButton
+              :icon="isFullscreen ? 'PhCornersIn' : 'PhFrameCorners'"
+              :label="
+
+                isFullscreen
+
+                  ? t('chat.call.controls.exitFullscreen')
+
+                  : t('chat.call.controls.fullscreen')
+
+              "
+              :dt="callButtonDt"
+              :text="false"
+              icon-class="size-4"
               @click="toggleRemote('self_cam')"
-            >
-              <BIcon
-                :icon="isFullscreen ? 'PhCornersIn' : 'PhFrameCorners'"
-                class="h-4 w-4 fill-white"
-              />
-            </div>
+            />
           </div>
 
           <div
@@ -581,100 +659,92 @@ const clampedStyle = computed(() => {
       @mouseenter="resetControlsTimeout"
       @mousemove="resetControlsTimeout"
     >
-      <div
-        class="flex aspect-square w-9 cursor-pointer items-center justify-center rounded-full transition-all duration-200 ease-in-out sm:w-12"
-        :class="[isAudioOn ? 'bg-black-500' : 'bg-white']"
+      <IconButton
+        :icon="isAudioOn ? 'PhMicrophone' : 'PhMicrophoneSlash'"
+        :label="isAudioOn ? t('chat.call.controls.mute') : t('chat.call.controls.unmute')"
+        :severity="isAudioOn ? 'secondary' : 'contrast'"
+        v-bind="footerButton"
         data-testid="call-toggle-audio"
         :data-active="isAudioOn"
         @click="toggleAudio"
-      >
-        <BIcon
-          :icon="isAudioOn ? 'PhMicrophone' : 'PhMicrophoneSlash'"
-          class="h-4 w-4 sm:h-6 sm:w-6"
-          :class="[isAudioOn ? 'fill-white' : 'fill-black-500']"
-        />
-      </div>
+      />
 
-      <div
-        class="flex aspect-square w-9 cursor-pointer items-center justify-center rounded-full transition-all duration-200 ease-in-out sm:w-12"
-        :class="[isVideoOn ? 'bg-black-500' : 'bg-white']"
+      <IconButton
+        :icon="isVideoOn ? 'PhVideo' : 'PhVideoCameraSlash'"
+        :label="isVideoOn ? t('chat.call.controls.cameraOff') : t('chat.call.controls.cameraOn')"
+        :severity="isVideoOn ? 'secondary' : 'contrast'"
+        v-bind="footerButton"
         data-testid="call-toggle-video"
         :data-active="isVideoOn"
         @click="toggleVideo"
-      >
-        <BIcon
-          :icon="isVideoOn ? 'PhVideo' : 'PhVideoCameraSlash'"
-          class="h-4 w-4 sm:h-6 sm:w-6"
-          :class="[isVideoOn ? 'fill-white' : 'fill-black-500']"
-        />
-      </div>
+      />
 
       <template v-if="cameras.length > 1">
-        <div
-          class="flex aspect-square w-9 cursor-pointer items-center justify-center rounded-full bg-black-500 transition-all duration-200 ease-in-out sm:w-12"
-          @click="cameraPopup?.open()"
+        <IconButton
+          icon="PhCaretUp"
+          :label="t('chat.call.controls.chooseCamera')"
+          v-bind="footerButton"
+          @click="cameraPickerOpen = true"
+        />
+        <ResponsiveDialog
+          v-model:visible="cameraPickerOpen"
+          :header="t('chat.call.controls.cameras')"
+          width="24rem"
         >
-          <BIcon icon="PhCaretUp" class="h-4 w-4 fill-white sm:h-6 sm:w-6" />
-        </div>
-        <BPopup ref="cameraPopup" title="Available Cameras" has-close>
-          <ul class="relative z-20">
-            <li v-for="camera in cameras" :key="camera.deviceId">
-              <button
-                type="button"
-                class="w-full cursor-pointer p-2"
-                @click="switchCamera(camera.deviceId)"
-              >
-                {{ camera.label || "Camera " + camera.deviceId }}
-              </button>
-            </li>
-          </ul>
-        </BPopup>
+          <Listbox
+            :options="cameras"
+            option-value="deviceId"
+            :option-label="(camera: MediaDeviceInfo) => camera.label || `Camera ${camera.deviceId}`"
+            class="w-full"
+            @change="(event) => pickCamera(event.value)"
+          />
+        </ResponsiveDialog>
       </template>
 
-      <div
-        class="flex aspect-square w-9 cursor-pointer items-center justify-center rounded-full transition-all duration-200 ease-in-out sm:w-12"
-        :class="[isScreenSharing ? 'bg-white' : 'bg-black-500']"
+      <IconButton
+        icon="PhMonitorArrowUp"
+        :label="isScreenSharing ? t('chat.call.controls.stopSharing') : t('chat.call.controls.shareScreen')"
+        :severity="isScreenSharing ? 'contrast' : 'secondary'"
+        v-bind="footerButton"
         data-testid="call-toggle-screen"
         :data-active="isScreenSharing"
         @click="toggleScreenShare"
-      >
-        <BIcon
-          icon="PhMonitorArrowUp"
-          class="h-4 w-4 sm:h-6 sm:w-6"
-          :class="[isScreenSharing ? 'fill-black-500' : 'fill-white']"
-        />
-      </div>
+      />
 
-      <div
-        class="flex aspect-square w-9 cursor-pointer items-center justify-center rounded-full bg-black-500 transition-all duration-200 ease-in-out sm:w-12"
+      <IconButton
+        :icon="isFullscreen ? 'PhCornersIn' : 'PhFrameCorners'"
+        :label="
+
+          isFullscreen
+
+            ? t('chat.call.controls.exitFullscreen')
+
+            : t('chat.call.controls.fullscreen')
+
+        "
+        v-bind="footerButton"
         @click="toggleFullscreen"
-      >
-        <BIcon
-          :icon="isFullscreen ? 'PhCornersIn' : 'PhFrameCorners'"
-          class="h-4 w-4 fill-white sm:h-6 sm:w-6"
-        />
-      </div>
+      />
 
-      <div
+      <IconButton
         v-if="isFlashlightSupported"
-        class="flex aspect-square w-9 cursor-pointer items-center justify-center rounded-full transition-all duration-200 ease-in-out sm:w-12"
-        :class="[isFlashlightOn ? 'bg-white' : 'bg-black-500']"
+        :icon="isFlashlightOn ? 'PhLightning' : 'PhLightningSlash'"
+        :label="t('chat.call.controls.flashlight')"
+        :severity="isFlashlightOn ? 'contrast' : 'secondary'"
+        v-bind="footerButton"
         @click="toggleFlashlight"
-      >
-        <BIcon
-          :icon="isFlashlightOn ? 'PhLightning' : 'PhLightningSlash'"
-          class="h-4 w-4 sm:h-6 sm:w-6"
-          :class="[isFlashlightOn ? 'fill-black-500' : 'fill-white']"
-        />
-      </div>
+      />
 
-      <div
-        class="flex aspect-square w-12 cursor-pointer items-center justify-center rounded-full bg-diamond-error sm:w-15"
+      <IconButton
+        icon="PhPhoneX"
+        :label="t('chat.call.controls.endCall')"
+        severity="danger"
+        :text="false"
+        size="large"
+        icon-class="size-6"
         data-testid="call-end"
         @click="endCall"
-      >
-        <BIcon icon="PhPhoneX" class="h-5 w-5 fill-white sm:h-7 sm:w-7" />
-      </div>
+      />
     </div>
   </div>
 </template>

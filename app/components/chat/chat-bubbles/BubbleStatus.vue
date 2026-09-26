@@ -3,6 +3,7 @@
  * The footer under a message: send state and time, or a retry prompt when the send failed.
  */
 import { computed } from "vue";
+import Button from "primevue/button";
 import type { Message } from "~/types";
 import { useMessagesStore } from "~/stores/messageStores.js";
 import useLocalI18n from "~/composables/useLocalI18n";
@@ -24,16 +25,18 @@ const checkIcon = computed(() => {
 </script>
 
 <template>
-  <div
-    v-if="isMine && message.isFailed"
-    role="button"
-    class="w-full pt-2 flex items-center gap-x-2 cursor-pointer justify-start"
-    @click.stop="messagesStore.retryMessage(message)"
-  >
-    <BIcon :icon="checkIcon" class="w-4 h-4 fill-error" />
-    <div class="select-none text-body-sm text-error">
-      {{ t("sendFailed") }}
-    </div>
+  <div v-if="isMine && message.isFailed" class="flex w-full justify-start pt-1">
+    <Button
+      text
+      size="small"
+      severity="danger"
+      :label="t('sendFailed')"
+      @click.stop="messagesStore.retryMessage(message)"
+    >
+      <template #icon>
+        <BIcon :icon="checkIcon" class="size-4" />
+      </template>
+    </Button>
   </div>
   <div
     v-else

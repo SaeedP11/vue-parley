@@ -1,29 +1,29 @@
-// app/composables/useToast.ts
-import { ref, type Ref } from "vue";
-import type { Toast } from "~/types/components/toast";
+import { useToast } from "primevue/usetoast";
 
-// Module-level singleton — shared across all useAppToast() callers,
-// equivalent to Nuxt's useState("global-toast-ref", () => null).
-const toastRef: Ref<Toast | null> = ref(null);
+/** Rendered by `<Toast group="vue-parley" />` in ChatView, so the host's own toasts stay apart. */
+export const TOAST_GROUP = "vue-parley";
+
+const SEVERITY = {
+  success: "success",
+  error: "error",
+  warning: "warn",
+  info: "info",
+} as const;
 
 export const useAppToast = () => {
-  /**
-   * @param message The text to display
-   * @param type 'success' | 'error' | 'warning' | 'info' (matching BToast props)
-   */
+  const toast = useToast();
+
   const openToast = (
     message: string,
-    type: "success" | "error" | "warning" | "info" = "success",
+    type: keyof typeof SEVERITY = "success",
   ) => {
-    if (toastRef.value) {
-      toastRef.value.openToast(message, type);
-    } else {
-      console.warn("BToast component is not yet initialized in app.vue");
-    }
+    toast.add({
+      group: TOAST_GROUP,
+      severity: SEVERITY[type],
+      summary: message,
+      life: 4000,
+    });
   };
 
-  return {
-    toastRef,
-    openToast,
-  };
+  return { openToast };
 };

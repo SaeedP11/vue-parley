@@ -127,6 +127,25 @@
         "screenShareStartFailed": "راه‌اندازی اشتراک‌گذاری صفحه ناموفق بود",
         "cameraUnavailable": "دوربین در دسترس نیست",
         "flashlightToggleFailed": "تغییر حالت چراغ قوه ناموفق بود"
+      },
+      "controls": {
+        "endCall": "پایان تماس",
+        "minimize": "کوچک کردن",
+        "maximize": "بازگشت به تماس",
+        "mute": "قطع میکروفون",
+        "unmute": "وصل میکروفون",
+        "cameraOff": "خاموش کردن دوربین",
+        "cameraOn": "روشن کردن دوربین",
+        "shareScreen": "اشتراک‌گذاری صفحه",
+        "stopSharing": "توقف اشتراک‌گذاری",
+        "fullscreen": "تمام صفحه",
+        "exitFullscreen": "خروج از تمام صفحه",
+        "flashlight": "چراغ‌قوه",
+        "cameras": "دوربین‌های موجود",
+        "chooseCamera": "انتخاب دوربین",
+        "pauseVideo": "توقف ویدیو",
+        "playVideo": "پخش ویدیو",
+        "nextParticipant": "نمایش شرکت‌کننده بعدی"
       }
     },
     "board": {

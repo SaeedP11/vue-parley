@@ -21,19 +21,7 @@ export { default as ChatBubble } from "./components/chat/ChatBubble.vue";
 
 export { default as BVirtualVerticalList } from "./components/global/BVirtualVerticalList.vue";
 export { default as BEmojiPicker } from "./components/global/BEmojiPicker.vue";
-export { default as BCarousel } from "./components/global/BCarousel.vue";
-export { default as BCheckBox } from "./components/global/BCheckBox.vue";
-export { default as BButton } from "./components/global/BButton.vue";
-export { default as BSelect } from "./components/global/BSelect.vue";
-export { default as BImage } from "./components/global/BImage.vue";
-export { default as BInput } from "./components/global/BInput.vue";
-export { default as BLabel } from "./components/global/BLabel.vue";
-export { default as BModal } from "./components/global/BModal.vue";
-export { default as BPopup } from "./components/global/BPopup.vue";
-export { default as BToast } from "./components/global/BToast.vue";
 export { default as BIcon } from "./components/global/BIcon.vue";
-export { default as BMenu } from "./components/global/BMenu.vue";
-export { default as BTab } from "./components/global/BTab.vue";
 
 export * from "./types";
 export * from "./stores/messageStores";

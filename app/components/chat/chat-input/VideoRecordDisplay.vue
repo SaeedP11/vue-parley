@@ -33,23 +33,20 @@
 
       <!-- Mobile Bottom Toolbar -->
       <div
-        class="origin-bottom flex items-center gap-x-6 rounded-full bg-chat-background px-4 py-3 shadow-floating md:hidden"
+        class="origin-bottom flex items-center gap-x-2 rounded-full bg-chat-background px-4 py-3 shadow-floating md:hidden"
         :class="[
           isOpen
             ? 'pointer-events-auto translate-y-0 scale-100 opacity-100'
             : 'pointer-events-none translate-y-1/4 scale-0 opacity-0',
         ]"
       >
-        <BIcon
+        <IconButton
           v-for="option in mobileOptions"
           :key="option.key"
           :icon="option.icon"
-          class="h-6 w-6 fill-chat-on-background"
-          :class="[
-            option.disabled
-              ? 'cursor-not-allowed opacity-50'
-              : 'cursor-pointer opacity-100',
-          ]"
+          :label="option.label"
+          icon-class="size-6"
+          :disabled="option.disabled"
           @click="handleOption(option.key)"
         />
       </div>
@@ -68,6 +65,9 @@ export interface VideoRecordDisplayExposed {
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from "vue";
 import BubbleVideo from "../chat-bubbles/BubbleVideo.vue";
+import IconButton from "~/components/general/IconButton.vue";
+import useLocalI18n from "~/composables/useLocalI18n";
+import { chatInput } from "@i18n/locales";
 
 const props = withDefaults(
   defineProps<{
@@ -86,7 +86,7 @@ const emit = defineEmits<{
   "flip-camera": [];
 }>();
 
-
+const { t } = useLocalI18n(chatInput);
 const isOpen = ref(false);
 const isFlashOn = ref(false);
 const hasMultipleCameras = ref(false);
@@ -128,11 +128,13 @@ watch(
 const mobileOptions = computed(() => [
   {
     icon: "PhArrowsClockwise",
+    label: t("actions.flipCamera"),
     key: "flip-camera" as const,
     disabled: !hasMultipleCameras.value,
   },
   {
     icon: flashIcon.value,
+    label: t("actions.flashlight"),
     key: "toggle-flash" as const,
     disabled: !supportsTorch.value,
   },

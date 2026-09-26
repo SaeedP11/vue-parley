@@ -1,41 +1,38 @@
 <template>
-  <BPopup ref="popup" no-padding>
-    <div class="w-dvw max-w-120">
-      <div
-        class="flex w-full items-center gap-x-2 border-b border-b-chat-outline-variant p-5"
-      >
-        <BIcon
-          :icon="popupIcon.icon"
-          weight="fill"
-          :class="[popupIcon.color]"
-          class="h-7 w-7"
-        />
-        <div class="select-none text-label-lg text-chat-on-background">
-          {{ popupContent.title }}
-        </div>
-      </div>
-      <div
-        class="w-full select-none border-b border-b-chat-outline-variant p-5 text-wrap"
-      >
-        <p class="text-body-md text-chat-on-background/50">
-          {{ popupContent.description }}
-        </p>
-      </div>
-      <div class="flex w-full items-center gap-x-3 p-5">
-        <BButton
-          :text="actionButtonText"
-          :loading="isLoading"
-          @click="handleAction"
-        />
-        <BButton
-          color="secondary"
-          type="outline"
-          :text="t('permissions.notNow')"
-          @click="closePopup"
-        />
+  <ResponsiveDialog
+    v-model:visible="visible"
+    :show-header="false"
+    width="30rem"
+    @hide="onHide"
+  >
+    <div class="flex w-full items-center gap-x-2 pt-5 pb-3">
+      <BIcon
+        :icon="popupIcon.icon"
+        weight="fill"
+        :class="[popupIcon.color]"
+        class="size-7"
+      />
+      <div class="text-label-lg text-chat-on-background select-none">
+        {{ popupContent.title }}
       </div>
     </div>
-  </BPopup>
+    <p class="text-body-md text-chat-on-background/50 select-none">
+      {{ popupContent.description }}
+    </p>
+    <div class="flex w-full items-center gap-x-3 pt-5">
+      <Button
+        :label="actionButtonText"
+        :loading="isLoading"
+        @click="handleAction"
+      />
+      <Button
+        severity="secondary"
+        outlined
+        :label="t('permissions.notNow')"
+        @click="closePopup"
+      />
+    </div>
+  </ResponsiveDialog>
 </template>
 
 <script setup lang="ts">
@@ -43,22 +40,17 @@ import {
   useAppPermissions,
   type PopupState,
 } from "~/composables/useAppPermissions";
-import { ref, computed, nextTick, onUnmounted } from "vue";
-import type { Popup } from "~/types/components/popup";
+import { ref, computed, onUnmounted } from "vue";
+import Button from "primevue/button";
+import ResponsiveDialog from "~/components/general/ResponsiveDialog.vue";
 import useLocalI18n from "~/composables/useLocalI18n";
 import { permissionPopup } from "@i18n/locales";
 import { useEventBus } from "@vueuse/core";
-import useCall from "~/composables/useCall";
-const emit = defineEmits<{
-  action: [];
-  cancel: [];
-}>();
 
 const { t } = useLocalI18n(permissionPopup);
 const { requestMediaAccess, getNativeScreenShare } = useAppPermissions();
-// const callStore = useCall();
 
-const popup = ref<Popup | null>(null);
+const visible = ref(false);
 const popupMode = ref<PopupState>("mic-permission");
 const isLoading = ref(false);
 const currentResolver = ref<((v: boolean) => void) | null>(null);
@@ -84,8 +76,8 @@ const popupIcon = computed(() => ({
     ? "PhWarningCircle"
     : "PhWarningOctagon",
   color: popupMode.value.endsWith("permission")
-    ? "fill-chat-primary"
-    : "fill-chat-error",
+    ? "text-chat-primary"
+    : "text-chat-error",
 }));
 
 const actionButtonText = computed(() =>
@@ -135,24 +127,34 @@ const popupContent = computed(() => {
 });
 
 // --- Methods ---
-const switchMode = async (newMode: PopupState) => {
-  popup.value?.close();
+const settle = (granted: boolean) => {
+  currentResolver.value?.(granted);
+  currentResolver.value = null;
+};
 
-  // 300ms delay for a clean exit animation
+let switching = false;
+
+// Dismissing the dialog (Escape) refuses, like "Not now"; switching to another state does not.
+const onHide = () => {
+  if (!switching) settle(false);
+};
+
+const switchMode = async (newMode: PopupState) => {
+  switching = true;
+  visible.value = false;
+
+  // Let the closing dialog finish animating before it reopens with new content.
   await new Promise((resolve) => setTimeout(resolve, 300));
 
   popupMode.value = newMode;
   isLoading.value = false;
-
-  nextTick(() => {
-    popup.value?.open();
-  });
+  visible.value = true;
+  switching = false;
 };
 
 const closePopup = () => {
-  popup.value?.close();
-  currentResolver.value?.(false);
-  currentResolver.value = null;
+  settle(false);
+  visible.value = false;
 };
 
 const handleAction = async () => {
@@ -163,15 +165,7 @@ const handleAction = async () => {
   if (popupMode.value === "screen-share-permission") {
     try {
       const stream = await getNativeScreenShare();
-      if (stream) {
-        // callStore.screenStream = stream;
-
-        // Native Browser "Stop Sharing" handler
-        stream.getVideoTracks()[0].onended = () => {
-          //   callStore.stopScreenShare();
-        };
-        success = true;
-      }
+      if (stream) success = true;
     } catch (err: unknown) {
       console.error("Screen Share Error:", (err as Error).name);
       success = false;
@@ -179,8 +173,8 @@ const handleAction = async () => {
 
     isLoading.value = false;
     if (success) {
-      popup.value?.close();
-      currentResolver.value?.(true);
+      settle(true);
+      visible.value = false;
     } else {
       // macOS often throws NotAllowedError if System Settings are off
       await switchMode("screen-share-error");
@@ -197,8 +191,8 @@ const handleAction = async () => {
 
   isLoading.value = false;
   if (result.success) {
-    popup.value?.close();
-    currentResolver.value?.(true);
+    settle(true);
+    visible.value = false;
   } else {
     // If hardware is missing (Mac Mini), show a specific error
     const errorMode =
@@ -215,7 +209,7 @@ defineExpose<{
   open: (state: PopupState) => {
     popupMode.value = state;
     isLoading.value = false;
-    nextTick(() => popup.value?.open());
+    visible.value = true;
   },
   close: closePopup,
   setLoading: (state: boolean) => {

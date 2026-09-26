@@ -7,5 +7,25 @@
   "themes": {
     "dark": "Dark",
     "light": "Light"
+  },
+  "actions": {
+    "close": "Close",
+    "back": "Back",
+    "call": "Call",
+    "returnToCall": "Return to call",
+    "attach": "Attach",
+    "emoji": "Emoji",
+    "sendMessage": "Send message",
+    "recordVoice": "Record voice message",
+    "recordVideo": "Record video message",
+    "pause": "Pause",
+    "resume": "Resume",
+    "play": "Play",
+    "download": "Download",
+    "cancelDownload": "Cancel download",
+    "retry": "Retry",
+    "scrollToLatest": "Jump to latest messages",
+    "flipCamera": "Switch camera",
+    "flashlight": "Flashlight"
   }
 }

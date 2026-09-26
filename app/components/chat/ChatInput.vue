@@ -24,14 +24,14 @@
         :is-paused="isPaused"
         :has-text="editor.messageText.value.trim().length > 0"
         :icon="secondaryMessageIcon"
-        :icon-class="iconClass"
+        :disabled="inputDisabled"
         :lock-opacity="lockOpacity"
         :drag-offset="dragOffset"
         :is-dragging="isDragging"
         @pointerdown="handlePointerDown"
         @toggle-type="toggleSecondaryMessageType"
         @toggle-pause="togglePause"
-        @send="sendRecording"
+        @send="handleSend"
       />
 
       <div v-show="!isRecording" class="flex-1 flex items-end gap-x-5">
@@ -50,31 +50,27 @@
             class="text-body-md text-on-surface outline-none flex-1 bg-transparent z-10 max-h-[144px] overflow-y-auto hide-scrollbar leading-6 py-1 cursor-text whitespace-pre-wrap break-words empty:before:content-[attr(data-placeholder)] empty:before:text-on-surface/50 pointer-events-auto"
           ></div>
         </div>
-        <div
-          class="shrink-0 flex items-center gap-x-8 z-10 h-11"
-          :class="[iconClass]"
-        >
-          <div class="hidden md:block">
-            <BMenu ref="menuRef">
-              <template #trigger>
-                <BIcon
-                  icon="PhSmiley"
-                  data-testid="chat-emoji"
-                  class="cursor-pointer w-6 h-6 fill-on-surface"
-                  @mousedown.prevent
-                  @click="emojiUsed = true"
-                />
-              </template>
-              <div class="">
-                <BEmojiPicker v-if="emojiUsed" @select="handleEmojiSelect" />
-              </div>
-            </BMenu>
-          </div>
-
-          <!-- MOBILE: Toggle Button -->
-          <BIcon
+        <div class="z-10 flex h-11 shrink-0 items-center gap-x-2">
+          <!-- A popover on wide screens; on phones the picker opens under the input instead. -->
+          <IconButton
             icon="PhSmiley"
-            class="md:hidden cursor-pointer w-6 h-6 fill-on-surface"
+            icon-class="size-6"
+            :label="t('actions.emoji')"
+            :disabled="inputDisabled"
+            data-testid="chat-emoji"
+            class="hidden! md:inline-flex!"
+            @mousedown.prevent
+            @click="openEmojiPopover"
+          />
+          <Popover ref="emojiPopover" class="vue-chat">
+            <BEmojiPicker v-if="emojiUsed" @select="handleEmojiSelect" />
+          </Popover>
+          <IconButton
+            icon="PhSmiley"
+            icon-class="size-6"
+            :label="t('actions.emoji')"
+            :disabled="inputDisabled"
+            class="md:hidden!"
             @mousedown.prevent
             @click="toggleMobileEmoji"
           />
@@ -113,7 +109,8 @@ import {
   onUnmounted,
   useTemplateRef,
 } from "vue";
-import type { Menu } from "~/types/components/menu";
+import Popover from "primevue/popover";
+import IconButton from "~/components/general/IconButton.vue";
 import type { ExtendedMessage, Message } from "~/types";
 import InputAttachement from "./chat-input/InputAttachement.vue";
 import {
@@ -159,7 +156,7 @@ const currentUserId = computed(() => profileStore.userId);
 // Template Refs (Properly typed, no 'any')
 const rootElements = useTemplateRef<HTMLElement>("rootElements");
 const inputRef = useTemplateRef<HTMLDivElement>("inputRef");
-const menuRef = useTemplateRef<Menu>("menuRef");
+const emojiPopover = useTemplateRef<InstanceType<typeof Popover>>("emojiPopover");
 const videoDisplayRef =
   useTemplateRef<InstanceType<typeof VideoRecordDisplay>>("videoDisplayRef");
 
@@ -181,11 +178,6 @@ const inputWidth = computed(() => rootElements.value?.clientWidth || 0);
 const inputDisabled = computed(() => !props.isActive);
 const inputPlaceholder = computed(() =>
   props.isActive ? t("placeholder") : t("chatLocked"),
-);
-const iconClass = computed(() =>
-  !props.isActive
-    ? "pointer-events-none fill-chat-on-background opacity-50"
-    : "pointer-events-auto fill-chat-on-background opacity-100",
 );
 
 const secondaryMessageIcon = computed(() =>
@@ -397,7 +389,7 @@ const handlePointerDown = (event: PointerEvent) => {
     sendMessage();
     return;
   }
-  menuRef.value?.close();
+  emojiPopover.value?.hide();
   recording.onPointerDown(event);
 
   // NOTE: The 300ms setTimeout has been completely removed from here.
@@ -408,6 +400,11 @@ const handleEnterKey = (e: KeyboardEvent) => {
   if (e.shiftKey) return;
   e.preventDefault();
   sendMessage();
+};
+
+const openEmojiPopover = (event: MouseEvent) => {
+  emojiUsed.value = true;
+  emojiPopover.value?.toggle(event);
 };
 
 const toggleMobileEmoji = () => {
@@ -443,7 +440,8 @@ const handleFlipCamera = () => {
   if (typeof recording.toggleCamera === "function") recording.toggleCamera();
 };
 
-const sendRecording = () => stopRecording(true);
+// The send button sends the typed text, or a recording once it has been locked.
+const handleSend = () => (isLocked.value ? stopRecording(true) : sendMessage());
 const cancelRecording = () => stopRecording(false);
 
 // --- Global Keys ---

@@ -63,13 +63,7 @@
           v-show="msgList.isLoading.value"
           class="w-full flex h-16 justify-center items-center shrink-0 overflow-hidden transition-all duration-300 flip-vertical py-4"
         >
-          <LottieAnimation
-            :animation-data="loading"
-            :height="52"
-            :width="52"
-            :loop="true"
-            :auto-play="true"
-          />
+          <ProgressSpinner class="size-12!" stroke-width="4" />
         </div>
       </div>
 
@@ -85,13 +79,7 @@
         v-show="msgList.messages.value.length === 0 && msgList.isLoading.value"
         class="w-full flex h-full flip-vertical items-center justify-center"
       >
-        <LottieAnimation
-          :animation-data="loading"
-          :height="52"
-          :width="52"
-          :loop="true"
-          :auto-play="true"
-        />
+        <ProgressSpinner class="size-12!" stroke-width="4" />
       </div>
 
       <div
@@ -120,11 +108,13 @@
     </div>
   </div>
 
-  <BModal ref="modal" :loading="modalBusy" @action="handleModalConfirm" />
+  <ConfirmModal ref="modal" :loading="modalBusy" @action="handleModalConfirm" />
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch, nextTick, onBeforeUnmount, defineAsyncComponent } from "vue";
+import { ref, computed, watch, nextTick, onBeforeUnmount } from "vue";
+import ProgressSpinner from "primevue/progressspinner";
+import ConfirmModal from "~/components/general/ConfirmModal.vue";
 import useLocalI18n from "~/composables/useLocalI18n";
 import { chat, chatMessages } from "@i18n/locales";
 import { useAppToast } from "~/composables/useAppToast";
@@ -133,7 +123,6 @@ import FloatingDateHeader from "./messages/FloatingDateHeader.vue";
 import ScrollToBottomButton from "./messages/ScrollToBottomButton.vue";
 import ConversationOptionsBar from "./messages/ConversationOptionsBar.vue";
 import type { Contact, ExtendedMessage } from "~/types";
-import loading from "~/assets/lottie/loading.json";
 import NoDataDisplay from "../general/NoDataDisplay.vue";
 import NoMessages from "~/assets/lib-images/chat/empty-state.webp";
 import type { Modal } from "~/types/components/modal";
@@ -145,11 +134,6 @@ import { useDate } from "~/composables/useDate";
 import { useChatMessageList } from "~/composables/useChatMessageList.js";
 import { useFlippedVirtualScroll } from "~/composables/useFlippedVirtualScroll.js";
 import { useProfileStore } from "~/stores/profileStore.js";
-
-// lottie-web is large; fetch it the first time a spinner shows.
-const LottieAnimation = defineAsyncComponent(() =>
-  import("vue3-lottie").then((m) => m.Vue3Lottie),
-);
 
 const props = withDefaults(
   defineProps<{ contact: Contact | null; options: MenuOption[] }>(),

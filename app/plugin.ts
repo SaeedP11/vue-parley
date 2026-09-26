@@ -1,5 +1,6 @@
 import type { App, Plugin } from "vue";
 import type { Pinia } from "pinia";
+import ToastService from "primevue/toastservice";
 import type {
   CallHandlers,
   ChatHandlers,
@@ -35,9 +36,10 @@ export interface ChatOptions {
 /**
  * Wires the chat into an app in one call:
  *
- *   app.use(createPinia()).use(i18n).use(createChat({ chat, messages, media, user }))
+ *   app.use(createPinia()).use(i18n).use(PrimeVue, { theme }).use(createChat({ chat, messages, media, user }))
  *
- * Pinia and vue-i18n must be installed first; the stores and translations depend on them.
+ * Pinia, vue-i18n and PrimeVue must be installed first; the stores, translations and UI depend
+ * on them.
  */
 export function createChat(options: ChatOptions): Plugin {
   return {
@@ -53,6 +55,14 @@ export function createChat(options: ChatOptions): Plugin {
           "[vue-chat] Install vue-i18n (legacy: false) before createChat()",
         );
       }
+      // The UI is built from PrimeVue components, themed by the host's own preset.
+      if (!app.config.globalProperties.$primevue) {
+        throw new Error(
+          "[vue-chat] Install PrimeVue before createChat(): app.use(PrimeVue, { theme }).use(createChat(...))",
+        );
+      }
+      // The chat's toasts go through PrimeVue's toast service; hosts that use it already keep theirs.
+      if (!app.config.globalProperties.$toast) app.use(ToastService);
 
       // Lets stores translate without a component, so they can be created anywhere.
       provideHostI18n(app);

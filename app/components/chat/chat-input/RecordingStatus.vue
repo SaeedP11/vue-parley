@@ -1,5 +1,6 @@
 <script setup lang="ts">
 /** Replaces the text field while recording: swipe-to-cancel hint (or Cancel once locked) and the timer. */
+import Button from "primevue/button";
 import useLocalI18n from "~/composables/useLocalI18n";
 import { chat, chatInput } from "@i18n/locales";
 
@@ -17,12 +18,14 @@ const { t } = useLocalI18n(chatInput, chat);
       :style="{ opacity: cancelOpacity }"
     >
       <span v-if="!locked">{{ t("chat.swipeToCancel") }}</span>
-      <span
+      <Button
         v-else
-        class="text-primary cursor-pointer px-4 z-20"
+        text
+        size="small"
+        class="z-20"
+        :label="t('chat.cancel')"
         @click="emit('cancel')"
-        >{{ t("chat.cancel") }}</span
-      >
+      />
     </div>
 
     <div class="left-6 flex items-center gap-x-2 shrink-0 z-10">

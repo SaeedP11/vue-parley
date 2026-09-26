@@ -1,14 +1,13 @@
 <template>
   <div class="vue-chat h-full w-full bg-chat-surface">
-    <div
-      v-show="canShowMessagingSection || isProfile"
-      class="flex h-full w-full"
-    >
+    <div class="flex h-full w-full">
       <ChatProfileOverview :profile="selectedChat" />
 
+      <!-- On phones the open profile takes the whole screen. -->
       <div
-        v-show="chatId && isChatMode"
-        class="flex h-full flex-1 flex-col items-center justify-between"
+        v-show="chatId"
+        class="h-full flex-1 flex-col items-center justify-between"
+        :class="isProfile ? 'hidden md:flex' : 'flex'"
       >
         <div class="h-16 w-full bg-chat-background md:h-20">
           <ChatPageBar
@@ -40,13 +39,7 @@
             v-if="isResolving"
             class="flex h-full w-full items-center justify-center"
           >
-            <LottieAnimation
-              :animation-data="loading"
-              :height="52"
-              :width="52"
-              :loop="true"
-              :auto-play="true"
-            />
+            <ProgressSpinner class="size-12!" stroke-width="4" />
           </div>
         </div>
         <slot
@@ -75,11 +68,14 @@
     </div>
 
     <PermissionPopup />
+    <Toast :group="TOAST_GROUP" position="bottom-center" class="vue-chat" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, ref, nextTick, watch, defineAsyncComponent } from "vue";
+import { computed, ref, nextTick, watch } from "vue";
+import ProgressSpinner from "primevue/progressspinner";
+import Toast from "primevue/toast";
 import PermissionPopup from "~/components/chat/chat-input/PermissionPopup.vue";
 import ChatProfileOverview from "~/components/chat/ChatProfileOverview.vue";
 import type { ChatTextField } from "~/types/components/chat-input";
@@ -89,23 +85,15 @@ import ChatPageBar from "~/components/chat/ChatPageBar.vue";
 import ChatInput from "~/components/chat/ChatInput.vue";
 import NoDataDisplay from "~/components/general/NoDataDisplay.vue";
 import ChatEnded from "~/assets/lib-images/chat/empty-state.webp";
-import loading from "~/assets/lottie/loading.json";
+import { TOAST_GROUP } from "~/composables/useAppToast";
 import useLocalI18n from "~/composables/useLocalI18n";
 import { useChatStore } from "~/stores/chatStore";
 import { chatView } from "@i18n/locales";
 
-// lottie-web is large; fetch it the first time a spinner shows.
-const LottieAnimation = defineAsyncComponent(() =>
-  import("vue3-lottie").then((m) => m.Vue3Lottie),
-);
-
 const chatStore = useChatStore();
-const { width } = useWindowSize();
 const { t } = useLocalI18n(chatView);
 // Template Refs
 const chatInput = ref<ChatTextField | null>(null);
-
-const isMobile = computed(() => width.value < 768);
 
 const chatId = computed(() => chatStore.activeConversationId);
 const isProfile = computed(() => chatStore.profileViewOpen);
@@ -117,16 +105,6 @@ const selectedChat = computed(() => {
 
 // Until the contact arrives the pane would otherwise read as an ended chat.
 const isResolving = computed(() => !!chatId.value && !selectedChat.value);
-
-const canShowMessagingSection = computed(() => {
-  if (isMobile.value) return !isProfile.value;
-  return true;
-});
-
-const isChatMode = computed(() => {
-  if (isMobile.value) return !isProfile.value;
-  return canShowMessagingSection.value;
-});
 
 const medicOptions = computed<MenuOption[]>(() =>
   chatStore.canEndConversation && selectedChat.value?.isActive

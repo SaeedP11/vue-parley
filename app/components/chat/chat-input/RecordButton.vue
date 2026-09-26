@@ -4,13 +4,19 @@
  * switch between voice and video), or the send button once there is text or a locked recording.
  * While recording it floats the lock pill above itself, which becomes pause/resume once locked.
  */
-defineProps<{
+import { computed } from "vue";
+import Button from "primevue/button";
+import IconButton from "~/components/general/IconButton.vue";
+import useLocalI18n from "~/composables/useLocalI18n";
+import { chatInput } from "@i18n/locales";
+
+const props = defineProps<{
   isRecording: boolean;
   isLocked: boolean;
   isPaused: boolean;
   hasText: boolean;
   icon: string;
-  iconClass: string;
+  disabled?: boolean;
   lockOpacity: number;
   dragOffset: { x: number; y: number };
   isDragging: boolean;
@@ -22,11 +28,15 @@ const emit = defineEmits<{
   togglePause: [];
   send: [];
 }>();
+
+const { t } = useLocalI18n(chatInput);
+
+const showSend = computed(() => props.isLocked || props.hasText);
 </script>
 
 <template>
   <div
-    class="relative flex items-center justify-center shrink-0 z-30 mb-0.5"
+    class="relative z-30 mb-0.5 flex shrink-0 items-center justify-center"
     :style="{
       transform: `translate(${dragOffset.x}px, ${dragOffset.y}px)`,
       transition: isDragging
@@ -36,53 +46,53 @@ const emit = defineEmits<{
   >
     <div
       v-if="isRecording"
-      class="absolute -top-20 flex flex-col items-center justify-center bg-surface shadow-floating rounded-full w-9 transition-opacity"
+      class="absolute -top-20 flex w-10 flex-col items-center justify-center rounded-full bg-chat-background shadow-floating transition-opacity"
       :class="[
-        isLocked ? 'pointer-events-auto py-1.5' : 'pointer-events-none py-3 gap-y-3',
+        isLocked ? 'pointer-events-auto py-1' : 'pointer-events-none gap-y-3 py-3',
       ]"
       :style="{ opacity: lockOpacity }"
     >
-      <BIcon v-if="!isLocked" icon="PhLockKey" class="w-5 h-5 fill-on-surface" />
-      <div
+      <BIcon v-if="!isLocked" icon="PhLockKey" class="size-5" />
+      <IconButton
         v-else
-        class="w-full h-9 flex items-center justify-center cursor-pointer"
+        :icon="isPaused ? 'PhPlayCircle' : 'PhPauseCircle'"
+        :label="isPaused ? t('actions.resume') : t('actions.pause')"
+        icon-class="size-6"
         @click="emit('togglePause')"
-      >
-        <BIcon
-          :icon="isPaused ? 'PhPlayCircle' : 'PhPauseCircle'"
-          class="w-6 h-6 fill-on-surface"
-        />
-      </div>
-      <BIcon icon="PhCaretUp" class="w-4 h-4 fill-on-surface/60 animate-bounce" />
+      />
+      <BIcon icon="PhCaretUp" class="size-4 animate-bounce opacity-60" />
     </div>
 
-    <div
-      class="flex items-center w-11 touch-none h-11 justify-center transition-all duration-200"
-      :class="[
-        (isRecording && !isLocked) || hasText
-          ? ' rounded-full bg-primary/10'
-          : 'w-6 h-6 bg-primary/0',
-      ]"
-      @pointerdown="!isLocked ? emit('pointerdown', $event) : null"
-      @click="!isLocked ? emit('toggleType') : null"
+    <Button
+      v-if="showSend"
+      rounded
+      :aria-label="t('actions.sendMessage')"
+      :disabled="disabled"
+      @click="emit('send')"
     >
-      <BIcon
-        v-if="!isLocked && !hasText"
-        :icon="icon"
-        :weight="isRecording ? 'fill' : 'regular'"
-        class="cursor-pointer w-6 h-6 shrink-0 transition-colors"
-        :class="[isRecording ? ' fill-primary' : iconClass]"
-      />
-      <div
-        v-else
-        class="min-w-11 min-h-11 aspect-square rounded-full bg-gradient-primary-secondary flex items-center justify-center cursor-pointer"
-      >
+      <template #icon>
+        <BIcon icon="PhPaperPlaneTilt" class="size-6 rtl:-scale-x-100" />
+      </template>
+    </Button>
+    <!-- Hold to record; a tap switches between voice and video. -->
+    <Button
+      v-else
+      rounded
+      :text="!isRecording"
+      :severity="isRecording ? undefined : 'secondary'"
+      :aria-label="icon === 'PhCamera' ? t('actions.recordVideo') : t('actions.recordVoice')"
+      :disabled="disabled"
+      class="touch-none"
+      @pointerdown="emit('pointerdown', $event)"
+      @click="emit('toggleType')"
+    >
+      <template #icon>
         <BIcon
-          icon="PhPaperPlaneTilt"
-          class="w-6 h-6 fill-white shrink-0"
-          @click="emit('send')"
+          :icon="icon"
+          :weight="isRecording ? 'fill' : 'regular'"
+          class="size-6"
         />
-      </div>
-    </div>
+      </template>
+    </Button>
   </div>
 </template>
