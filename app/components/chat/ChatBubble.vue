@@ -11,6 +11,7 @@ import ContactAvatar from "./contact/ContactAvatar.vue";
 import BubbleDivider from "./chat-bubbles/BubbleDivider.vue";
 import BubbleImages from "./chat-bubbles/BubbleImages.vue";
 import BubbleSelectionMark from "./chat-bubbles/BubbleSelectionMark.vue";
+import BubbleRequest from "./chat-bubbles/BubbleRequest.vue";
 import BubbleStatus from "./chat-bubbles/BubbleStatus.vue";
 import ReplyPreview from "./chat-bubbles/ReplyPreview.vue";
 
@@ -41,9 +42,9 @@ const { formatDateShort } = useDate();
 type ImageDisplayInstance = InstanceType<typeof ImageGroupDisplay>;
 type BubbleOptionsInstance = InstanceType<typeof BubbleOptions>;
 
-const imageDisplayRef = useTemplateRef<ImageDisplayInstance>("imageDisplayRef");
+const imageDisplayRef = useTemplateRef<ImageDisplayInstance>("imageDisplay");
 const bubbleOptionsRef =
-  useTemplateRef<BubbleOptionsInstance>("bubbleOptionsRef");
+  useTemplateRef<BubbleOptionsInstance>("bubbleOptions");
 
 const profileStore = useProfileStore();
 const currentUserId = computed(() => profileStore.userId);
@@ -172,7 +173,7 @@ const longPress = useLongPress(handleRightClick);
 
       <!-- Request Card Fallback -->
       <div v-if="message.request" class="py-3 w-full flex justify-center">
-        <RequestCard :message="message" :contact="contact" />
+        <BubbleRequest :message="message" :contact="contact" />
       </div>
 
       <!-- Standard Message Bubble -->
@@ -264,13 +265,13 @@ const longPress = useLongPress(handleRightClick);
         <!-- Overlays, each mounted on first open: otherwise every bubble keeps idle copies. -->
         <ImageGroupDisplay
           v-if="viewerMounted && message.imageUrl && message.imageUrl.length > 0"
-          ref="imageDisplayRef"
+          ref="imageDisplay"
           :images="message.imageUrl"
         />
         <BubbleOptions
           v-if="optionsMounted"
           :message="message"
-          ref="bubbleOptionsRef"
+          ref="bubbleOptions"
         />
       </div>
     </div>
