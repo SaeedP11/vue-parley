@@ -283,6 +283,20 @@ test.describe("conversation lifecycle", () => {
     await expect(page.getByTestId("chat-input")).toHaveCount(0);
   });
 
+  test("Escape closes an open menu, not the conversation", async ({ page }) => {
+    await openConversation(page, "c1");
+    await page.getByTestId("chat-more-options").click();
+    await expect(page.getByText("End conversation", { exact: true })).toBeVisible();
+
+    await page.keyboard.press("Escape");
+    await expect(page.getByText("End conversation", { exact: true })).toHaveCount(0);
+    await expect(page.getByTestId("chat-input")).toBeVisible();
+
+    // With nothing open, Escape still closes the conversation.
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("chat-input")).toHaveCount(0);
+  });
+
   test("text-only conversations have no call button", async ({ page }) => {
     await openConversation(page, "c2");
     await expect(page.getByTestId("chat-start-call")).toHaveCount(0);
@@ -300,6 +314,8 @@ test.describe("images", () => {
 
     await page.keyboard.press("Escape");
     await expect(page.locator('[data-testid="image-viewer"][data-open="true"]')).toHaveCount(0);
+    // Escape was for the viewer, not the conversation behind it.
+    await expect(page.getByTestId("chat-input")).toBeVisible();
   });
 });
 

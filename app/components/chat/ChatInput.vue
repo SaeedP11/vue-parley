@@ -445,8 +445,15 @@ const handleSend = () => (isLocked.value ? stopRecording(true) : sendMessage());
 const cancelRecording = () => stopRecording(false);
 
 // --- Global Keys ---
+// PrimeVue closes its own overlays on Escape, in listeners that run before this one on `window`
+// while the overlay is still in the DOM. When one is open, Escape is for it alone: it must not
+// also cancel a reply or close the conversation behind it.
+const OVERLAYS =
+  ".p-menu-overlay, .p-contextmenu, .p-popover, .p-dialog-mask, .p-drawer-mask, .p-galleria-mask";
+
 const handleGlobalKeyDown = (event: KeyboardEvent) => {
   if (event.key === "Escape") {
+    if (event.defaultPrevented || document.querySelector(OVERLAYS)) return;
     if (textMode.value !== "normal" || messagesStore.selectedArray.length > 0) {
       cancelAction();
     } else {
