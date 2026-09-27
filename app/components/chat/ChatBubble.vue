@@ -291,6 +291,7 @@ const longPress = useLongPress(handleRightClick);
         <BubbleOptions
           v-if="optionsMounted"
           :message="message"
+          :is-mine="isMine"
           ref="bubbleOptions"
         />
       </div>

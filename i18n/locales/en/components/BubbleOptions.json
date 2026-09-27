@@ -1,10 +1,16 @@
 {
   "messageOptions": {
     "reply": "Reply",
-    "edit": "Edit message",
+    "edit": "Edit",
     "copy": "Copy",
     "deselect": "Deselect",
     "select": "Select",
     "delete": "Delete message"
+  },
+  "meta": {
+    "sentOn": "{day}, {time}",
+    "today": "Today",
+    "sent": "Sent",
+    "seen": "Seen"
   }
 }

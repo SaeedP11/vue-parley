@@ -1,10 +1,16 @@
 {
   "messageOptions": {
     "reply": "پاسخ",
-    "edit": "ویرایش پیام",
+    "edit": "ویرایش",
     "copy": "کپی",
     "deselect": "لغو انتخاب",
     "select": "انتخاب",
     "delete": "حذف پیام"
+  },
+  "meta": {
+    "sentOn": "{day}، {time}",
+    "today": "امروز",
+    "sent": "ارسال شد",
+    "seen": "دیده شد"
   }
 }

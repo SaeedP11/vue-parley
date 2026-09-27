@@ -155,7 +155,7 @@ test.describe("messaging", () => {
 
   test("edits an own message", async ({ page }) => {
     await openBubbleMenu(page, "Hi Sara, how are you?");
-    await page.getByText("Edit message", { exact: true }).click();
+    await page.getByRole("menuitem", { name: "Edit", exact: true }).click();
 
     const input = page.getByTestId("chat-input");
     await expect(input).toHaveText("Hi Sara, how are you?");
@@ -172,7 +172,7 @@ test.describe("messaging", () => {
   test("rolls back a failed edit", async ({ page }) => {
     await setHarnessFlag(page, "failNextEdit");
     await openBubbleMenu(page, "Hi Sara, how are you?");
-    await page.getByText("Edit message", { exact: true }).click();
+    await page.getByRole("menuitem", { name: "Edit", exact: true }).click();
     const input = page.getByTestId("chat-input");
     await input.press("ControlOrMeta+a");
     await input.pressSequentially("Will not stick");
