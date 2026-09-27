@@ -2,6 +2,7 @@ import {
   ExtendedMessage,
   Message,
   MessagesHandlers,
+  MessageReader,
   UploadProgressEvent,
 } from "~/types";
 import { useAppToast } from "~/composables/useAppToast";
@@ -215,14 +216,49 @@ export const useMessagesStore = defineStore("messages-store", () => {
 
   const markAsRead = (conversationId: string) => {
     const last = chatStore.getContactById(conversationId)?.lastMessage;
+    // On the viewer's own message `isRead` means someone else read it, which opening the chat
+    // says nothing about.
+    const incoming = last && last.senderId !== profileStore.userId;
     chatStore.updateContact(conversationId, {
       unreadCount: 0,
-      ...(last && { lastMessage: { ...last, isRead: true } }),
+      ...(incoming && { lastMessage: { ...last, isRead: true } }),
     });
-    handlers.markRead?.(conversationId).catch((error) =>
+
+    // The newest message that has reached the server; a send still in flight has no id yet.
+    const newest = [...(messagesMap.value[conversationId] ?? [])]
+      .reverse()
+      .find((m) => m.isSent && !m.id.startsWith("tmp-"));
+    handlers.markRead?.(conversationId, newest?.id ?? last?.id).catch((error) =>
       console.error("[chat] failed to mark conversation as read", error),
     );
   };
+
+  /**
+   * Marks the viewer's own messages in a conversation as read by someone, up to and including
+   * `messageId`, for a host that learns another participant caught up (a read receipt). Messages
+   * are compared by their place in the loaded thread, so `messageId` has to be one of them: the
+   * newest loaded message the reader has reached.
+   */
+  const markSeenUpTo = (conversationId: string, messageId: string) => {
+    const list = messagesMap.value[conversationId];
+    const index = list?.findIndex((m) => m.id === messageId) ?? -1;
+    if (!list || index === -1) return;
+
+    const me = profileStore.userId;
+    const seen = (m: Message, i: number) => i <= index && m.senderId === me && m.isSent && !m.isRead;
+    if (list.some(seen))
+      messagesMap.value[conversationId] = list.map((m, i) => (seen(m, i) ? { ...m, isRead: true } : m));
+
+    const last = chatStore.getContactById(conversationId)?.lastMessage;
+    if (last && last.senderId === me && !last.isRead && list.slice(0, index + 1).some((m) => m.id === last.id))
+      chatStore.updateContact(conversationId, { lastMessage: { ...last, isRead: true } });
+  };
+
+  const canListReaders = () => !!handlers?.fetchReaders;
+
+  /** Who has read one of the viewer's messages; empty when the host does not say. */
+  const fetchReaders = (message: Message): Promise<MessageReader[]> =>
+    handlers?.fetchReaders?.(message) ?? Promise.resolve([]);
 
   const updateLastMessage = (conversationId: string, message: Message) => {
     chatStore.updateContact(conversationId, { lastMessage: { ...message } });
@@ -384,6 +420,9 @@ export const useMessagesStore = defineStore("messages-store", () => {
     saveEditMessage,
     fetchMessages,
     markAsRead,
+    markSeenUpTo,
+    canListReaders,
+    fetchReaders,
     updateLastMessage,
     patchLastMessage,
     messagesMap,

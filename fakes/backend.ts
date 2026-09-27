@@ -4,6 +4,7 @@ import type {
   ChatHandlers,
   MediaHandlers,
   Message,
+  MessageReader,
   MessagesHandlers,
   ProfileHandlers,
 } from "../app/types";
@@ -15,6 +16,11 @@ export interface FakeBackendState {
   failNextEdit: boolean;
   /** Every handler call, with its arguments as JSON. */
   calls: { fn: string; args: unknown[] }[];
+  /**
+   * Who has read a message, by message id, for a group conversation. Without an entry, a message
+   * marked read was read by its conversation's one contact.
+   */
+  readers: Record<string, MessageReader[]>;
 }
 
 export interface FakeBackend {
@@ -54,6 +60,7 @@ export function createFakeBackend(
     failNextDelete: false,
     failNextEdit: false,
     calls: [],
+    readers: {},
   };
   const log = (fn: string, ...args: unknown[]) =>
     state.calls.push({ fn, args: toJson(args) });
@@ -155,10 +162,21 @@ export function createFakeBackend(
       const end = list.length - (page - 1) * pageSize;
       return clone(list.slice(Math.max(0, end - pageSize), Math.max(0, end)));
     },
-    async markRead(conversationId) {
-      log("markRead", conversationId);
+    async markRead(conversationId, lastMessageId) {
+      log("markRead", conversationId, lastMessageId);
       const c = contacts.find((c) => c.id === conversationId);
       if (c) c.unreadCount = 0;
+    },
+    async fetchReaders(message) {
+      log("fetchReaders", message.id);
+      await delay();
+      const listed = state.readers[message.id];
+      if (listed) return clone(listed);
+      const stored = db.get(message.conversationId)?.find((m) => m.id === message.id);
+      const c = contacts.find((c) => c.id === message.conversationId);
+      return stored?.isRead && c
+        ? [{ id: c.id, name: c.name, lastName: c.lastName, imageUrl: c.imageUrl, readAt: new Date() }]
+        : [];
     },
   };
 

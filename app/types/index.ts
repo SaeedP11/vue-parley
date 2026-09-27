@@ -205,13 +205,36 @@ export interface FetchMessagesParams {
   pageSize: number;
 }
 
+/** Someone who has read one of the viewer's messages. */
+export interface MessageReader {
+  /** The reader's user id. */
+  id: string;
+  name: string;
+  lastName?: string;
+  imageUrl?: string;
+  /**
+   * When the reader last caught up on the conversation. That is when they read the newest message
+   * they have seen, so for an older message it can be later than when they actually read it.
+   */
+  readAt?: Date;
+}
+
 export interface MessagesHandlers {
   sendMessage(msg: Message, opts?: SendMessageOptions): Promise<Message>;
   editMessage(id: string, text: string): Promise<Message>;
   deleteMessages(ids: string[]): Promise<void>;
   fetchMessages(params: FetchMessagesParams): Promise<Message[]>;
-  /** Persists that the viewer has read a conversation. Optional; without it read state stays local. */
-  markRead?(conversationId: string): Promise<void>;
+  /**
+   * Persists that the viewer has read a conversation, up to `lastMessageId` when one is loaded.
+   * Called when a conversation opens and again as messages from others arrive while it is on
+   * screen. Optional; without it read state stays local.
+   */
+  markRead?(conversationId: string, lastMessageId?: string): Promise<void>;
+  /**
+   * Who among the other participants has read one of the viewer's own messages. Optional; when
+   * given, the message menu lists them ("Seen by").
+   */
+  fetchReaders?(message: Message): Promise<MessageReader[]>;
 }
 
 export interface FetchProfileAttachmentsParams {

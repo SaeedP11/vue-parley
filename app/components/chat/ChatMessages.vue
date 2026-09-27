@@ -107,6 +107,7 @@
 
 <script setup lang="ts">
 import { ref, computed, watch, nextTick, onBeforeUnmount } from "vue";
+import { useDocumentVisibility } from "@vueuse/core";
 import ConfirmModal from "~/components/general/ConfirmModal.vue";
 import useLocalI18n from "~/composables/useLocalI18n";
 import { chat, chatMessages } from "@i18n/locales";
@@ -288,6 +289,21 @@ watch(
     }
   },
 );
+
+// A message from someone else that lands while this conversation is on screen has been read, and
+// so has whatever arrived while the tab was in the background, once it is back. Opening the
+// conversation is covered above, before its messages have loaded; this also catches the first
+// page landing, so the host hears about the newest message rather than only the list preview.
+const visibility = useDocumentVisibility();
+const newestIncoming = computed(() => {
+  const last = msgList.messages.value.at(-1);
+  return last && last.senderId !== currentUserId.value && !last.id.startsWith("tmp-")
+    ? last.id
+    : null;
+});
+watch([newestIncoming, visibility], ([id, state]) => {
+  if (id && state === "visible" && chatId.value) messagesStore.markAsRead(chatId.value);
+});
 </script>
 
 <style scoped>

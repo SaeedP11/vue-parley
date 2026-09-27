@@ -93,10 +93,83 @@ test.describe("messaging", () => {
     await expect(bubble(page, "Hello from Sara")).toBeVisible();
     await expect(bubble(page, "Hi Sara, how are you?")).toBeVisible();
     await expect(bubble(page, "Ready for the video call?")).toBeVisible();
+    // Up to the newest message, so the host can move the viewer's read pointer.
     expect(await handlerCalls(page, "markRead")).toContainEqual({
       fn: "markRead",
-      args: ["c1"],
+      args: ["c1", "c1-m3"],
     });
+  });
+
+  test("marks a message that arrives while the conversation is open as read", async ({
+    page,
+  }) => {
+    await page.evaluate(() => {
+      const store = (window as any).__harness.messagesStore;
+      const list = store.messagesMap.c1;
+      // From Sara, like list[0].
+      store.messagesMap.c1 = [
+        ...list,
+        { ...list[0], id: "c1-live", text: "Are you there?", date: new Date() },
+      ];
+    });
+    await expect
+      .poll(async () => (await handlerCalls(page, "markRead")).map((c) => c.args))
+      .toContainEqual(["c1", "c1-live"]);
+  });
+
+  test("says who read your message", async ({ page }) => {
+    await openBubbleMenu(page, "Hi Sara, how are you?");
+    await expect(page.getByTestId("message-readers")).toContainText("Sara Ahmadi");
+    expect(await handlerCalls(page, "fetchReaders")).toContainEqual({
+      fn: "fetchReaders",
+      args: ["c1-m2"],
+    });
+  });
+
+  test("lists everyone who read your message in a group", async ({ page }) => {
+    await page.evaluate(() => {
+      (window as any).__harness.state.readers["c1-m2"] = [
+        { id: "u1", name: "Nima", lastName: "Karimi" },
+        { id: "u2", name: "Leila", lastName: "Moradi" },
+        { id: "u3", name: "Sara", lastName: "Ahmadi" },
+      ];
+    });
+    await openBubbleMenu(page, "Hi Sara, how are you?");
+    const row = page.getByTestId("message-readers");
+    await expect(row).toContainText("Seen by 3");
+    // Opens on hover, like any ContextMenu submenu; a click on top of that would toggle it shut.
+    await row.hover();
+    await expect(page.getByTestId("message-reader")).toHaveCount(3);
+    await expect(page.getByTestId("message-reader").first()).toContainText("Nima Karimi");
+  });
+
+  test("offers no readers on someone else's message", async ({ page }) => {
+    await openBubbleMenu(page, "Hello from Sara");
+    await expect(page.getByRole("menuitem", { name: "Reply", exact: true })).toBeVisible();
+    await expect(page.getByTestId("message-readers")).toHaveCount(0);
+    expect(await handlerCalls(page, "fetchReaders")).toEqual([]);
+  });
+
+  test("turns a sent message into a seen one on a read receipt", async ({ page }) => {
+    await typeAndSend(page, "Did you get this?");
+    await expect(bubble(page, "Did you get this?")).toBeVisible();
+
+    // The server id, once the send settles.
+    const newestId = () =>
+      page.evaluate(() => {
+        const list = (window as any).__harness.messagesStore.messagesMap.c1;
+        return list[list.length - 1].id as string;
+      });
+    await expect.poll(newestId).not.toMatch(/^tmp-/);
+    const id = await newestId();
+
+    await openBubbleMenu(page, "Did you get this?");
+    await expect(page.getByText("Sent", { exact: true })).toBeVisible();
+    await page.keyboard.press("Escape");
+
+    await page.evaluate((id) => (window as any).__harness.messagesStore.markSeenUpTo("c1", id), id);
+    await openBubbleMenu(page, "Did you get this?");
+    await expect(page.getByText("Seen", { exact: true })).toBeVisible();
   });
 
   test("sends a text message", async ({ page }) => {

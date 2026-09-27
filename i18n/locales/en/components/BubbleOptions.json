@@ -12,5 +12,8 @@
     "today": "Today",
     "sent": "Sent",
     "seen": "Seen"
+  },
+  "readers": {
+    "seenBy": "Seen by {count}"
   }
 }

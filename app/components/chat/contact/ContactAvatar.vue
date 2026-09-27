@@ -5,7 +5,8 @@ import type { Contact } from "~/types";
 
 const props = withDefaults(
   defineProps<{
-    contact: Contact;
+    // Only what an avatar draws, so a message's reader can use it as well as a contact.
+    contact: Pick<Contact, "name" | "lastName" | "imageUrl"> & Partial<Pick<Contact, "isOnline">>;
     showOnline?: boolean;
   }>(),
   { showOnline: true },

@@ -19,6 +19,7 @@ Formerly `@yonus_amire01/chat`. To switch, replace that name with `vue-parley` i
   - [Nuxt 3 / 4](#nuxt-3--4)
   - [Customising the page](#customising-the-page)
   - [Photos and videos](#photos-and-videos)
+  - [Read receipts](#read-receipts)
   - [Calls outside the chat page](#calls-outside-the-chat-page)
   - [Fake backend](#fake-backend)
 - [What `createChat()` does](#what-createchat-does)
@@ -134,6 +135,25 @@ To build a different layout, use the exported building blocks instead: `ChatList
 `sendMessage` should upload every `media` item and return, and later fetch, the message with `media` pointing at the stored files. Hosts that only handle photos can keep reading and returning `imageUrl`: the bubble and viewer fall back to it, but videos in the album are then lost. `messageMedia(message)` gives a message's album either way. Tapping an item opens the full-screen viewer, where photos zoom and pan and videos play with their own controls.
 
 A round video note recorded in the chat is different: it is `type: "video"` with `videoUrl`, and plays in its bubble.
+
+### Read receipts
+
+Your own messages show one tick when sent and two once someone has read them (`isRead`). With a `fetchReaders` handler, the message menu also says **who** read one of your messages: the reader and when in a one-to-one chat, or "Seen by N" opening the list of readers in a group.
+
+```ts
+const messages: MessagesHandlers = {
+  // …
+  // The conversation is open and read up to lastMessageId (when a message is loaded). Called when
+  // it opens, and again as messages from others arrive while it is on screen.
+  async markRead(conversationId, lastMessageId) {},
+  // The other participants who have read one of the viewer's own messages.
+  async fetchReaders(message): Promise<MessageReader[]> {
+    return [{ id: "u2", name: "Sara", lastName: "Ahmadi", imageUrl: "", readAt: new Date() }];
+  },
+};
+```
+
+`readAt` is when the reader last caught up on the conversation, which a host tracking a per-member "read up to" pointer may only know for the newest message they reached. When a read receipt arrives in real time, call `useMessagesStore().markSeenUpTo(conversationId, messageId)` with the newest loaded message the reader has reached: your messages up to it turn read.
 
 ### Calls outside the chat page
 
