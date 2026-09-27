@@ -452,4 +452,16 @@ test.describe("deep links", () => {
     await expect(contactItem(page, "c9")).toContainText("Deep Link");
     await expect(page.getByTestId("chat-input")).toBeVisible();
   });
+
+  test("shows the newest messages when the conversation is open before they load", async ({
+    page,
+  }) => {
+    // A fresh load of /chat/<id>: the pane is up with its contact before the first page of a
+    // thread taller than the viewport arrives. The newest rows used to stay unrendered until the
+    // user scrolled or sent something.
+    await page.goto("/?open=c1&messageDelay=500&history=30");
+    const newest = bubble(page, "Ready for the video call?");
+    await expect(newest).toBeVisible();
+    await expect(newest).toBeInViewport();
+  });
 });

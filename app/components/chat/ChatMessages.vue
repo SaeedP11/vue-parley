@@ -16,10 +16,13 @@
       @scroll="scroll.handleScroll"
       @wheel.prevent="scroll.handleWheel"
     >
-      <div
-        class="w-full max-w-dvw overflow-x-hidden"
-        v-show="msgList.messages.value.length"
-      >
+      <!-- Never hidden, even while the thread is empty: an empty list is already 0px tall. Rows
+           are measured the moment they mount, before a v-show here would reveal them, so a hidden
+           wrapper measured a first page arriving into an open conversation as all 0px. The
+           virtualizer then read every row's real height as growth above the viewport and moved
+           its offset to the oldest end while scrollTop stayed at 0, leaving the newest messages
+           unrendered until the next scroll. -->
+      <div class="w-full max-w-dvw overflow-x-hidden">
         <div
           :style="{
             height: scroll.virtualizer.value.getTotalSize() + 'px',
@@ -56,8 +59,12 @@
           </div>
         </div>
 
-        <!-- Older messages on their way in, above the ones already shown. -->
-        <div v-show="msgList.isLoading.value" class="w-full shrink-0 flip-vertical">
+        <!-- Older messages on their way in, above the ones already shown. The first page has the
+             full-height skeleton below instead. -->
+        <div
+          v-show="msgList.isLoading.value && msgList.messages.value.length"
+          class="w-full shrink-0 flip-vertical"
+        >
           <MessagesSkeleton :count="2" />
         </div>
       </div>

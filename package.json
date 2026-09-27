@@ -69,7 +69,7 @@
   },
   "dependencies": {
     "@phosphor-icons/vue": "^2.2.1",
-    "@tanstack/vue-virtual": "^3.13.24",
+    "@tanstack/vue-virtual": "^3.13.39",
     "nanoid": "^6.0.0",
     "vue3-emoji-picker": "^1.1.8"
   },

@@ -11,6 +11,10 @@ import { backend, call } from "./backend";
 
 const renderCall = ref(true);
 
+// `open=<id>` selects a conversation before the chat mounts, as a host routing straight to one does.
+const open = new URLSearchParams(location.search).get("open");
+if (open) useChatStore().setSelectedChat(open);
+
 // Test hooks. Stores are created here rather than in main.ts: some need a component's setup.
 Object.assign(window, {
   __harness: {
