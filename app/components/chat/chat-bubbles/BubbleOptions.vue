@@ -86,6 +86,8 @@ const items = computed<MenuItem[]>(() => [
     key: "copy",
     phIcon: "PhCopy",
     label: t("messageOptions.copy"),
+    // Copy takes only text, so there is nothing to copy from a photo, voice note or file.
+    visible: messagesStore.selectedArray.some((m) => m.text?.trim()),
     class: TILE,
     command: () => messagesStore.copyMessageText(),
   },

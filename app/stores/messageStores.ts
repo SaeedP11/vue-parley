@@ -7,7 +7,6 @@ import {
 import { useAppToast } from "~/composables/useAppToast";
 import { useStoreI18n } from "~/composables/useHostI18n";
 import { useProfileStore } from "./profileStore";
-import { useDate } from "~/composables/useDate";
 import { useChatStore } from "./chatStore";
 import { chat } from "@i18n/locales";
 import { defineStore } from "pinia";
@@ -15,7 +14,6 @@ import { defineStore } from "pinia";
 export const useMessagesStore = defineStore("messages-store", () => {
   const { t } = useStoreI18n(chat);
   const { openToast } = useAppToast();
-  const { formatDateShort, formatTime } = useDate();
   const chatStore = useChatStore();
   const profileStore = useProfileStore();
   const currentUserId = computed(() => profileStore.userId);
@@ -104,17 +102,12 @@ export const useMessagesStore = defineStore("messages-store", () => {
   };
 
   const copyMessageText = () => {
+    // Only what was written: no sender, time or placeholder for photos, voice or files.
     const textToCopy = selectedArray.value
-      .map((msg) => {
-        const isMine = msg.senderId === currentUserId.value;
-        const senderName = isMine ? t("chat.you") : msg.contact?.name || "User";
-        const dateTime = `${formatDateShort(msg.date)}, ${formatTime(msg.date)}`;
-        const content =
-          msg.text ||
-          (msg.imageUrl ? "[Image]" : msg.voiceUrl ? "[Voice]" : "[File]");
-        return `${senderName} [${dateTime}]:\n${content}`;
-      })
+      .map((msg) => msg.text?.trim())
+      .filter(Boolean)
       .join("\n\n");
+    if (!textToCopy) return clearActions();
 
     navigator.clipboard.writeText(textToCopy).then(() => {
       openToast(t("chat.copiedMessage"), "success");

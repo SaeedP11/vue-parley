@@ -222,6 +222,22 @@ test.describe("messaging", () => {
     await expect.poll(selected).toBe(2);
   });
 
+  test("copies only the text of the selected messages", async ({ page }) => {
+    await openBubbleMenu(page, "Hello from Sara");
+    await page.getByText("Select", { exact: true }).click();
+    await bubble(page, "Ready for the video call?")
+      .getByText("Ready for the video call?")
+      .click();
+
+    await openBubbleMenu(page, "Ready for the video call?");
+    await page.getByRole("menuitem", { name: "Copy", exact: true }).click();
+
+    // No sender, no time: just what was written, one message per paragraph.
+    await expect
+      .poll(() => page.evaluate(() => navigator.clipboard.readText()))
+      .toBe("Hello from Sara\n\nReady for the video call?");
+  });
+
   test("sends a file attachment with upload progress", async ({ page }) => {
     await page.getByTestId("chat-attach").click();
     const chooser = page.waitForEvent("filechooser");
@@ -316,6 +332,14 @@ test.describe("images", () => {
     await expect(page.locator('[data-testid="image-viewer"][data-open="true"]')).toHaveCount(0);
     // Escape was for the viewer, not the conversation behind it.
     await expect(page.getByTestId("chat-input")).toBeVisible();
+  });
+
+  test("a photo has nothing to copy", async ({ page }) => {
+    await openConversation(page, "c2");
+    await page.getByTestId("bubble-image").click({ button: "right" });
+
+    await expect(page.getByRole("menuitem", { name: "Reply", exact: true })).toBeVisible();
+    await expect(page.getByRole("menuitem", { name: "Copy", exact: true })).toHaveCount(0);
   });
 });
 
