@@ -1,0 +1,19 @@
+{
+  "counter": "{current} of {total}",
+  "actions": {
+    "close": "Close",
+    "previous": "Previous",
+    "next": "Next",
+    "download": "Download",
+    "play": "Play",
+    "pause": "Pause",
+    "mute": "Mute",
+    "unmute": "Unmute",
+    "fullscreen": "Full screen",
+    "exitFullscreen": "Exit full screen",
+    "seek": "Seek",
+    "resetZoom": "Reset zoom"
+  },
+  "cantPlay": "This video can't be played here. Download it to watch.",
+  "sentOn": "{day}, {time}"
+}

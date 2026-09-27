@@ -4,11 +4,14 @@
     "attachFile": "File",
     "cancel": "Cancel",
     "sendFile": "Send file",
-    "sendImages": "Send images",
-    "sendImage": "Send image"
+    "sendImages": "Send photos",
+    "sendImage": "Send photo",
+    "sendVideo": "Send video",
+    "sendVideos": "Send videos",
+    "sendMedia": "Send photos and videos"
   },
   "errors": {
-    "maxFilesReached": "You can send up to 10 images at a time."
+    "maxFilesReached": "You can send up to 10 photos or videos at a time."
   },
   "caption": "Caption",
   "send": "Send"

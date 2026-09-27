@@ -4,11 +4,14 @@
     "attachFile": "فایل",
     "cancel": "انصراف",
     "sendFile": "ارسال فایل",
-    "sendImages": "ارسال تصاویر",
-    "sendImage": "ارسال تصویر"
+    "sendImages": "ارسال عکس‌ها",
+    "sendImage": "ارسال عکس",
+    "sendVideo": "ارسال ویدیو",
+    "sendVideos": "ارسال ویدیوها",
+    "sendMedia": "ارسال عکس و ویدیو"
   },
   "errors": {
-    "maxFilesReached": "در هر ارسال حداکثر ۱۰ تصویر مجاز است."
+    "maxFilesReached": "در هر ارسال حداکثر ۱۰ عکس یا ویدیو مجاز است."
   },
   "caption": "کپشن",
   "send": "ارسال"

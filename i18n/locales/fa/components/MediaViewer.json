@@ -1,0 +1,19 @@
+{
+  "counter": "{current} از {total}",
+  "actions": {
+    "close": "بستن",
+    "previous": "قبلی",
+    "next": "بعدی",
+    "download": "دانلود",
+    "play": "پخش",
+    "pause": "توقف",
+    "mute": "بی‌صدا",
+    "unmute": "صدادار",
+    "fullscreen": "تمام‌صفحه",
+    "exitFullscreen": "خروج از تمام‌صفحه",
+    "seek": "جابه‌جایی در ویدیو",
+    "resetZoom": "بازنشانی بزرگ‌نمایی"
+  },
+  "cantPlay": "این ویدیو اینجا پخش نمی‌شود. برای تماشا دانلودش کنید.",
+  "sentOn": "{day}، {time}"
+}

@@ -1,11 +1,16 @@
 import { useFileDialog } from "@vueuse/core";
 
-export interface PickedImage {
+import type { MediaItem } from "~/types";
+
+export interface PickedMedia {
   file: File;
   path: string;
+  kind: MediaItem["kind"];
 }
 
-export interface PickedFile extends PickedImage {
+export interface PickedFile {
+  file: File;
+  path: string;
   name: string;
   format: string;
   size: number;
@@ -13,21 +18,36 @@ export interface PickedFile extends PickedImage {
 
 const UNSAFE_EXTENSIONS = [".exe", ".bat", ".sh", ".js"];
 
-/** Opens the browser's file chooser for images or files and hands back object URLs. */
+const MEDIA_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+  "video/mp4",
+  "video/webm",
+  "video/quicktime",
+];
+
+/** Opens the browser's file chooser for photos and videos, or files, and hands back object URLs. */
 export function useAttachmentPicker(handlers: {
-  onImages: (images: PickedImage[]) => void;
+  onMedia: (media: PickedMedia[]) => void;
   onFiles: (files: PickedFile[]) => void;
 }) {
-  const images = useFileDialog({
+  const media = useFileDialog({
     multiple: true,
-    accept: "image/jpeg, image/png, image/webp, image/gif",
+    accept: MEDIA_TYPES.join(", "),
     reset: true,
   });
-  images.onChange((list) => {
+  media.onChange((list) => {
+    // The chooser's filter is only a hint; some platforms let anything through.
     const picked = Array.from(list ?? [])
-      .filter((file) => file.type !== "image/svg+xml")
-      .map((file) => ({ file, path: URL.createObjectURL(file) }));
-    if (picked.length) handlers.onImages(picked);
+      .filter((file) => MEDIA_TYPES.includes(file.type))
+      .map((file) => ({
+        file,
+        path: URL.createObjectURL(file),
+        kind: file.type.startsWith("video/") ? ("video" as const) : ("image" as const),
+      }));
+    if (picked.length) handlers.onMedia(picked);
   });
 
   const files = useFileDialog({ multiple: true, reset: true });
@@ -48,5 +68,5 @@ export function useAttachmentPicker(handlers: {
   });
 
   // Must run inside the click handler: browsers only open a chooser on a user gesture.
-  return { pickImages: () => images.open(), pickFiles: () => files.open() };
+  return { pickMedia: () => media.open(), pickFiles: () => files.open() };
 }

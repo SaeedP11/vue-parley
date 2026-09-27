@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, useTemplateRef } from "vue";
 import type { Contact, ExtendedMessage, Message } from "~/types";
-import ImageGroupDisplay from "./chat-bubbles/ImageGroupDisplay.vue";
+import MediaViewer from "./chat-bubbles/MediaViewer.vue";
 import BubbleOptions from "./chat-bubbles/BubbleOptions.vue";
 import VoiceDisplay from "./chat-bubbles/VoiceDisplay.vue";
 import BubbleVideo from "./chat-bubbles/BubbleVideo.vue";
@@ -9,7 +9,7 @@ import FileDisplay from "./chat-bubbles/FileDisplay.vue";
 import SafeEmojiText from "../general/SafeEmojiText.vue";
 import ContactAvatar from "./contact/ContactAvatar.vue";
 import BubbleDivider from "./chat-bubbles/BubbleDivider.vue";
-import BubbleImages from "./chat-bubbles/BubbleImages.vue";
+import BubbleMedia from "./chat-bubbles/BubbleMedia.vue";
 import BubbleSelectionMark from "./chat-bubbles/BubbleSelectionMark.vue";
 import BubbleRequest from "./chat-bubbles/BubbleRequest.vue";
 import BubbleStatus from "./chat-bubbles/BubbleStatus.vue";
@@ -21,6 +21,7 @@ import { useLongPress } from "~/composables/useLongPress";
 import useLocalI18n from "~/composables/useLocalI18n";
 import { useDate } from "~/composables/useDate.js";
 import { chatBubble } from "@i18n/locales";
+import { messageMedia } from "~/utils/media";
 import { useProfileStore } from "~/stores/profileStore.js";
 
 const props = withDefaults(
@@ -40,10 +41,10 @@ const { t } = useLocalI18n(chatBubble);
 const messagesStore = useMessagesStore();
 const { formatDateShort } = useDate();
 
-type ImageDisplayInstance = InstanceType<typeof ImageGroupDisplay>;
+type MediaViewerInstance = InstanceType<typeof MediaViewer>;
 type BubbleOptionsInstance = InstanceType<typeof BubbleOptions>;
 
-const imageDisplayRef = useTemplateRef<ImageDisplayInstance>("imageDisplay");
+const mediaViewerRef = useTemplateRef<MediaViewerInstance>("mediaViewer");
 const bubbleOptionsRef =
   useTemplateRef<BubbleOptionsInstance>("bubbleOptions");
 
@@ -56,12 +57,12 @@ const isSelected = computed(() =>
 );
 const isSelectMode = computed(() => messagesStore.isSelectMode);
 
+const media = computed(() => messageMedia(props.message));
+
 const messageType = computed(() => {
   if (props.message.voiceUrl?.trim()) return "voice";
-  if (props.message.imageUrl && props.message.imageUrl.length > 1)
-    return "multiImage";
-  if (props.message.imageUrl?.length === 1 && props.message.imageUrl[0]?.trim())
-    return "image";
+  if (media.value.length > 1) return "multiImage";
+  if (media.value.length === 1) return "image";
   if (props.message.videoUrl?.trim()) return "video";
   if (props.message.fileUrl?.trim()) return "file";
   return "text";
@@ -111,7 +112,7 @@ const previewImage = async (index: number) => {
     viewerMounted.value = true;
     await nextTick();
   }
-  imageDisplayRef.value?.open(index);
+  mediaViewerRef.value?.open(index);
 };
 
 const optionsMounted = ref(false);
@@ -247,9 +248,9 @@ const longPress = useLongPress(handleRightClick);
 
                 <!-- Photos and video carry the time as a pill over their end corner. -->
                 <div v-else class="relative">
-                  <BubbleImages
+                  <BubbleMedia
                     v-if="messageType === 'image' || messageType === 'multiImage'"
-                    :images="message.imageUrl!"
+                    :items="media"
                     :is-sent="message.isSent"
                     :upload="uploadData"
                     @preview="previewImage"
@@ -283,10 +284,12 @@ const longPress = useLongPress(handleRightClick);
         </div>
 
         <!-- Overlays, each mounted on first open: otherwise every bubble keeps idle copies. -->
-        <ImageGroupDisplay
-          v-if="viewerMounted && message.imageUrl && message.imageUrl.length > 0"
-          ref="imageDisplay"
-          :images="message.imageUrl"
+        <MediaViewer
+          v-if="viewerMounted && media.length > 0"
+          ref="mediaViewer"
+          :items="media"
+          :sender="isMine ? t('you') : `${contact.name} ${contact.lastName}`.trim()"
+          :date="message.date"
         />
         <BubbleOptions
           v-if="optionsMounted"

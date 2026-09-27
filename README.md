@@ -18,6 +18,7 @@ Formerly `@yonus_amire01/chat`. To switch, replace that name with `vue-parley` i
   - [Plain Vue + Vite](#plain-vue--vite)
   - [Nuxt 3 / 4](#nuxt-3--4)
   - [Customising the page](#customising-the-page)
+  - [Photos and videos](#photos-and-videos)
   - [Calls outside the chat page](#calls-outside-the-chat-page)
   - [Fake backend](#fake-backend)
 - [What `createChat()` does](#what-createchat-does)
@@ -115,6 +116,25 @@ Render the chat inside `<ClientOnly>`: its handlers are only installed in the br
 
 To build a different layout, use the exported building blocks instead: `ChatList`, `ChatConversation`, `ChatHeader`, `ChatMessages`, `ChatInput` and `ChatBubble`. They read the same stores, so they work together once `createChat()` is installed.
 
+### Photos and videos
+
+"Photo or video" in the attachment menu sends one message of type `image` holding the whole album, up to 10 items, in the order they were picked:
+
+```ts
+{
+  type: "image",
+  media: [
+    { url: "blob:…", kind: "image" },
+    { url: "blob:…", kind: "video" },
+  ],
+  imageUrl: ["blob:…"], // the photos only
+}
+```
+
+`sendMessage` should upload every `media` item and return, and later fetch, the message with `media` pointing at the stored files. Hosts that only handle photos can keep reading and returning `imageUrl`: the bubble and viewer fall back to it, but videos in the album are then lost. `messageMedia(message)` gives a message's album either way. Tapping an item opens the full-screen viewer, where photos zoom and pan and videos play with their own controls.
+
+A round video note recorded in the chat is different: it is `type: "video"` with `videoUrl`, and plays in its bubble.
+
 ### Calls outside the chat page
 
 A call belongs to the call store, not to a component, so it keeps running when the chat page unmounts. To keep it **on screen** while the user navigates, render the call view once near the app root and turn off the chat page's own:
@@ -181,7 +201,8 @@ Every component and directive the chat uses is imported by the component itself,
 | `ChatList`, `ChatConversation`, `ChatHeader`, `ChatMessages`, `ChatInput`, `ChatBubble` | Building blocks for custom layouts. |
 | `BIcon`, `BEmojiPicker`, `BVirtualVerticalList` | A Phosphor icon by name, the emoji picker and the virtualised list the chat uses. Every other control is a PrimeVue component. |
 | `useChatStore`, `useMessagesStore`, `useMediaStore`, `useProfileStore`, `useCallStore` | The Pinia stores. |
-| Types | Handler interfaces, `Contact`, `Message`, `SignalData`, `ChatOptions`, `ChatUser` and the rest of `app/types`. |
+| `messageMedia(message)` | A message's photo and video album: its `media`, or its `imageUrl` as photos. |
+| Types | Handler interfaces, `Contact`, `Message`, `MediaItem`, `SignalData`, `ChatOptions`, `ChatUser` and the rest of `app/types`. |
 | `vue-parley/fakes` | `createFakeBackend`, `createBroadcastCallHandlers`, `demoData`, `e2eData`: see [Fake backend](#fake-backend). |
 
 Working with conversations the list page hasn't fetched (say, one opened from a link): add them with `chatStore.addContact(contact)` and change them with `chatStore.updateContact(id, changes)`. `chatStore.conversationStates` is a read-only view.

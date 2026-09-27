@@ -341,6 +341,77 @@ test.describe("images", () => {
     await expect(page.getByRole("menuitem", { name: "Reply", exact: true })).toBeVisible();
     await expect(page.getByRole("menuitem", { name: "Copy", exact: true })).toHaveCount(0);
   });
+
+  test("an album opens at the tapped item and steps through photos and videos", async ({ page }) => {
+    await openConversation(page, "c2");
+    await page.getByTestId("bubble-media-item").nth(1).click();
+
+    const counter = page.getByTestId("viewer-counter");
+    await expect(counter).toHaveText("2 of 3");
+    await expect(page.getByTestId("viewer-video")).toBeVisible();
+
+    await page.keyboard.press("ArrowRight");
+    await expect(counter).toHaveText("3 of 3");
+    await expect(page.getByTestId("viewer-image")).toBeVisible();
+
+    await page.getByRole("button", { name: "Previous" }).click();
+    await page.getByRole("button", { name: "Previous" }).click();
+    await expect(counter).toHaveText("1 of 3");
+    // At the start there is nowhere further back to go, so the arrow is hidden.
+    await expect(
+      page.getByRole("button", { name: "Previous", exact: true, includeHidden: true }),
+    ).toBeHidden();
+
+    await page.getByTestId("viewer-close").click();
+    await expect(page.locator('[data-testid="image-viewer"][data-open="true"]')).toHaveCount(0);
+  });
+
+  test("a video plays and pauses with the viewer's controls", async ({ page }) => {
+    await openConversation(page, "c2");
+    await page.getByTestId("bubble-media-item").nth(1).click();
+
+    const video = page.getByTestId("viewer-video");
+    // Opened by a click, so it starts on its own.
+    await expect(video).toHaveAttribute("data-playing", "true");
+    await page.getByTestId("viewer-play").click();
+    await expect(video).toHaveAttribute("data-playing", "false");
+    await expect(page.getByRole("slider", { name: "Seek" })).toBeVisible();
+  });
+
+  test("a photo zooms on double click and resets", async ({ page }) => {
+    await openConversation(page, "c2");
+    await page.getByTestId("bubble-media-item").first().click();
+
+    const stage = page.getByTestId("viewer-image");
+    await expect(stage).toHaveAttribute("data-zoomed", "false");
+    await stage.locator("img").dblclick();
+    await expect(stage).toHaveAttribute("data-zoomed", "true");
+
+    await page.getByRole("button", { name: "Reset zoom" }).click();
+    await expect(stage).toHaveAttribute("data-zoomed", "false");
+  });
+
+  test("sends photos and videos picked together as one album", async ({ page }) => {
+    await openConversation(page, "c2");
+    await page.getByTestId("chat-attach").click();
+    const chooser = page.waitForEvent("filechooser");
+    await page.getByText("Photo or video", { exact: true }).click();
+    await (await chooser).setFiles(["e2e/harness/public/sample.jpg", "e2e/harness/public/sample.webm"]);
+
+    await expect(page.getByText("Send photos and videos")).toBeVisible();
+    await page.getByRole("button", { name: "Send", exact: true }).click();
+
+    await expect
+      .poll(async () => (await handlerCalls(page, "sendMessage")).length)
+      .toBe(1);
+    const [call] = await handlerCalls(page, "sendMessage");
+    expect(call.args[0]).toMatchObject({
+      type: "image",
+      media: [{ kind: "image" }, { kind: "video" }],
+    });
+    // Hosts that only know photos still get the photo.
+    expect(call.args[0].imageUrl).toHaveLength(1);
+  });
 });
 
 test.describe("media cache", () => {

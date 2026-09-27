@@ -30,6 +30,7 @@ import chatPageBarEn from "./en/components/ChatPageBar.json";
 import chatProfileOverviewEn from "./en/components/ChatProfileOverview.json";
 import chatViewEn from "./en/components/ChatView.json";
 import inputAttachementEn from "./en/components/InputAttachement.json";
+import mediaViewerEn from "./en/components/MediaViewer.json";
 import permissionPopupEn from "./en/components/PermissionPopup.json";
 import chatBubblesFileDisplayEn from "./en/components/chat-bubbles_FileDisplay.json";
 import profileFileDisplayEn from "./en/components/profile_FileDisplay.json";
@@ -50,6 +51,7 @@ import chatPageBarFa from "./fa/components/ChatPageBar.json";
 import chatProfileOverviewFa from "./fa/components/ChatProfileOverview.json";
 import chatViewFa from "./fa/components/ChatView.json";
 import inputAttachementFa from "./fa/components/InputAttachement.json";
+import mediaViewerFa from "./fa/components/MediaViewer.json";
 import permissionPopupFa from "./fa/components/PermissionPopup.json";
 import chatBubblesFileDisplayFa from "./fa/components/chat-bubbles_FileDisplay.json";
 import profileFileDisplayFa from "./fa/components/profile_FileDisplay.json";
@@ -172,6 +174,11 @@ export const inputAttachement = {
 export const permissionPopup = {
   en: { ...componentsGeneral.en, ...permissionPopupEn },
   fa: { ...componentsGeneral.fa, ...permissionPopupFa },
+};
+
+export const mediaViewer = {
+  en: { ...componentsGeneral.en, ...mediaViewerEn },
+  fa: { ...componentsGeneral.fa, ...mediaViewerFa },
 };
 
 export const chatBubblesFileDisplay = {

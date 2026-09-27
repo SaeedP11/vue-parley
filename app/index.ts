@@ -29,6 +29,7 @@ export * from "./stores/chatStore";
 export * from "./stores/mediaStore";
 export * from "./stores/profileStore";
 
+export { messageMedia } from "./utils/media";
 export { provideCallHandlers } from "./provider/callProvider";
 export { createChat } from "./plugin";
 export type { ChatOptions, ChatUser } from "./plugin";

@@ -26,13 +26,26 @@ export type ServicePresence = "online" | "on-site";
 export type UserRoleKey = "user" | "employee" | "business" | "support";
 export type StateKeys = "" | "online" | "ended" | "active";
 export type MessageType = "text" | "image" | "file" | "voice" | "video";
+
+/** One photo or video of an album. */
+export interface MediaItem {
+  url: string;
+  kind: "image" | "video";
+}
+
 export interface Message {
   id: string;
   conversationId: string;
   date: Date;
   type: MessageType;
   text?: string;
+  /** Photos of an album. A host that also sends videos uses `media` instead. */
   imageUrl?: string[];
+  /**
+   * The album's photos and videos, in order, on a message of type `image`. Takes precedence over
+   * `imageUrl`, which senders still fill with just the photos. A round video note is `videoUrl`.
+   */
+  media?: MediaItem[];
   fileUrl?: string;
   fileName?: string;
   voiceUrl?: string;

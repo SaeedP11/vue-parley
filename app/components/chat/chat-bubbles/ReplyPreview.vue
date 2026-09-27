@@ -5,6 +5,7 @@ import type { Contact, ExtendedMessage } from "~/types";
 import SafeEmojiText from "~/components/general/SafeEmojiText.vue";
 import useLocalI18n from "~/composables/useLocalI18n";
 import { chatBubble } from "@i18n/locales";
+import { albumKind, messageMedia } from "~/utils/media";
 
 const props = defineProps<{
   message: ExtendedMessage;
@@ -26,7 +27,8 @@ const senderName = computed(() =>
 const preview = computed(() => {
   const m = replied.value;
   if (m.text?.trim()) return m.text;
-  if (m.imageUrl?.length) return t("attachementTypes.image");
+  const album = messageMedia(m);
+  if (album.length) return t(`attachementTypes.${albumKind(album)}`);
   if (m.voiceUrl) return t("attachementTypes.voice");
   if (m.videoUrl) return t("attachementTypes.video");
   if (m.fileUrl) return m.fileName || t("attachementTypes.file");

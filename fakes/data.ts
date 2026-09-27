@@ -87,6 +87,17 @@ export function e2eData(userId: string): FakeData {
             type: "image",
             imageUrl: ["https://example.com/photo.png"],
           },
+          {
+            // A mixed album, served by the e2e harness from e2e/harness/public.
+            ...text("c2", 2, "c2", "", 65),
+            type: "image",
+            imageUrl: ["/sample.jpg", "/sample.jpg?2"],
+            media: [
+              { url: "/sample.jpg", kind: "image" },
+              { url: "/sample.webm", kind: "video" },
+              { url: "/sample.jpg?2", kind: "image" },
+            ],
+          },
           text("c2", 1, "c2", "Nima says hi", 60),
         ],
       ],
@@ -158,7 +169,21 @@ export function demoData(userId: string, count = 40): FakeData {
           text: "",
           imageUrl: [`https://picsum.photos/seed/${id}-${n}/400/300`],
         });
-      } else if (roll < 0.18) {
+      } else if (roll < 0.14) {
+        const photo = (k: number) => `https://picsum.photos/seed/${id}-${n}-${k}/800/600`;
+        history.push({
+          ...base,
+          type: "image",
+          text: "",
+          imageUrl: [photo(1), photo(2)],
+          media: [
+            { url: photo(1), kind: "image" },
+            // CC0 sample clip from MDN.
+            { url: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4", kind: "video" },
+            { url: photo(2), kind: "image" },
+          ],
+        });
+      } else if (roll < 0.2) {
         const fileName = rng.pick(FILES);
         history.push({
           ...base,

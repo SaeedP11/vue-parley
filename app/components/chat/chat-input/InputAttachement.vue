@@ -21,21 +21,22 @@
       @after-hide="resetSelections"
     >
       <div class="flex w-full flex-col items-center gap-y-3">
-        <MediaImage
-          v-if="dialogMode === 'single-image'"
-          :src="selectedMedia[0]?.path"
+        <MediaThumb
+          v-if="dialogMode === 'single-media' && selectedMedia[0]"
+          :item="{ url: selectedMedia[0].path, kind: selectedMedia[0].kind }"
           fit="contain"
-          class="max-h-109 w-full rounded-xl"
+          class="h-72 max-h-109 w-full rounded-xl"
         />
 
         <div
-          v-else-if="dialogMode === 'multi-image'"
+          v-else-if="dialogMode === 'multi-media'"
           class="grid max-h-109 w-full grid-cols-4 gap-3 overflow-y-auto"
         >
-          <MediaImage
-            v-for="(image, index) in selectedMedia"
+          <MediaThumb
+            v-for="(media, index) in selectedMedia"
             :key="index"
-            :src="image.path"
+            :item="{ url: media.path, kind: media.kind }"
+            badge="sm"
             class="h-25 w-full rounded-xl"
           />
         </div>
@@ -82,24 +83,24 @@ import Menu from "primevue/menu";
 import Textarea from "primevue/textarea";
 import type { MenuItem } from "primevue/menuitem";
 import IconButton from "~/components/general/IconButton.vue";
-import MediaImage from "~/components/general/MediaImage.vue";
+import MediaThumb from "~/components/general/MediaThumb.vue";
 import ResponsiveDialog from "~/components/general/ResponsiveDialog.vue";
 import AttachementFileDisplay from "./AttachementFileDisplay.vue";
 import {
   useAttachmentPicker,
   type PickedFile,
-  type PickedImage,
+  type PickedMedia,
 } from "~/composables/useAttachmentPicker";
 import { useAppToast } from "~/composables/useAppToast";
 import useLocalI18n from "~/composables/useLocalI18n";
 import { inputAttachement } from "@i18n/locales";
 
-type DialogMode = "single-image" | "multi-image" | "file";
+type DialogMode = "single-media" | "multi-media" | "file";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AttachmentData = any;
 
-const MAX_IMAGES = 10;
+const MAX_MEDIA = 10;
 
 const props = withDefaults(
   defineProps<{
@@ -121,7 +122,7 @@ const menu = ref<InstanceType<typeof Menu> | null>(null);
 const dialogOpen = ref(false);
 const dialogMode = ref<DialogMode>("file");
 const caption = ref("");
-const selectedMedia = ref<PickedImage[]>([]);
+const selectedMedia = ref<PickedMedia[]>([]);
 const selectedFiles = ref<PickedFile[]>([]);
 
 watch(
@@ -132,8 +133,8 @@ watch(
   { immediate: true },
 );
 
-const handleMediaSelected = (incoming: PickedImage[]) => {
-  const remaining = MAX_IMAGES - selectedMedia.value.length;
+const handleMediaSelected = (incoming: PickedMedia[]) => {
+  const remaining = MAX_MEDIA - selectedMedia.value.length;
 
   if (remaining <= 0) {
     openToast(t("errors.maxFilesReached"), "error");
@@ -145,7 +146,7 @@ const handleMediaSelected = (incoming: PickedImage[]) => {
     ...incoming.slice(0, remaining),
   ];
   dialogMode.value =
-    selectedMedia.value.length === 1 ? "single-image" : "multi-image";
+    selectedMedia.value.length === 1 ? "single-media" : "multi-media";
   dialogOpen.value = true;
 };
 
@@ -155,8 +156,8 @@ const handleFilesSelected = (files: PickedFile[]) => {
   dialogOpen.value = true;
 };
 
-const { pickImages, pickFiles } = useAttachmentPicker({
-  onImages: handleMediaSelected,
+const { pickMedia, pickFiles } = useAttachmentPicker({
+  onMedia: handleMediaSelected,
   onFiles: handleFilesSelected,
 });
 
@@ -171,7 +172,7 @@ const menuItems = computed<MenuItem[]>(() => [
     phIcon: "PhImage",
     command: () => {
       resetSelections();
-      pickImages();
+      pickMedia();
     },
   },
   {
@@ -185,14 +186,13 @@ const menuItems = computed<MenuItem[]>(() => [
 ]);
 
 const dialogTitle = computed(() => {
-  switch (dialogMode.value) {
-    case "file":
-      return t("file.sendFile");
-    case "multi-image":
-      return t("file.sendImages");
-    case "single-image":
-      return t("file.sendImage");
-  }
+  if (dialogMode.value === "file") return t("file.sendFile");
+
+  const kinds = new Set(selectedMedia.value.map((m) => m.kind));
+  const single = dialogMode.value === "single-media";
+  if (kinds.size > 1) return t("file.sendMedia");
+  if (kinds.has("video")) return single ? t("file.sendVideo") : t("file.sendVideos");
+  return single ? t("file.sendImage") : t("file.sendImages");
 });
 
 const sendMessages = () => {
@@ -208,7 +208,9 @@ const sendMessages = () => {
   if (selectedMedia.value.length > 0) {
     messagesToEmit.push({
       type: "image",
-      imageUrl: selectedMedia.value.map((m) => m.path),
+      // Hosts that only know photos read `imageUrl`; the rest read the whole album from `media`.
+      imageUrl: selectedMedia.value.filter((m) => m.kind === "image").map((m) => m.path),
+      media: selectedMedia.value.map((m) => ({ url: m.path, kind: m.kind })),
       files: selectedMedia.value.map((m) => m.file),
     });
   }

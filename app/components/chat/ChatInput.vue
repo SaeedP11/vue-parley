@@ -131,6 +131,7 @@ import { useChatStore } from "~/stores/chatStore.js";
 import { useCallStore } from "~/stores/callStore.js";
 import { type EmojiExt } from "vue3-emoji-picker";
 import { chat, chatInput } from "@i18n/locales";
+import { albumKind, messageMedia } from "~/utils/media";
 
 const props = withDefaults(
   defineProps<{
@@ -202,7 +203,8 @@ const displayedActionText = computed(() => {
   // Fixed typos: attachementTypes -> attachmentTypes
   if (message.voiceUrl?.trim()) return t("attachmentTypes.voice");
   if (message.videoUrl?.trim()) return t("attachmentTypes.video");
-  if (message.imageUrl?.length) return t("attachmentTypes.image");
+  const album = messageMedia(message);
+  if (album.length) return t(`attachmentTypes.${albumKind(album)}`);
   if (message.fileUrl?.trim()) return t("attachmentTypes.file");
   return message.text;
 });
@@ -302,7 +304,10 @@ const handleAttachments = (payloads: Message[]) => {
     const msg = createBaseMessage();
     msg.type = payload.type;
     if (payload.type === "text") msg.text = payload.text;
-    if (payload.type === "image") msg.imageUrl = payload.imageUrl;
+    if (payload.type === "image") {
+      msg.imageUrl = payload.imageUrl;
+      msg.media = payload.media;
+    }
     if (payload.type === "file") {
       msg.fileUrl = payload.fileUrl;
       msg.fileName = payload.fileName;
