@@ -13,7 +13,7 @@ import type { MenuItem } from "primevue/menuitem";
 import { useMessagesStore } from "~/stores/messageStores";
 import type { ExtendedMessage, MessageReader } from "~/types";
 import ContactAvatar from "~/components/chat/contact/ContactAvatar.vue";
-import useLocalI18n from "~/composables/useLocalI18n";
+import useLocalI18n, { useDirection } from "~/composables/useLocalI18n";
 import { useDate } from "~/composables/useDate.js";
 import { bubbleOptions } from "@i18n/locales";
 
@@ -23,6 +23,7 @@ const props = defineProps<{
 }>();
 
 const { t } = useLocalI18n(bubbleOptions);
+const { dir } = useDirection();
 const { formatDateShort, formatTime } = useDate();
 const messagesStore = useMessagesStore();
 
@@ -216,6 +217,7 @@ const pt = {
     ref="menu"
     :model="items"
     :pt="pt"
+    :dir="dir"
     class="vue-chat"
     @hide="onMenuClosed"
   >

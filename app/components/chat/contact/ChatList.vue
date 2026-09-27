@@ -8,9 +8,10 @@ import ChatContactDisplay from "./ChatContactDisplay.vue";
 import ContactSkeleton from "./ContactSkeleton.vue";
 import { useChatStore } from "~/stores/chatStore.js";
 import ChatListSearch from "./ChatListSearch.vue";
-import useLocalI18n from "~/composables/useLocalI18n";
+import useLocalI18n, { useDirection } from "~/composables/useLocalI18n";
 import { chatList } from "@i18n/locales";
 const { t } = useLocalI18n(chatList);
+const { dir } = useDirection();
 const chatStore = useChatStore();
 
 const activeFilter = ref<StateKeys>("");
@@ -75,6 +76,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div
+    :dir="dir"
     class="vue-chat flex h-full w-full flex-col overflow-hidden border border-chat-outline-variant bg-chat-background"
   >
     <ChatListSearch v-model="searchText" class="shrink-0" />

@@ -1,5 +1,5 @@
 <template>
-  <div dir="rtl" class="vue-chat w-full relative">
+  <div :dir="dir" class="vue-chat w-full relative">
     <VideoRecordDisplay
       ref="videoDisplay"
       :stream="mediaStream"
@@ -47,7 +47,7 @@
             @keyup="editor.saveCursorPosition"
             @mouseup="editor.saveCursorPosition"
             :data-placeholder="inputPlaceholder"
-            class="text-body-md text-on-surface outline-none flex-1 bg-transparent z-10 max-h-[144px] overflow-y-auto hide-scrollbar leading-6 py-1 cursor-text whitespace-pre-wrap break-words empty:before:content-[attr(data-placeholder)] empty:before:text-chat-muted pointer-events-auto"
+            class="text-body-md text-on-surface outline-none flex-1 bg-transparent z-10 [unicode-bidi:plaintext] max-h-[144px] overflow-y-auto hide-scrollbar leading-6 py-1 cursor-text whitespace-pre-wrap break-words empty:before:content-[attr(data-placeholder)] empty:before:text-chat-muted pointer-events-auto"
           ></div>
         </div>
         <div class="z-10 flex h-11 shrink-0 items-center gap-x-2">
@@ -62,7 +62,7 @@
             @mousedown.prevent
             @click="openEmojiPopover"
           />
-          <Popover ref="emojiPopover" class="vue-chat">
+          <Popover ref="emojiPopover" :dir="dir" class="vue-chat">
             <BEmojiPicker v-if="emojiUsed" @select="handleEmojiSelect" />
           </Popover>
           <IconButton
@@ -126,7 +126,7 @@ import InputActionBar from "./chat-input/InputActionBar.vue";
 import RecordingStatus from "./chat-input/RecordingStatus.vue";
 import RecordButton from "./chat-input/RecordButton.vue";
 import { useInputDraft } from "~/composables/chat/useInputDraft";
-import useLocalI18n from "~/composables/useLocalI18n";
+import useLocalI18n, { useDirection } from "~/composables/useLocalI18n";
 import { useChatStore } from "~/stores/chatStore.js";
 import { useCallStore } from "~/stores/callStore.js";
 import { type EmojiExt } from "vue3-emoji-picker";
@@ -146,6 +146,7 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useLocalI18n(chatInput, chat);
+const { dir } = useDirection();
 const { requestWithPopup, checkMediaStatus } = useAppPermissions();
 const messagesStore = useMessagesStore();
 const chatStore = useChatStore();

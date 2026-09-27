@@ -1,7 +1,7 @@
 <template>
-  <div class="vue-chat h-full w-full bg-chat-surface">
+  <div :dir="dir" class="vue-chat h-full w-full bg-chat-surface">
     <div class="flex h-full w-full">
-      <ChatProfileOverview :profile="selectedChat" />
+      <ChatProfileOverview :profile="selectedChat" @end="handleOption('end-chat')" />
 
       <!-- On phones the open profile takes the whole screen. -->
       <div
@@ -66,7 +66,7 @@
 
     <PermissionPopup />
     <ConfirmModal ref="modal" :loading="ending" @action="endConversation" />
-    <Toast :group="TOAST_GROUP" position="bottom-center" class="vue-chat" />
+    <Toast :group="TOAST_GROUP" position="bottom-center" :dir="dir" class="vue-chat" />
   </div>
 </template>
 
@@ -84,12 +84,13 @@ import ChatInput from "~/components/chat/ChatInput.vue";
 import ConfirmModal from "~/components/general/ConfirmModal.vue";
 import type { Modal } from "~/types/components/modal";
 import { TOAST_GROUP } from "~/composables/useAppToast";
-import useLocalI18n from "~/composables/useLocalI18n";
+import useLocalI18n, { useDirection } from "~/composables/useLocalI18n";
 import { useChatStore } from "~/stores/chatStore";
 import { chatView } from "@i18n/locales";
 
 const chatStore = useChatStore();
 const { t } = useLocalI18n(chatView);
+const { dir } = useDirection();
 // Template Refs
 const chatInput = ref<ChatTextField | null>(null);
 

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import NoChatSelected from "../assets/lib-images/chat/empty-state.webp";
 import NoDataDisplay from "./general/NoDataDisplay.vue";
-import useLocalI18n from "~/composables/useLocalI18n";
+import useLocalI18n, { useDirection } from "~/composables/useLocalI18n";
 import { useChatStore } from "../stores/chatStore";
 import ChatList from "./chat/contact/ChatList.vue";
 import { useCallStore } from "~/stores/callStore";
@@ -46,11 +46,14 @@ const slots = useSlots();
 const chatStore = useChatStore();
 const callStore = useCallStore();
 const { t } = useLocalI18n(chatPage);
+// The chat follows its locale's direction, not the host page's.
+const { dir } = useDirection();
 
 const isInChat = computed(() => chatStore.activeConversationId !== null);
 </script>
 <template>
   <div
+    :dir="dir"
     class="vue-chat flex w-full h-full max-h-full overflow-hidden font-chat-family text-chat-base text-chat-on-background bg-chat-background"
   >
     <!-- On phones only one pane shows: the list, or the open conversation. -->

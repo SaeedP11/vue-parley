@@ -3,7 +3,6 @@ import { useVirtualizer } from "@tanstack/vue-virtual";
 
 interface ScrollOptions {
   scrollContainer: Ref<HTMLElement | null>;
-  hasCall: Ref<boolean>;
   isLoading: Ref<boolean>;
   isLocked: Ref<boolean>;
   onLoadMore: () => void;
@@ -12,7 +11,6 @@ interface ScrollOptions {
 export function useFlippedVirtualScroll(options: ScrollOptions) {
   const {
     scrollContainer,
-    hasCall,
     isLoading,
     isLocked,
     onLoadMore,
@@ -72,7 +70,7 @@ export function useFlippedVirtualScroll(options: ScrollOptions) {
     // Track Top Visible Message for Floating Header
     const items = virtualizer.value.getVirtualItems();
     if (items.length > 0) {
-      const targetOffset = hasCall.value ? 88 : 44;
+      const targetOffset = 44;
       const physicalTopOfViewport =
         el.scrollHeight - el.clientHeight - el.scrollTop;
       const targetPhysicalTop = physicalTopOfViewport + targetOffset;

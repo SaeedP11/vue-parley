@@ -36,6 +36,11 @@ const props = withDefaults(
   },
 );
 
+const emit = defineEmits<{
+  /** Asks to end the conversation; the parent confirms it first. */
+  end: [];
+}>();
+
 const { getYearsPassed } = useDate();
 const callStore = useCallStore();
 const chatStore = useChatStore();
@@ -102,7 +107,9 @@ const actionButtons = computed<Action[]>(() => [
   {
     title: t("options.end"),
     icon: "PhX",
-    active: localProfile.value ? localProfile.value.isActive : false,
+    active: localProfile.value
+      ? localProfile.value.isActive && chatStore.canEndConversation
+      : false,
     key: "end",
     color: "error",
   },
@@ -205,11 +212,14 @@ const handleAction = (action: Action) => {
   if (!action.active) return;
   switch (action.key) {
     case "end":
+      emit("end");
       break;
     case "voice-call":
     case "video-call":
       if (chatStore.activeConversationId && props.profile) {
-        callStore.startCall(chatStore.activeConversationId);
+        callStore.startCall(chatStore.activeConversationId, {
+          video: action.key === "video-call",
+        });
       }
       break;
   }

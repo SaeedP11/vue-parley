@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { useCallStore } from "~/stores/callStore";
+import { useChatStore } from "~/stores/chatStore";
+import { formatDuration } from "~/utils/format";
 import useLocalI18n, { useDirection } from "~/composables/useLocalI18n";
 import { chat } from "@i18n/locales";
 import useCall from "~/composables/useCall";
@@ -16,8 +18,16 @@ const callStore = useCallStore();
 const minimizedRef = ref<HTMLElement | null>(null);
 const bodyRef = ref<HTMLElement | null>(null);
 const cameraPickerOpen = ref(false);
-const { t, locale } = useLocalI18n(chat);
+const { t } = useLocalI18n(chat);
 const { dir } = useDirection();
+
+// Named after whoever is on the other end of the conversation the call belongs to.
+const chatStore = useChatStore();
+const callTitle = computed(() => {
+  const contact = callStore.channelId ? chatStore.getContactById(callStore.channelId) : null;
+  const name = contact ? `${contact.name} ${contact.lastName ?? ""}`.trim() : "";
+  return name || t("chat.call.title");
+});
 
 const {
   toggleVideoPause,
@@ -145,6 +155,8 @@ const { width: windowWidth, height: windowHeight } = useWindowSize();
 const PIP_WIDTH = 280; // معادل w-70 در Tailwind
 const PIP_HEIGHT = 160; // معادل h-40 در Tailwind
 const PADDING = 16;
+// Top and bottom corners stay this far from the edges, clear of the chat header and the composer.
+const PIP_INSET_Y = 96;
 
 // ۱. راه‌اندازی Draggable روی عنصر minimizedRef
 const { x, y, isDragging } = useDraggable(minimizedRef, {
@@ -153,10 +165,7 @@ const { x, y, isDragging } = useDraggable(minimizedRef, {
       typeof window !== "undefined"
         ? window.innerWidth - PIP_WIDTH - PADDING
         : PADDING,
-    y:
-      typeof window !== "undefined"
-        ? window.innerHeight - PIP_HEIGHT - PADDING
-        : PADDING,
+    y: PIP_INSET_Y,
   },
   // غیرفعال کردن درگ در صورتی که کامپوننت مینیمایز نباشد
   disabled: computed(() => !callStore.isMinimized),
@@ -166,14 +175,11 @@ const { x, y, isDragging } = useDraggable(minimizedRef, {
 watch(isDragging, (dragging) => {
   if (!dragging && callStore.isMinimized) {
     const maxX = windowWidth.value - PIP_WIDTH - PADDING;
-    const maxY = windowHeight.value - PIP_HEIGHT - PADDING;
-
-    // جهت RTL روی گوشه پیش‌فرض اولیه تاثیر می‌گذارد
-    const isRtl = dir.value === "rtl";
+    const maxY = windowHeight.value - PIP_HEIGHT - PIP_INSET_Y;
 
     // پیدا کردن نزدیک‌ترین گوشه بر اساس موقعیت فعلی درگ شده
     const targetX = x.value < windowWidth.value / 2 ? PADDING : maxX;
-    const targetY = y.value < windowHeight.value / 2 ? PADDING : maxY;
+    const targetY = y.value < windowHeight.value / 2 ? PIP_INSET_Y : maxY;
 
     x.value = targetX;
     y.value = targetY;
@@ -188,7 +194,8 @@ watch(
       nextTick(() => {
         const isRtl = dir.value === "rtl";
         x.value = isRtl ? PADDING : windowWidth.value - PIP_WIDTH - PADDING;
-        y.value = windowHeight.value - PIP_HEIGHT - PADDING;
+        // The top corner, where it covers older messages rather than the composer.
+        y.value = PIP_INSET_Y;
       });
     }
   },
@@ -219,7 +226,8 @@ const clampedStyle = computed(() => {
     ref="minimizedRef"
     data-testid="call-pip"
     :style="clampedStyle"
-    class="vue-chat fixed w-70 h-40 bg-black-600 rounded-2xl shadow-floating z-9999 overflow-hidden border border-white/10 flex flex-col items-center justify-center cursor-move touch-none"
+    :dir="dir"
+    class="vue-chat font-chat-family fixed w-70 h-40 bg-black-600 rounded-2xl shadow-floating z-9999 overflow-hidden border border-white/10 flex flex-col items-center justify-center cursor-move touch-none"
     :class="[!isDragging ? 'transition-all duration-300 ease-out' : '']"
   >
     <video
@@ -252,7 +260,7 @@ const clampedStyle = computed(() => {
             />
           </div>
           <span class="text-label-sm text-white/90 select-none">{{
-            t("Call active")
+            t("chat.call.active")
           }}</span>
           <div class="flex -space-x-1">
             <div
@@ -335,7 +343,8 @@ const clampedStyle = computed(() => {
   <div
     v-show="callStore.isActive && !callStore.isMinimized"
     data-testid="call-view"
-    class="vue-chat fixed inset-0 z-[60] flex h-full w-full flex-col bg-diamond-black"
+    :dir="dir"
+    class="vue-chat font-chat-family fixed inset-0 z-[60] flex h-full w-full flex-col bg-diamond-black"
   >
     <!-- Header -->
     <div
@@ -347,31 +356,20 @@ const clampedStyle = computed(() => {
     >
       <div class="flex items-center gap-x-4">
         <div class="hidden select-none text-label-lg text-white md:block">
-          {{ t("Behayand Meeting") }}
+          {{ callTitle }}
         </div>
         <div class="flex items-center gap-x-2 text-white text-body-sm">
           <BIcon icon="PhUsers" class="h-4 w-4 fill-white" />
           <span data-testid="call-participants"
-            >{{ participantCount }}
-            {{
-              participantCount > 1 ? t("participants") : t("participant")
-            }}</span
-          >
+>{{ t("chat.call.participants", participantCount) }}</span>
         </div>
       </div>
       <div class="flex items-center gap-x-4.5">
         <div
-          class="flex h-6 items-center justify-center rounded-full bg-diamond-error px-2 text-white select-none"
+          dir="ltr"
+          class="flex h-6 items-center justify-center rounded-full bg-white/15 px-2.5 text-body-sm text-white tabular-nums select-none"
         >
-          <div class="text-body-sm">
-            {{
-              new Date().toLocaleTimeString(locale, {
-                hour: "2-digit",
-                minute: "2-digit",
-                hour12: true,
-              })
-            }}
-          </div>
+          {{ formatDuration(callStore.elapsedTime) }}
         </div>
         <IconButton
           icon="PhCaretDown"
@@ -410,7 +408,7 @@ const clampedStyle = computed(() => {
             <div
               class="rounded bg-black-500 px-2 py-1 text-label-sm text-white select-none"
             >
-              {{ t("Your Presentation") }}
+              {{ t("chat.call.yourPresentation") }}
             </div>
             <div
               class="flex h-10 w-10 items-center justify-center rounded-full bg-black-500"
@@ -530,7 +528,7 @@ const clampedStyle = computed(() => {
             <div
               class="rounded bg-black-500 px-2 py-1 text-label-sm text-white select-none"
             >
-              {{ t("Presentation of") }} {{ stream.name.slice(0, 15) }}
+              {{ t("chat.call.presentationOf", { name: stream.name.slice(0, 15) }) }}
             </div>
             <div
               class="flex h-10 w-10 items-center justify-center rounded-full bg-black-500"
@@ -600,7 +598,7 @@ const clampedStyle = computed(() => {
             <div
               class="rounded bg-black-500 px-2 py-1 text-label-sm text-white select-none"
             >
-              {{ t("You") }}
+              {{ t("chat.call.you") }}
             </div>
             <div
               v-if="!isAudioOn"
@@ -642,9 +640,9 @@ const clampedStyle = computed(() => {
               <div
                 class="mx-auto mb-2 flex h-16 w-16 items-center justify-center rounded-full bg-chat-primary"
               >
-                <span class="text-title-lg font-semibold">{{ t("You") }}</span>
+                <span class="text-title-lg font-semibold">{{ t("chat.call.you") }}</span>
               </div>
-              <p class="text-label-md">{{ t("Camera is off") }}</p>
+              <p class="text-label-md">{{ t("chat.call.cameraIsOff") }}</p>
             </div>
           </div>
         </div>

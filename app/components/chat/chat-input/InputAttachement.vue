@@ -8,7 +8,7 @@
       aria-haspopup="true"
       @click="menu?.toggle($event)"
     />
-    <Menu ref="menu" :model="menuItems" popup class="vue-chat">
+    <Menu ref="menu" :model="menuItems" popup :dir="dir" class="vue-chat">
       <template #itemicon="{ item }">
         <BIcon :icon="item.phIcon" class="size-5 text-chat-muted" />
       </template>
@@ -92,7 +92,7 @@ import {
   type PickedMedia,
 } from "~/composables/useAttachmentPicker";
 import { useAppToast } from "~/composables/useAppToast";
-import useLocalI18n from "~/composables/useLocalI18n";
+import useLocalI18n, { useDirection } from "~/composables/useLocalI18n";
 import { inputAttachement } from "@i18n/locales";
 
 type DialogMode = "single-media" | "multi-media" | "file";
@@ -116,6 +116,7 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useLocalI18n(inputAttachement);
+const { dir } = useDirection();
 const { openToast } = useAppToast();
 
 const menu = ref<InstanceType<typeof Menu> | null>(null);

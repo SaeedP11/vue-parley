@@ -31,7 +31,7 @@
           </template>
         </Button>
 
-        <div dir="rtl" class="flex items-center gap-x-2">
+        <div class="flex items-center gap-x-2">
           <IconButton
             v-if="pages.length === 1"
             icon="PhPlus"
@@ -52,7 +52,7 @@
                 <BIcon icon="PhFiles" class="size-6" />
               </template>
             </Button>
-            <Menu ref="pagesMenu" :model="pageItems" popup class="vue-chat">
+            <Menu ref="pagesMenu" :model="pageItems" popup :dir="dir" class="vue-chat">
               <template #itemicon="{ item }">
                 <BIcon :icon="item.phIcon" class="size-5 text-chat-primary" />
               </template>
@@ -87,7 +87,7 @@
             aria-haspopup="true"
             @click="brushPopoverRef?.toggle($event)"
           />
-          <Popover ref="brushPopover" class="vue-chat">
+          <Popover ref="brushPopover" :dir="dir" class="vue-chat">
             <BrushSizeSlider v-model="brushSize" :color="selectedColor" />
           </Popover>
 
@@ -137,7 +137,7 @@ import Menu from "primevue/menu";
 import Popover from "primevue/popover";
 import type { MenuItem } from "primevue/menuitem";
 import IconButton from "~/components/general/IconButton.vue";
-import useLocalI18n from "~/composables/useLocalI18n";
+import useLocalI18n, { useDirection } from "~/composables/useLocalI18n";
 import { callPaintBoard } from "@i18n/locales";
 import { storeToRefs } from "pinia";
 
@@ -160,6 +160,7 @@ const emit = defineEmits<{
 }>();
 
 const { t } = useLocalI18n(callPaintBoard);
+const { dir } = useDirection();
 const callStore = useCallStore();
 const { openToast } = useAppToast();
 const colorPickerRef = useTemplateRef<BoardColorPickerExposed>("colorPicker");

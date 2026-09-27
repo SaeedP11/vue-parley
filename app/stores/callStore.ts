@@ -48,7 +48,8 @@ export const useCallStore = defineStore("call-modal", () => {
     }, 1000);
   };
 
-  const startCall = (id: string) => {
+  /** Starts a call in conversation `id`; `video: false` joins with the camera off. */
+  const startCall = (id: string, { video = true }: { video?: boolean } = {}) => {
     // One call at a time; asking again just brings the running one back into view.
     if (isActive.value) {
       isMinimized.value = false;
@@ -78,6 +79,7 @@ export const useCallStore = defineStore("call-modal", () => {
           avatar: () => profileStore.userAvatar,
         },
         notify: (key) => openToast(t(key), "error"),
+        video,
       });
       // Streams and connections inside must not be made deeply reactive.
       session.value = markRaw(call);

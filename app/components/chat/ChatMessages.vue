@@ -1,14 +1,12 @@
 <template>
-  <div v-if="contact" class="vue-chat relative w-full h-full overflow-hidden">
+  <div v-if="contact" :dir="dir" class="vue-chat relative w-full h-full overflow-hidden">
     <FloatingDateHeader
       :label="floatingHeader"
       :opacity="scroll.headerOpacity.value"
-      :offset="hasCall"
     />
 
     <!-- Flipped Scroll Container -->
     <div
-      dir="rtl"
       id="list"
       ref="scrollContainer"
       class="h-full w-full max-w-dvw overflow-x-hidden overflow-y-auto pt-4 pb-4 chat-scrollbar flip-vertical bg-chat-surface/30"
@@ -109,7 +107,7 @@
 import { ref, computed, watch, nextTick, onBeforeUnmount } from "vue";
 import { useDocumentVisibility } from "@vueuse/core";
 import ConfirmModal from "~/components/general/ConfirmModal.vue";
-import useLocalI18n from "~/composables/useLocalI18n";
+import useLocalI18n, { useDirection } from "~/composables/useLocalI18n";
 import { chat, chatMessages } from "@i18n/locales";
 import { useAppToast } from "~/composables/useAppToast";
 import ChatBubble from "./ChatBubble.vue";
@@ -122,7 +120,6 @@ import NoMessages from "~/assets/lib-images/chat/empty-state.webp";
 import type { Modal } from "~/types/components/modal";
 import { useMessagesStore } from "~/stores/messageStores";
 import { useChatStore } from "~/stores/chatStore";
-import { useCallStore } from "~/stores/callStore";
 import { useDate } from "~/composables/useDate";
 import { useChatMessageList } from "~/composables/useChatMessageList.js";
 import { useFlippedVirtualScroll } from "~/composables/useFlippedVirtualScroll.js";
@@ -132,18 +129,17 @@ withDefaults(defineProps<{ contact: Contact | null }>(), { contact: null });
 
 const modal = ref<Modal | null>(null);
 const chatStore = useChatStore();
-const callStore = useCallStore();
 const messagesStore = useMessagesStore();
 // One call: a component gets a single local scope, so a second useLocalI18n() would return the
 // first one's messages.
 const { t } = useLocalI18n(chatMessages, chat);
+const { dir } = useDirection();
 const { openToast } = useAppToast();
 const { formatDateShort } = useDate();
 const profileStore = useProfileStore();
 const currentUserId = computed(() => profileStore.userId);
 
 const chatId = computed(() => chatStore.activeConversationId);
-const hasCall = computed(() => callStore.isActive);
 const lockScroll = computed(() => messagesStore.isOptionMenuOpen);
 const scrollContainer = ref<HTMLElement | null>(null);
 const selectedToDelete = ref<string[]>([]);
@@ -156,7 +152,6 @@ const msgList = useChatMessageList(chatId);
 // 2. Scroll Mechanics (Depends on msgList for loadMore and count updates)
 const scroll = useFlippedVirtualScroll({
   scrollContainer,
-  hasCall,
   isLoading: msgList.isLoading,
   isLocked: lockScroll,
   onLoadMore: msgList.loadNextPage,

@@ -1,12 +1,11 @@
 <script setup lang="ts">
 /** The date pill that floats over the list while scrolling and fades out when it stops. */
-defineProps<{ label: string | null; opacity: number; offset: boolean }>();
+defineProps<{ label: string | null; opacity: number }>();
 </script>
 
 <template>
   <div
-    :class="[offset ? 'top-12' : 'top-4']"
-    class="absolute left-0 right-0 z-20 flex justify-center pointer-events-none transition-opacity duration-200"
+    class="absolute top-4 left-0 right-0 z-20 flex justify-center pointer-events-none transition-opacity duration-200"
     :style="{ opacity }"
   >
     <div

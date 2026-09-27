@@ -108,6 +108,11 @@
     "call": {
       "title": "تماس",
       "you": "شما",
+      "active": "تماس برقرار است",
+      "participants": "{count} شرکت‌کننده",
+      "yourPresentation": "ارائه شما",
+      "presentationOf": "ارائه {name}",
+      "cameraIsOff": "دوربین خاموش است",
       "deviceDoesntSupport": "دستگاه شما از این قابلیت پشتیبانی نمیکند.",
       "errors": {
         "noMicDevice": "میکروفونی شناسایی نشد",

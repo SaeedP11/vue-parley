@@ -11,6 +11,8 @@ export interface CallSessionOptions {
   self: { id: string; name: () => string; avatar: () => Blob | undefined };
   /** Shows an error; `key` is a translation key. */
   notify: (key: string) => void;
+  /** Join with the camera on (the default) or off, for a voice call. */
+  video?: boolean;
 }
 
 const toIceUrl = (url: string) =>
@@ -108,6 +110,8 @@ export function createCallSession(opts: CallSessionOptions) {
     await media.start();
     // Hung up while the camera prompt was open.
     if (ended) return media.stopAll();
+    // A voice call keeps the camera track, disabled, so it can still be turned on mid-call.
+    if (opts.video === false && media.isVideoOn.value) media.toggleVideo();
     log("local media ready:", media.localStream.value?.getTracks().map((t) => t.kind));
 
     void signaling.trackTypes(media.trackTypes.value);

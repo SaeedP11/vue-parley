@@ -108,6 +108,11 @@
     "call": {
       "title": "Call",
       "you": "You",
+      "active": "Call active",
+      "participants": "{count} participant | {count} participants",
+      "yourPresentation": "Your presentation",
+      "presentationOf": "Presented by {name}",
+      "cameraIsOff": "Camera is off",
       "deviceDoesntSupport": "Your device does not support this feature.",
       "errors": {
         "noMicDevice": "No microphone device detected",

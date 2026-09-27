@@ -1,9 +1,17 @@
 <template>
-  <div class="vue-chat relative z-20 w-full">
+  <div :dir="dir" class="vue-chat relative z-20 w-full">
     <div
       v-if="selectedChat"
       class="relative z-50 flex h-16 w-full items-center justify-between gap-x-4 border-b border-b-chat-outline-variant bg-chat-background py-4 px-5 md:h-20"
     >
+      <!-- At the start and pointing back, mirrored for right-to-left. -->
+      <IconButton
+        icon="PhArrowLeft"
+        icon-class="size-6 rtl:-scale-x-100"
+        :label="t('actions.back')"
+        class="shrink-0 md:hidden!"
+        @click="goBack"
+      />
       <div
         class="relative flex w-full items-center justify-between gap-x-4"
       >
@@ -61,7 +69,7 @@
                 data-testid="chat-more-options"
                 @click="optionsMenuRef?.toggle($event)"
               />
-              <Menu ref="optionsMenu" :model="menuItems" popup class="vue-chat">
+              <Menu ref="optionsMenu" :model="menuItems" popup :dir="dir" class="vue-chat">
                 <template #itemicon="{ item }">
                   <BIcon
                     :icon="item.phIcon"
@@ -94,13 +102,6 @@
           </div>
         </div>
       </div>
-      <IconButton
-        icon="PhArrowLeft"
-        icon-class="size-6"
-        :label="t('actions.back')"
-        class="md:hidden!"
-        @click="goBack"
-      />
     </div>
 
     <!-- A conversation is open but its contact is still being fetched (e.g. a deep link). -->
@@ -116,30 +117,6 @@
         <div v-loading="true" class="h-3 w-20" />
       </div>
     </div>
-
-    <div class="absolute bottom-0 z-20 h-0 w-full overflow-visible">
-      <div
-        class="flex w-full items-center overflow-hidden whitespace-nowrap bg-diamond-primary-secondary text-wrap px-2 transition-all duration-200 ease-in-out"
-        :class="[callData.show ? 'h-11' : 'h-0']"
-      >
-        <div
-          class="flex w-full items-center gap-x-3 transition-all duration-200 ease-in-out"
-          :class="[callData.show ? 'opacity-100' : 'opacity-0']"
-        >
-          <BIcon icon="PhPhoneCall" class="h-5 w-5 shrink-0 fill-white" />
-          <div class="flex-1 select-none text-label-md text-white">
-            {{ callData.duration }}
-          </div>
-          <IconButton
-            icon="PhFrameCorners"
-            :label="t('actions.returnToCall')"
-            size="small"
-            class="shrink-0 text-white!"
-            @click="backToCall"
-          />
-        </div>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -152,11 +129,10 @@ import type { MenuOption } from "~/types/components/menu-options";
 import IconButton from "~/components/general/IconButton.vue";
 import { useMessagesStore } from "~/stores/messageStores.js";
 import ContactAvatar from "./contact/ContactAvatar.vue";
-import useLocalI18n from "~/composables/useLocalI18n";
+import useLocalI18n, { useDirection } from "~/composables/useLocalI18n";
 import { useCallStore } from "~/stores/callStore.js";
 import { useChatStore } from "~/stores/chatStore.js";
 import { useDate } from "~/composables/useDate.js";
-import { formatDuration } from "~/utils/format";
 import { chatPageBar } from "@i18n/locales";
 import type { Contact } from "~/types";
 import { computed, useTemplateRef } from "vue";
@@ -192,16 +168,13 @@ const menuItems = computed<MenuItem[]>(() =>
 const messagesStore = useMessagesStore();
 const { formatRelativeDate } = useDate();
 const { t } = useLocalI18n(chatPageBar);
+const { dir } = useDirection();
 const callStore = useCallStore();
 const chatStore = useChatStore();
 
 const currentConversationId = computed(() => chatStore.activeConversationId);
 const isSelectMode = computed(() => messagesStore.isSelectMode);
 const selectedChat = computed(() => props.contact);
-const callData = computed(() => ({
-  show: callStore.isActive,
-  duration: formatDuration(callStore.elapsedTime),
-}));
 
 const openProfile = () => {
   emit("open-profile");
@@ -215,9 +188,5 @@ const initCall = () => {
   if (currentConversationId.value) {
     callStore.startCall(currentConversationId.value);
   }
-};
-
-const backToCall = () => {
-  callStore.maximize();
 };
 </script>

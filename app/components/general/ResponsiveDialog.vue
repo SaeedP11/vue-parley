@@ -6,6 +6,7 @@
 import Dialog from "primevue/dialog";
 import { useSlots } from "vue";
 import { useMediaQuery } from "@vueuse/core";
+import { useDirection } from "~/composables/useLocalI18n";
 
 defineOptions({ inheritAttrs: false });
 
@@ -16,6 +17,8 @@ const slotNames: string[] = Object.keys(useSlots());
 
 // Tailwind's `md` breakpoint.
 const isSheet = useMediaQuery("(max-width: 767.98px)");
+// Teleported to <body>, so it takes the chat's direction here rather than the page's.
+const { dir } = useDirection();
 </script>
 
 <template>
@@ -26,6 +29,7 @@ const isSheet = useMediaQuery("(max-width: 767.98px)");
     :draggable="false"
     :style="{ width }"
     :breakpoints="{ '767.98px': '100vw' }"
+    :dir="dir"
     v-bind="$attrs"
     :class="['vue-chat', isSheet && 'm-0! rounded-b-none!']"
   >

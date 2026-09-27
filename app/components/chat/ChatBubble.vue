@@ -91,14 +91,17 @@ const groupedWithNext = computed(() =>
   sameGroup(props.message, props.message.nextMessage),
 );
 
-// Logical corners, so the sender's side is right whichever way the host lays the chat out: your
-// messages sit at the start, theirs at the end. The last bubble of a group keeps a tail.
+// Your messages sit on the right and theirs on the left in either direction, so the sides (and
+// the corners facing them) are physical. The last bubble of a group keeps a tail.
+const sideClass = computed(() =>
+  isMine.value ? "justify-end rtl:justify-start" : "justify-start rtl:justify-end",
+);
 const roundingClasses = computed(() => {
   const prev = groupedWithPrev.value;
   const next = groupedWithNext.value;
   if (isMine.value)
-    return [prev && "rounded-ss-md", next ? "rounded-es-md" : "rounded-es-xs"];
-  return [prev && "rounded-se-md", next ? "rounded-ee-md" : "rounded-ee-xs"];
+    return [prev && "rounded-tr-md", next ? "rounded-br-md" : "rounded-br-xs"];
+  return [prev && "rounded-tl-md", next ? "rounded-bl-md" : "rounded-bl-xs"];
 });
 
 const uploadData = computed(() =>
@@ -181,16 +184,20 @@ const longPress = useLongPress(handleRightClick);
       <div
         v-else
         class="flex items-center flex-1 min-w-0 relative"
-        :class="{ 'justify-start': isMine, 'justify-end': !isMine }"
+        :class="sideClass"
         @click="handleLeftClick"
         v-on="longPress"
       >
         <div class="select-none md:select-auto w-full">
           <div
             class="w-full flex items-center"
-            :class="{ 'justify-start': isMine, 'justify-end': !isMine }"
+            :class="sideClass"
           >
-            <div class="flex max-w-4/5 items-end gap-x-2">
+            <!-- Their avatar goes on the outer, left side of the bubble. -->
+            <div
+              class="flex max-w-4/5 items-end gap-x-2"
+              :class="{ 'flex-row-reverse rtl:flex-row': !isMine }"
+            >
               <div class="flex-1 min-w-0">
                 <!-- Text / File / Voice Bubble Wrapper -->
                 <div

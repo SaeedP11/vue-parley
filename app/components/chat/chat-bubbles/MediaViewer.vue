@@ -156,6 +156,7 @@ const pt = computed(() => ({
     v-model:active-index="activeIndex"
     :value="items"
     full-screen
+    :dir="dir"
     :show-thumbnails="hasMany"
     :show-item-navigators="hasMany"
     :num-visible="items.length"
