@@ -227,6 +227,8 @@ Every component and directive the chat uses is imported by the component itself,
 
 Working with conversations the list page hasn't fetched (say, one opened from a link): add them with `chatStore.addContact(contact)` and change them with `chatStore.updateContact(id, changes)`. `chatStore.conversationStates` is a read-only view.
 
+Each row shows `lastMessage` (its time, text or attachment kind, and for your own messages whether it was sent or seen). Without one, `lastActivity` gives the row its time and the list its order. `tag` is a short label beside the preview, for telling apart several conversations with the same person (the service each is about, say).
+
 ## Translations
 
 English (`en`) and Persian (`fa`) ship with the package and load automatically; the host only has to install vue-i18n and set `locale`. The layout switches to right-to-left when the locale starts with `fa` or `ar`.

@@ -1,3 +1,5 @@
 {
-  "title": "Messages"
+  "title": "Messages",
+  "placeholder": "Search conversations",
+  "clear": "Clear search"
 }

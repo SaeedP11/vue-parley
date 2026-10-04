@@ -6,5 +6,12 @@
     "video": "Video",
     "request": "Request"
   },
-  "draft": "Draft"
+  "draft": "Draft",
+  "status": {
+    "failed": "Not sent",
+    "sending": "Sending",
+    "sent": "Sent",
+    "seen": "Seen"
+  },
+  "unread": "{count} unread"
 }

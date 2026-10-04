@@ -2,7 +2,13 @@
   "filters": {
     "online": "Online",
     "ended": "Ended",
-    "active": "Active"
+    "active": "Active",
+    "label": "Conversation state"
   },
-  "noMessages": "No messages exchanged"
+  "noMessages": "No messages exchanged",
+  "noResults": {
+    "title": "No results for “{query}”",
+    "hint": "Try another spelling of the name.",
+    "clear": "Clear search"
+  }
 }

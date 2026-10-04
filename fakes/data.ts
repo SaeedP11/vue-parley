@@ -133,6 +133,8 @@ const TEXTS = [
   "فردا تماس میگیرم",
 ] as const;
 const FILES = ["report.pdf", "invoice.xlsx", "contract.docx", "data.csv"] as const;
+// Taken by index rather than from the generator, so adding them left the rest of the demo as it was.
+const TAGS = ["پوست", "تغذیه", "روان‌شناسی", "ارتوپدی", "خانواده"] as const;
 
 /** A realistic-looking Persian dataset for the demo: `count` conversations with history. */
 export function demoData(userId: string, count = 40): FakeData {
@@ -151,6 +153,7 @@ export function demoData(userId: string, count = 40): FakeData {
         isActive: rng.next() < 0.8,
         serviceType: rng.pick(["chat", "video-call", "voice-call"] as const),
         unreadCount: rng.next() < 0.3 ? rng.int(1, 12) : 0,
+        tag: TAGS[i % TAGS.length],
       }),
     );
 

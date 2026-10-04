@@ -73,6 +73,16 @@ export interface Contact {
   isActive: boolean;
   birthDate: Date;
   lastMessage?: Message;
+  /**
+   * When the conversation last changed. The row shows it, and the lists sort by it, when there is
+   * no `lastMessage`.
+   */
+  lastActivity?: Date;
+  /**
+   * A short label on the row that tells conversations with the same person apart, such as the
+   * service it is about.
+   */
+  tag?: string;
   unreadCount?: number;
   serviceType?: "video-call" | "voice-call" | "chat";
   userType: UserRoleKey[];

@@ -1,5 +1,12 @@
 <script setup lang="ts">
+/**
+ * One conversation row: who and when on the first line; then the conversation's tag (what tells
+ * two conversations with the same person apart), the last message or the draft, and the unread
+ * count. The row is a button, so it is reached with Tab and opened with Enter or Space.
+ */
 import Badge from "primevue/badge";
+import Button from "primevue/button";
+import Tag from "primevue/tag";
 import vLoading from "~/directives/loading";
 import SafeEmojiText from "~/components/general/SafeEmojiText.vue";
 import { useProfileStore } from "~/stores/profileStore.js";
@@ -29,6 +36,10 @@ const isActive = computed(
 
 const isLoading = computed(() => props.loading);
 const unreadCount = computed(() => props.contact.unreadCount ?? 0);
+const hasUnread = computed(() => unreadCount.value > 0 && !isLoading.value);
+const fullName = computed(() =>
+  `${props.contact.name} ${props.contact.lastName}`.trim(),
+);
 
 const openChat = () => {
   chatStore.setSelectedChat(props.contact.id);
@@ -45,14 +56,15 @@ const isFromMe = computed(
 
 const lastMessageIcon = computed(() => {
   const msg = props.contact.lastMessage;
-  if (!msg || !isFromMe.value) return { color: "", icon: "" };
+  if (!msg || !isFromMe.value) return { color: "", icon: "", label: "" };
 
-  if (msg.isFailed) return { color: "fill-error", icon: "PhWarningCircle" };
+  if (msg.isFailed)
+    return { color: "fill-error", icon: "PhWarningCircle", label: t("status.failed") };
   if (!msg.isSent)
-    return { color: "fill-chat-on-background/30", icon: "PhClock" };
+    return { color: "fill-chat-on-background/30", icon: "PhClock", label: t("status.sending") };
   if (!msg.isRead)
-    return { color: "fill-chat-muted", icon: "PhCheck" };
-  return { color: "fill-chat-primary", icon: "PhChecks" };
+    return { color: "fill-chat-muted", icon: "PhCheck", label: t("status.sent") };
+  return { color: "fill-chat-primary", icon: "PhChecks", label: t("status.seen") };
 });
 
 const attachmentIcon = computed(() => {
@@ -77,9 +89,9 @@ const attachmentIcon = computed(() => {
 
 const { formatTime, formatDateShort } = useDate();
 
-/** Today's messages show their time; older ones their date. */
+/** Today's activity shows its time; older activity its date. */
 const lastMessageTime = computed(() => {
-  const date = props.contact.lastMessage?.date;
+  const date = props.contact.lastMessage?.date ?? props.contact.lastActivity;
   if (!date) return "";
   return new Date(date).toDateString() === new Date().toDateString()
     ? formatTime(date)
@@ -90,21 +102,10 @@ const lastMessageText = computed(() => {
   const msg = props.contact.lastMessage;
   if (!msg) return "";
 
-  // Handle content (Text or Attachment Title)
-  let content = msg.text;
-  if (!content && msg.request) {
-    content = t("attachementTypes.request");
-  }
-  if (!content && msg.type !== "text") {
-    content = t(`attachementTypes.${msg.type}`);
-  }
-
-  // Handle Name Prefix
-  if (!isFromMe.value) {
-    return `${props.contact.name}: ${content}`;
-  }
-
-  return content;
+  if (msg.text) return msg.text;
+  if (msg.request) return t("attachementTypes.request");
+  if (msg.type !== "text") return t(`attachementTypes.${msg.type}`);
+  return "";
 });
 
 const lastMessageColor = computed(() => {
@@ -119,88 +120,114 @@ const lastMessageColor = computed(() => {
 
   return "text-chat-muted";
 });
+
+// With nothing for the second line, the name centres on the avatar instead of sitting over a gap.
+const hasDetails = computed(
+  () => !!(props.contact.tag || draft.value || props.contact.lastMessage || hasUnread.value),
+);
+
+const unreadLabel = computed(() =>
+  unreadCount.value > 99 ? "+99" : String(unreadCount.value),
+);
+
+/** Everything the row shows, in reading order, as the button's accessible name. */
+const accessibleName = computed(() =>
+  [
+    fullName.value,
+    props.contact.tag,
+    lastMessageTime.value,
+    draft.value ? `${t("draft")}: ${draft.value}` : lastMessageText.value,
+    lastMessageIcon.value.label,
+    hasUnread.value ? t("unread", { count: unreadLabel.value }) : "",
+  ]
+    .filter(Boolean)
+    .join("، "),
+);
 </script>
 <template>
-  <div
+  <Button
+    unstyled
     data-testid="chat-contact"
     :data-contact-id="contact.id"
+    :aria-current="isActive ? 'true' : undefined"
+    :aria-label="accessibleName"
+    :class="[isActive ? 'bg-chat-surface' : 'bg-chat-surface/0 hover:bg-chat-surface/50']"
+    class="flex h-19 w-full cursor-pointer items-center gap-x-3 rounded-xl p-2.5 text-start transition-colors duration-200 ease-in-out focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-chat-primary motion-reduce:transition-none"
     @click="openChat"
-    :class="[isActive ? 'bg-chat-surface' : 'bg-chat-surface/0']"
-    class="rounded-xl w-full transition-all duration-200 ease-in-out cursor-pointer p-2.5 flex justify-between gap-x-3 items-center h-19"
   >
-    <div v-loading="isLoading" class="relative shrink-0 h-11 w-11">
+    <span v-loading="isLoading" class="relative block size-12 shrink-0">
       <ContactAvatar :contact="contact" />
-    </div>
+    </span>
 
-    <div class="select-none flex-1 overflow-hidden">
-      <div class="w-full flex items-center justify-between">
-        <div
-          class="text-label-md text-chat-on-background min-w-20 truncate"
+    <span class="flex min-w-0 flex-1 flex-col gap-y-1 select-none">
+      <span class="flex w-full items-baseline justify-between gap-x-2">
+        <span
           v-loading="isLoading"
+          :class="hasUnread ? 'font-bold' : 'font-semibold'"
+          class="min-w-20 truncate text-label-md text-chat-on-background"
         >
-          {{ contact.name }} {{ contact.lastName }}
-        </div>
-        <div
-          v-if="contact.lastMessage"
-          class="flex gap-x-1.5 items-center shrink-0"
+          {{ fullName }}
+        </span>
+        <span
+          v-if="lastMessageTime"
+          v-loading="isLoading"
+          :class="hasUnread ? 'font-semibold text-chat-primary' : 'text-chat-muted'"
+          class="shrink-0 text-[11px]"
         >
-          <div
-            v-loading="isLoading"
-            class="text-chat-muted text-[11px]"
-          >
-            {{ lastMessageTime }}
-          </div>
-          <BIcon
-            v-if="lastMessageIcon.icon !== ''"
-            :icon="lastMessageIcon.icon"
-            :class="lastMessageIcon.color"
-            class="w-4 h-4"
-          />
-        </div>
-      </div>
+          {{ lastMessageTime }}
+        </span>
+      </span>
 
-      <div class="w-full flex items-center justify-between mt-0.5">
-        <div class="flex items-center gap-x-1.5 flex-1 overflow-hidden">
-          <div
-            v-if="draft"
-            class="max-w-full truncate text-body-sm flex items-center gap-x-1"
-          >
-            <span class="text-error shrink-0">{{ t("draft") }}:</span>
-            <SafeEmojiText
-              truncate
-              :text="draft"
-              class="text-chat-muted"
+      <span v-if="hasDetails" class="flex w-full items-center gap-x-1.5">
+        <Tag
+          v-if="contact.tag && !isLoading"
+          severity="secondary"
+          :value="contact.tag"
+          data-testid="chat-contact-tag"
+          :pt="{
+            root: {
+              class:
+                'max-w-24 shrink-0 rounded-md! px-1.5! py-0! bg-chat-on-background/6! text-chat-muted!',
+            },
+            label: { class: 'truncate text-[11px]! font-semibold! leading-5!' },
+          }"
+        />
+
+        <span class="flex min-w-0 flex-1 items-center gap-x-1">
+          <template v-if="draft">
+            <span class="shrink-0 text-body-sm text-error">{{ t("draft") }}:</span>
+            <SafeEmojiText truncate :text="draft" class="min-w-0 text-body-sm text-chat-muted" />
+          </template>
+
+          <template v-else-if="contact.lastMessage && !isLoading">
+            <BIcon
+              v-if="lastMessageIcon.icon"
+              :icon="lastMessageIcon.icon"
+              :class="lastMessageIcon.color"
+              class="size-4 shrink-0"
             />
-          </div>
+            <BIcon
+              v-if="attachmentIcon"
+              weight="bold"
+              :icon="attachmentIcon"
+              class="size-4 shrink-0 fill-chat-primary"
+            />
+            <span
+              dir="auto"
+              :class="['min-w-0 truncate text-body-sm transition-colors', lastMessageColor]"
+            >
+              <SafeEmojiText truncate :text="lastMessageText" />
+            </span>
+          </template>
+        </span>
 
-          <BIcon
-            v-if="!draft && attachmentIcon && contact.lastMessage"
-            weight="bold"
-            :icon="attachmentIcon"
-            class="w-4 h-4 fill-chat-primary shrink-0"
-          />
-
-          <div
-            v-loading="isLoading"
-            v-if="!draft && contact.lastMessage"
-            :class="[
-              'max-w-full truncate text-body-sm transition-colors',
-              lastMessageColor,
-            ]"
-          >
-            <SafeEmojiText truncate :text="lastMessageText" />
-          </div>
-        </div>
-
-        <div class="h-full flex items-center shrink-0 ms-2">
-          <Badge
-            v-if="unreadCount > 0 && !isLoading"
-            dir="ltr"
-            severity="danger"
-            :value="unreadCount > 99 ? '+99' : unreadCount"
-          />
-        </div>
-      </div>
-    </div>
-  </div>
+        <Badge
+          v-if="hasUnread"
+          dir="ltr"
+          :value="unreadLabel"
+          class="ms-1 shrink-0"
+        />
+      </span>
+    </span>
+  </Button>
 </template>

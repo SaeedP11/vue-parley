@@ -8,7 +8,7 @@ import Skeleton from "primevue/skeleton";
     class="vue-chat flex h-19 w-full items-center gap-x-3 p-2.5"
     aria-hidden="true"
   >
-    <Skeleton shape="circle" size="2.75rem" class="shrink-0" />
+    <Skeleton shape="circle" size="3rem" class="shrink-0" />
     <div class="flex flex-1 flex-col gap-y-2.5 overflow-hidden">
       <div class="flex items-center justify-between">
         <Skeleton width="7rem" height="0.875rem" />

@@ -2,6 +2,7 @@
 import { ref, computed, watch, onMounted, onBeforeUnmount } from "vue";
 import SelectButton from "primevue/selectbutton";
 import NoData from "~/assets/lib-images/chat/empty-state.webp";
+import Button from "primevue/button";
 import NoDataDisplay from "~/components/general/NoDataDisplay.vue";
 import type { ChatFilter, StateKeys } from "~/types";
 import ChatContactDisplay from "./ChatContactDisplay.vue";
@@ -27,6 +28,12 @@ const currentState = computed(
 const chats = computed(() =>
   chatStore.getDisplayedContacts(activeFilter.value),
 );
+
+const query = computed(() => searchText.value.trim());
+
+const clearSearch = () => {
+  searchText.value = "";
+};
 
 const filters = computed<ChatFilter[]>(() => [
   { key: "active", label: t("filters.active") },
@@ -82,13 +89,15 @@ onBeforeUnmount(() => {
     <ChatListSearch v-model="searchText" class="shrink-0" />
 
     <div class="flex w-full flex-1 flex-col overflow-hidden">
-      <div class="flex w-full shrink-0 items-center gap-x-2 px-5 py-2">
+      <div class="flex w-full shrink-0 items-center px-4 pt-3 pb-1">
         <SelectButton
           :model-value="activeFilter || null"
           :options="filters"
           option-label="label"
           option-value="key"
-          size="small"
+          :aria-label="t('filters.label')"
+          class="w-full"
+          :pt="{ pcToggleButton: { root: { class: 'flex-1 h-9!' } } }"
           @update:model-value="(key) => setFilter(key ?? '')"
         />
       </div>
@@ -116,6 +125,28 @@ onBeforeUnmount(() => {
             />
           </template>
         </BVirtualVerticalList>
+      </div>
+
+      <div
+        v-else-if="query"
+        role="status"
+        data-testid="chat-search-empty"
+        class="flex w-full flex-1 flex-col items-center justify-center gap-y-3 px-6 text-center"
+      >
+        <span class="flex size-14 items-center justify-center rounded-full bg-chat-surface text-chat-muted">
+          <BIcon icon="PhMagnifyingGlass" class="size-6.5" />
+        </span>
+        <p class="m-0 text-label-md text-chat-on-background">
+          {{ t("noResults.title", { query }) }}
+        </p>
+        <p class="m-0 text-body-sm text-chat-muted">{{ t("noResults.hint") }}</p>
+        <Button
+          :label="t('noResults.clear')"
+          severity="secondary"
+          variant="text"
+          size="small"
+          @click="clearSearch"
+        />
       </div>
 
       <div v-else class="flex w-full flex-1 items-center justify-center">

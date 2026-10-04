@@ -72,12 +72,20 @@ test.describe("conversation list", () => {
   });
 
   test("searches by name", async ({ page }) => {
-    await page.getByTestId("chat-search-toggle").click();
     await page.getByTestId("chat-search").fill("nima");
     await expect(page.getByTestId("chat-contact")).toHaveCount(1);
     await expect(contactItem(page, "c2")).toBeVisible();
 
-    await page.getByTestId("chat-search").fill("");
+    await page.getByTestId("chat-search-clear").click();
+    await expect(page.getByTestId("chat-search")).toHaveValue("");
+    await expect(page.getByTestId("chat-contact")).toHaveCount(3);
+  });
+
+  test("says when a search finds nothing", async ({ page }) => {
+    await page.getByTestId("chat-search").fill("zzz");
+    await expect(page.getByTestId("chat-search-empty")).toContainText("zzz");
+
+    await page.getByRole("button", { name: "Clear search" }).last().click();
     await expect(page.getByTestId("chat-contact")).toHaveCount(3);
   });
 });

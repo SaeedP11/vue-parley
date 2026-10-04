@@ -43,7 +43,7 @@ const initials = computed(() => {
     />
     <div
       v-if="contact.isOnline && showOnline"
-      class="absolute right-0 bottom-0 size-2.5 rounded-full border-2 border-chat-background bg-chat-primary"
+      class="absolute end-0 bottom-0 size-3 rounded-full border-2 border-chat-background bg-chat-primary"
     ></div>
   </div>
 </template>

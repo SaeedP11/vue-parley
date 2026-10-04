@@ -24,9 +24,12 @@ export interface ConversationListView {
   hasNextPage: boolean;
 }
 
-const byLastMessage = (a: Contact, b: Contact) =>
-  (b.lastMessage ? new Date(b.lastMessage.date).getTime() : 0) -
-  (a.lastMessage ? new Date(a.lastMessage.date).getTime() : 0);
+const lastActivityOf = (contact: Contact) => {
+  const date = contact.lastMessage?.date ?? contact.lastActivity;
+  return date ? new Date(date).getTime() : 0;
+};
+
+const byLastMessage = (a: Contact, b: Contact) => lastActivityOf(b) - lastActivityOf(a);
 
 export const useChatStore = defineStore("chat", () => {
   const { height: windowHeight } = useWindowSize();
