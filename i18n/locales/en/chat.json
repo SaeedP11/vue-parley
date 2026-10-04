@@ -131,9 +131,14 @@
         "screenShareMobileMaybeUnavailable": "Screen sharing may not be available on mobile devices",
         "screenShareStartFailed": "Failed to start screen sharing",
         "cameraUnavailable": "Camera not available",
-        "flashlightToggleFailed": "Failed to toggle flashlight"
+        "flashlightToggleFailed": "Failed to toggle flashlight",
+        "insecureContext": "Camera and microphone need a secure (https) connection. You can still see and hear the others.",
+        "callServerUnavailable": "Could not get the call server credentials. Retrying…",
+        "callServerUnreachable": "The call server is unreachable from this network, so the call may not connect.",
+        "connectionFailed": "The connection was lost. Reconnecting…"
       },
       "controls": {
+        "enableSound": "Tap to turn on sound",
         "endCall": "End call",
         "minimize": "Minimize",
         "maximize": "Return to call",

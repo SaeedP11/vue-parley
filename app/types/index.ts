@@ -285,6 +285,8 @@ export type CallMessageSchema =
       payload: {
         from: string;
         name: string;
+        /** The sender dropped its connection to everyone: discard yours to it and reconnect. */
+        restart?: boolean;
       };
     }
   | {

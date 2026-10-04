@@ -72,10 +72,37 @@ export function useCallUi(opts: CallUiOptions) {
   }
 
   // --- Keep each <video> showing its stream ---
+  /** The browser refused to play a remote participant with sound until the user taps something. */
+  const soundBlocked = ref(false);
+
+  async function play(el: HTMLVideoElement) {
+    try {
+      await el.play();
+    } catch (err) {
+      if ((err as DOMException)?.name !== "NotAllowedError" || el.muted) return;
+      // Mobile browsers (and desktop ones without prior interaction) refuse unmuted playback
+      // that doesn't follow a tap, which would leave the tile black. Show the video muted and
+      // offer a button to turn the sound on.
+      el.muted = true;
+      soundBlocked.value = true;
+      await el.play().catch((e) => console.error("[vue-chat] Remote video can't play:", e));
+    }
+  }
+
+  /** Unmutes the remote participants; must run from a user gesture. */
+  function enableSound() {
+    soundBlocked.value = false;
+    for (const el of Object.values(remoteRefs.value)) {
+      if (!el) continue;
+      el.muted = false;
+      void play(el);
+    }
+  }
+
   const attach = (el: HTMLVideoElement | null | undefined, stream: MediaStream) => {
     if (!el) return;
     if (el.srcObject !== stream) el.srcObject = stream;
-    el.play().catch(() => {});
+    void play(el);
   };
 
   watch(
@@ -138,6 +165,8 @@ export function useCallUi(opts: CallUiOptions) {
     toggleRemote,
     videoPaused,
     toggleVideoPause,
+    soundBlocked,
+    enableSound,
     detachAll,
   };
 }

@@ -11,8 +11,8 @@ export type TrackTypes = { id: string; type: TrackType }[];
 export interface SignalingHandlers {
   /** An SDP offer/answer or ICE candidate addressed to us. */
   onSignal(from: string, name: string, signal: SignalData & { sdp: string }): void;
-  /** Someone entered the call. */
-  onJoin(from: string, name: string): void;
+  /** Someone entered the call, or (`restart`) wants to set up their connection to us again. */
+  onJoin(from: string, name: string, restart: boolean): void;
   /** Someone described which of their streams are camera, screen, … */
   onTrackTypes(from: string, types: TrackTypes): void;
   /** Someone left the call. */
@@ -43,7 +43,7 @@ export function createSignaling(
             on.onSignal(from, message.payload.name, message.payload.signal);
           break;
         case CallMessageType.Join:
-          on.onJoin(from, message.payload.name);
+          on.onJoin(from, message.payload.name, !!message.payload.restart);
           break;
         case CallMessageType.TrackType:
           on.onTrackTypes(from, message.payload.types);
@@ -63,10 +63,10 @@ export function createSignaling(
   return {
     listen,
     stop,
-    join: () =>
+    join: ({ restart = false }: { restart?: boolean } = {}) =>
       publish({
         type: CallMessageType.Join,
-        payload: { from: self.id, name: self.name() },
+        payload: { from: self.id, name: self.name(), ...(restart && { restart }) },
       }),
     trackTypes: (types: TrackTypes) =>
       publish({

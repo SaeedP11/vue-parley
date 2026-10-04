@@ -15,6 +15,9 @@ export interface CallSessionOptions {
   video?: boolean;
 }
 
+/** Retries for a missing TURN credential, after 2s, 4s and 8s. */
+const CREDENTIAL_RETRIES = 3;
+
 const toIceUrl = (url: string) =>
   url.startsWith("stun:") || url.startsWith("turn:") ? url : `turn:${url}`;
 
@@ -39,6 +42,15 @@ export function createCallSession(opts: CallSessionOptions) {
   // A fresh id per call, so rejoining never collides with our previous, stale peers.
   const selfId = `${opts.self.id}:${nanoid()}`;
 
+  let ended = false;
+  // Each problem is shown once per call, not once per peer or per retry.
+  const notified = new Set<string>();
+  const notifyOnce = (key: string) => {
+    if (notified.has(key) || ended) return;
+    notified.add(key);
+    opts.notify(key);
+  };
+
   const session = scope.run(() => {
     const signaling = createSignaling(handlers, { id: selfId, name: opts.self.name });
     const media = useCallMedia({ notify: opts.notify, isMobile });
@@ -46,8 +58,12 @@ export function createCallSession(opts: CallSessionOptions) {
       selfId,
       signaling,
       localStream: media.localStream,
+      mediaReady: media.ready,
       screenStream: media.screenStream,
       log,
+      onMissingConfig: () => retryCredential(),
+      onConnectionFailed: () => notifyOnce("chat.call.errors.connectionFailed"),
+      onRelayUnavailable: () => notifyOnce("chat.call.errors.callServerUnreachable"),
       rtcConfig() {
         const policy = handlers.iceTransportPolicy ?? "relay";
         const cred = handlers.credential;
@@ -72,7 +88,29 @@ export function createCallSession(opts: CallSessionOptions) {
   })!;
   const { signaling, media, peers } = session;
 
-  let ended = false;
+  let credentialRetry: ReturnType<typeof setTimeout> | undefined;
+  let credentialAttempts = 0;
+
+  /**
+   * Peers are waiting for ICE servers: fetch the credential again, with backoff, and retry them.
+   * Without this a failed credential request left the call silently unable to connect.
+   */
+  function retryCredential() {
+    if (credentialRetry || ended) return;
+    notifyOnce("chat.call.errors.callServerUnavailable");
+    if (credentialAttempts >= CREDENTIAL_RETRIES) return;
+    const delay = 2_000 * 2 ** credentialAttempts++;
+    log("no ICE servers, fetching the credential again in", delay, "ms");
+    credentialRetry = setTimeout(async () => {
+      try {
+        await handlers.handleGenerateCred();
+      } catch (err) {
+        console.error("[vue-chat] Fetching the call credential failed:", err);
+      }
+      credentialRetry = undefined;
+      if (!ended) peers.retryPending();
+    }, delay);
+  }
 
   async function ringOtherSide() {
     const blob = opts.self.avatar();
@@ -87,11 +125,14 @@ export function createCallSession(opts: CallSessionOptions) {
   async function start() {
     await signaling.listen({
       onSignal: (from, name, signal) => peers.signal(from, name, signal),
-      onJoin(from, name) {
-        log("join from", from, name);
+      onJoin(from, name, restart) {
+        log(restart ? "restart from" : "join from", from, name);
         void signaling.trackTypes(media.trackTypes.value);
-        const isNew = !peers.has(from);
-        peers.add(from, name);
+        const isNew = restart || !peers.has(from);
+        // The sender has already dropped its end; ours may still look alive, and keeping it would
+        // leave the pair waiting on each other forever.
+        if (restart) peers.restart(from, name);
+        else peers.add(from, name);
         // Only whoever is already in the call hears a newcomer's join. If the newcomer has to
         // make the offer, it doesn't know about us yet, so announce ourselves back to it.
         if (isNew && !peers.isInitiator(from)) void signaling.join();
@@ -105,7 +146,12 @@ export function createCallSession(opts: CallSessionOptions) {
       },
     });
 
-    await handlers.handleGenerateCred();
+    // A failed credential must not stop us joining: peers fetch it again when they find none.
+    try {
+      await handlers.handleGenerateCred();
+    } catch (err) {
+      console.error("[vue-chat] Fetching the call credential failed:", err);
+    }
     await media.checkPermissions();
     await media.start();
     // Hung up while the camera prompt was open.
@@ -145,6 +191,7 @@ export function createCallSession(opts: CallSessionOptions) {
   function end() {
     if (ended) return;
     ended = true;
+    clearTimeout(credentialRetry);
     void signaling.hangup(channel);
     signaling.stop();
     peers.destroyAll();

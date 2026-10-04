@@ -11,12 +11,15 @@ export interface PeerEvents {
   /** The connection is gone, from either side. Fires once. */
   onClose(): void;
   onError(error: Error): void;
+  /** ICE gathering finished, with the types of the local candidates found (for diagnostics). */
+  onGatheringComplete?(types: RTCIceCandidateType[]): void;
 }
 
 export interface PeerOptions extends PeerEvents {
   /** Whether this side makes the offers. Exactly one side of a pair must be the initiator. */
   initiator: boolean;
-  stream: MediaStream;
+  /** What we send; null to only receive (no camera/mic, or not allowed to use them). */
+  stream: MediaStream | null;
   config: RTCConfiguration;
 }
 
@@ -51,6 +54,7 @@ export function createPeer(opts: PeerOptions) {
   const pendingCandidates: RTCIceCandidateInit[] = [];
   const knownStreams = new Set<string>();
   const requestedTransceivers = new WeakSet<RTCRtpTransceiver>();
+  const gathered: RTCIceCandidateType[] = [];
 
   function destroy(error?: Error) {
     if (destroyed) return;
@@ -61,6 +65,7 @@ export function createPeer(opts: PeerOptions) {
       // already closed
     }
     pc.ontrack = pc.ondatachannel = pc.onconnectionstatechange = pc.onsignalingstatechange = null;
+    pc.onicecandidate = pc.onicegatheringstatechange = null;
     pc.close();
     if (error) opts.onError(error);
     opts.onClose();
@@ -171,6 +176,15 @@ export function createPeer(opts: PeerOptions) {
     if (pc.connectionState === "failed") fail("ERR_CONNECTION_FAILURE")(new Error("Connection failed."));
   };
 
+  // Which local candidates ICE found: with a relay-only policy, none at all means the TURN server
+  // was unreachable or refused the credential, and the connection can never come up.
+  pc.onicegatheringstatechange = () => {
+    if (pc.iceGatheringState === "complete") opts.onGatheringComplete?.(gathered);
+  };
+  pc.onicecandidate = (event) => {
+    if (event.candidate?.type) gathered.push(event.candidate.type);
+  };
+
   pc.ontrack = (event) => {
     for (const stream of event.streams) {
       // One event per stream, even though each of its tracks arrives separately.
@@ -183,7 +197,16 @@ export function createPeer(opts: PeerOptions) {
   if (initiator) setupChannel(pc.createDataChannel(randomLabel()));
   else pc.ondatachannel = (event) => setupChannel(event.channel);
 
-  opts.stream.getTracks().forEach((track) => pc.addTrack(track, opts.stream));
+  const stream = opts.stream;
+  stream?.getTracks().forEach((track) => pc.addTrack(track, stream));
+  // Whatever we have nothing to send of, the offer still has to ask for, or the other side gets
+  // an m-line for it only after a transceiverRequest round trip (or never, from an old client).
+  if (initiator) {
+    for (const kind of ["audio", "video"] as const) {
+      if (!stream?.getTracks().some((t) => t.kind === kind))
+        pc.addTransceiver(kind, { direction: "recvonly" });
+    }
+  }
   needsNegotiation();
 
   return {

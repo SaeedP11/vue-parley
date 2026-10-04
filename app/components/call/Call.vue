@@ -59,6 +59,8 @@ const {
   remoteScreens,
   remoteScreenRefs,
   remoteVideos,
+  soundBlocked,
+  enableSound,
 } = useCall();
 
 const pickCamera = (deviceId: string) => {
@@ -387,6 +389,21 @@ const clampedStyle = computed(() => {
       :class="callStore.isMinimized ? 'h-full p-0' : 'h-full p-4'"
       @mousemove="resetControlsTimeout"
     >
+      <!-- The browser blocked the others' sound until a tap: they play muted until then. -->
+      <Button
+        v-if="soundBlocked"
+        :label="t('chat.call.controls.enableSound')"
+        :dt="callButtonDt"
+        severity="secondary"
+        rounded
+        data-testid="call-enable-sound"
+        class="absolute! top-6 left-1/2 z-30 -translate-x-1/2"
+        @click="enableSound"
+      >
+        <template #icon>
+          <BIcon icon="PhSpeakerHigh" class="size-4" />
+        </template>
+      </Button>
       <div
         v-show="tileCount"
         class="grid h-full min-h-0 w-full min-w-0 grid-cols-1 gap-4 md:grid-cols-[repeat(auto-fit,minmax(300px,1fr))]"

@@ -259,6 +259,66 @@ test.describe("video call", () => {
     await expect(bob.getByTestId("call-participants")).toContainText("1");
   });
 
+  // Peers used to wait for a local stream, so a participant without one (an http:// origin, where
+  // browsers expose no media devices, or a refused camera) never connected and received nothing.
+  // "bob:…" > "alice:…", so Bob makes the offers: cover the media-less side as either role.
+  for (const who of ["alice", "bob"] as const) {
+    test(`${who} without media devices still receives the other side`, async () => {
+      const [deaf, other] = who === "alice" ? [alice, bob] : [bob, alice];
+      // What an insecure origin looks like: no navigator.mediaDevices at all.
+      await deaf.addInitScript(() =>
+        Object.defineProperty(Navigator.prototype, "mediaDevices", { get: () => undefined }),
+      );
+      await openHarness(deaf, who === "alice" ? { user: "alice", name: "Alice" } : { user: "bob", name: "Bob" });
+
+      await joinBoth(other, deaf);
+
+      const remote = deaf.getByTestId("call-remote-video");
+      await expect(remote).toHaveCount(1, { timeout: 20_000 });
+      await expectPlayingVideo(remote.locator("video"));
+      await expect(other.getByTestId("call-participants")).toContainText("2", { timeout: 20_000 });
+      // Nothing to show from the media-less side.
+      await expect(other.getByTestId("call-remote-video")).toHaveCount(0);
+    });
+
+    test(`${who} with the camera refused still sends audio and receives video`, async () => {
+      const [muted, other] = who === "alice" ? [alice, bob] : [bob, alice];
+      // The camera permission is set to "blocked": the browser reports it denied, and refuses it.
+      await muted.addInitScript(() => {
+        const query = navigator.permissions.query.bind(navigator.permissions);
+        navigator.permissions.query = (d) =>
+          d.name === ("camera" as PermissionName)
+            ? Promise.resolve({ state: "denied" } as PermissionStatus)
+            : query(d);
+        const gum = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+        navigator.mediaDevices.getUserMedia = (c) =>
+          c?.video
+            ? Promise.reject(new DOMException("Permission denied", "NotAllowedError"))
+            : gum(c);
+      });
+      await openHarness(muted, who === "alice" ? { user: "alice", name: "Alice" } : { user: "bob", name: "Bob" });
+
+      await joinBoth(other, muted);
+
+      const remote = muted.getByTestId("call-remote-video");
+      await expect(remote).toHaveCount(1, { timeout: 20_000 });
+      await expectPlayingVideo(remote.locator("video"));
+
+      const fromMuted = other.getByTestId("call-remote-video");
+      await expect(fromMuted).toHaveCount(1, { timeout: 20_000 });
+      await expect
+        .poll(
+          () =>
+            fromMuted.locator("video").evaluate((el: HTMLVideoElement) => {
+              const stream = el.srcObject as MediaStream | null;
+              return stream?.getAudioTracks()[0]?.readyState ?? null;
+            }),
+          { timeout: 20_000 },
+        )
+        .toBe("live");
+    });
+  }
+
   test("a participant can rejoin after hanging up", async () => {
     await joinBoth(bob, alice);
     await expect(bob.getByTestId("call-remote-video")).toHaveCount(1, {

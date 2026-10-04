@@ -12,9 +12,17 @@ export interface PeerOptions {
   selfId: string;
   signaling: Signaling;
   localStream: Ref<MediaStream | null>;
+  /** Whether getting our own media is over, successfully or not. Peers wait for it. */
+  mediaReady: Ref<boolean>;
   screenStream: Ref<MediaStream | null>;
   /** ICE servers and policy for each new connection, or null when none are usable yet. */
   rtcConfig: () => RTCConfiguration | null;
+  /** A peer is waiting for ICE servers; call `retryPending()` once there may be some. */
+  onMissingConfig: () => void;
+  /** A connection to `remoteId` failed or never came up. */
+  onConnectionFailed: (remoteId: string) => void;
+  /** ICE found no relay candidate although the policy is relay-only: the TURN server is unusable. */
+  onRelayUnavailable: () => void;
   log: (...args: unknown[]) => void;
 }
 
@@ -31,12 +39,14 @@ export function usePeers(opts: PeerOptions) {
   const remoteVideos = ref<Record<string, RemoteStream>>({});
   const remoteScreens = ref<Record<string, RemoteStream>>({});
   const remoteStreamTypes = ref<Record<string, TrackTypes>>({});
-  /** Peers asked for before our media was ready. */
+  /** Peers asked for before our media was ready, or while there were no ICE servers. */
   const pending = ref<Record<string, { name: string }>>({});
-  /** Signals that arrived for a peer that doesn't exist yet. */
-  const pendingSignals: Record<string, SignalData> = {};
+  /** Signals that arrived for a peer that doesn't exist yet, in order. */
+  const pendingSignals: Record<string, SignalData[]> = {};
   /** Last SDP applied per peer, so a re-delivered message isn't applied twice. */
   const lastSdp: Record<string, string | undefined> = {};
+
+  let relayWarned = false;
 
   const isInitiator = (remoteId: string) => selfId > remoteId;
   const has = (remoteId: string) => !!peers.value[remoteId] || !!pending.value[remoteId];
@@ -79,7 +89,7 @@ export function usePeers(opts: PeerOptions) {
   function add(remoteId: string, name: string) {
     if (peers.value[remoteId]) return;
 
-    if (!localStream.value) {
+    if (!opts.mediaReady.value) {
       log("local media not ready, deferring peer", remoteId);
       pending.value[remoteId] = { name };
       return;
@@ -87,9 +97,13 @@ export function usePeers(opts: PeerOptions) {
 
     const config = opts.rtcConfig();
     if (!config) {
-      log("no ICE servers available, cannot create peer for", remoteId);
+      log("no ICE servers available, deferring peer", remoteId);
+      pending.value[remoteId] = { name };
+      opts.onMissingConfig();
       return;
     }
+    delete pending.value[remoteId];
+    if (!localStream.value) log("no local media, receiving only from", remoteId);
 
     const initiator = isInitiator(remoteId);
     let peer: PeerConnection;
@@ -100,10 +114,20 @@ export function usePeers(opts: PeerOptions) {
         config,
         onSignal: (signal) => void signaling.signal(remoteId, signal),
         onStream: (stream) => onRemoteStream(remoteId, name, stream),
+        onGatheringComplete(types) {
+          log("ICE candidates for", remoteId, types);
+          if (config.iceTransportPolicy === "relay" && !types.includes("relay") && !relayWarned) {
+            relayWarned = true;
+            console.error("[vue-chat] No relay candidate: the TURN server is unreachable or rejected the credential");
+            opts.onRelayUnavailable();
+          }
+        },
         onError(err) {
           console.error("[vue-chat] Peer error for", remoteId, err);
-          // Announce ourselves again so the pair can start over.
-          void signaling.join();
+          opts.onConnectionFailed(remoteId);
+          // Announce ourselves again so the pair can start over. `restart` makes the other side
+          // drop its half of this connection, which it may not have noticed is dead.
+          void signaling.join({ restart: true });
         },
         onClose() {
           log("peer closed", remoteId);
@@ -123,10 +147,22 @@ export function usePeers(opts: PeerOptions) {
     peers.value[remoteId] = markRaw(peer);
 
     const queued = pendingSignals[remoteId];
-    if (queued) {
-      delete pendingSignals[remoteId];
-      peer.signal(queued);
-    }
+    delete pendingSignals[remoteId];
+    queued?.forEach((data) => peer.signal(data));
+  }
+
+  /** Throws away whatever we have with `remoteId` and connects again. */
+  function restart(remoteId: string, name: string) {
+    log("restarting peer", remoteId);
+    remove(remoteId);
+    add(remoteId, name);
+  }
+
+  /** Tries the deferred peers again. */
+  function retryPending() {
+    const waiting = { ...pending.value };
+    pending.value = {};
+    for (const [remoteId, { name }] of Object.entries(waiting)) add(remoteId, name);
   }
 
   /** Applies a signal from `remoteId`, creating the peer first if needed. */
@@ -140,7 +176,7 @@ export function usePeers(opts: PeerOptions) {
       peer.signal(data);
     } else {
       log("peer still deferred, queueing signal for", remoteId);
-      pendingSignals[remoteId] = data;
+      (pendingSignals[remoteId] ??= []).push(data);
     }
   }
 
@@ -164,14 +200,11 @@ export function usePeers(opts: PeerOptions) {
     all.forEach((peer) => peer.destroy());
   }
 
-  // Create the peers that were waiting for our media.
+  // Create the peers that were waiting for our media, with or without any.
   watch(
-    localStream,
-    (stream) => {
-      if (!stream) return;
-      const waiting = { ...pending.value };
-      pending.value = {};
-      for (const [remoteId, { name }] of Object.entries(waiting)) add(remoteId, name);
+    opts.mediaReady,
+    (ready) => {
+      if (ready) retryPending();
     },
     { immediate: true },
   );
@@ -184,6 +217,8 @@ export function usePeers(opts: PeerOptions) {
     isInitiator,
     has,
     add,
+    restart,
+    retryPending,
     remove,
     signal,
     addTrackToAll,

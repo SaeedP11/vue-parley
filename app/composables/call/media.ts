@@ -49,7 +49,17 @@ export function useCallMedia({ notify, isMobile }: MediaOptions) {
     return !!capabilities && "torch" in capabilities;
   });
 
+  /**
+   * Set once `start()` has finished, whether or not it got any media. Peers wait for this rather
+   * than for a stream: a participant without a camera or mic still has to receive the others.
+   */
+  const ready = ref(false);
+
   async function checkPermissions() {
+    // Browsers only expose media devices on a secure origin (https, or localhost on the same
+    // machine). A second device reaching a dev server over http://<lan-ip> has none; start() says so.
+    if (!navigator.mediaDevices?.getUserMedia) return;
+
     try {
       const devices = await navigator.mediaDevices.enumerateDevices();
       cameras.value = devices.filter((d) => d.kind === "videoinput");
@@ -61,60 +71,98 @@ export function useCallMedia({ notify, isMobile }: MediaOptions) {
         error("noCameraDevice");
         isVideoOn.value = false;
       }
-
-      const query = (name: string) =>
-        navigator.permissions.query({ name: name as PermissionName });
-      permissions.value.camera = (await query("camera")).state;
-      permissions.value.microphone = (await query("microphone")).state;
-      if (permissions.value.camera === "denied") isVideoOn.value = false;
-      if (permissions.value.microphone === "denied") isAudioOn.value = false;
     } catch (err) {
-      console.error("[vue-chat] Error checking permissions:", err);
+      console.error("[vue-chat] Error listing media devices:", err);
     }
+
+    // Queried one by one: Firefox has no `camera` descriptor and rejects that query, which must
+    // not lose the microphone's answer.
+    const query = async (name: "camera" | "microphone") => {
+      try {
+        const status = await navigator.permissions.query({ name: name as PermissionName });
+        permissions.value[name] = status.state;
+      } catch {
+        permissions.value[name] = null;
+      }
+    };
+    if (navigator.permissions) await Promise.all([query("camera"), query("microphone")]);
+    if (permissions.value.camera === "denied") isVideoOn.value = false;
+    if (permissions.value.microphone === "denied") isAudioOn.value = false;
   }
 
   /** Gets camera and mic together, or whichever of the two is available. */
   async function start() {
-    const { camera, microphone } = permissions.value;
-    if (camera === "denied" || microphone === "denied") {
-      if (camera === "denied") error("cameraDenied");
-      if (microphone === "denied") error("micDenied");
+    try {
+      await acquire();
+      videoTrack.value = localStream.value?.getVideoTracks()[0] ?? null;
+    } finally {
+      ready.value = true;
+    }
+  }
+
+  async function acquire() {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      console.error("[vue-chat] No media devices: the page is not on a secure origin (https)");
+      error(window.isSecureContext === false ? "insecureContext" : "mediaInitError");
+      isAudioOn.value = false;
+      isVideoOn.value = false;
       return;
     }
 
+    // A denied permission rules out that one device; the other is still worth asking for.
+    const { camera, microphone } = permissions.value;
+    if (camera === "denied") error("cameraDenied");
+    if (microphone === "denied") error("micDenied");
+    const video = camera !== "denied";
+    const audio = microphone !== "denied";
+    if (!video && !audio) return;
+
     try {
-      localStream.value = await navigator.mediaDevices.getUserMedia({
-        video: true,
-        audio: true,
-      });
-      trackTypes.value = [
-        ...trackTypes.value,
-        { id: localStream.value.id, type: "webcam_audio" },
-      ];
-    } catch {
-      const tracks: MediaStreamTrack[] = [];
-      try {
-        const audio = await navigator.mediaDevices.getUserMedia({ audio: true });
-        trackTypes.value = [...trackTypes.value, { id: audio.id, type: "audio" }];
-        tracks.push(...audio.getAudioTracks());
-      } catch (err) {
-        console.error("[vue-chat] Error accessing microphone:", err);
-        error(deviceError(err, "mic", isMobile()));
-        isAudioOn.value = false;
+      localStream.value = await navigator.mediaDevices.getUserMedia({ video, audio });
+      announce(localStream.value);
+      return;
+    } catch (err) {
+      if (!video || !audio) {
+        const kind = video ? "camera" : "mic";
+        console.error(`[vue-chat] Error accessing ${kind}:`, err);
+        error(deviceError(err, kind, isMobile()));
+        isAudioOn.value = isVideoOn.value = false;
+        return;
       }
-      try {
-        const video = await navigator.mediaDevices.getUserMedia({ video: true });
-        trackTypes.value = [...trackTypes.value, { id: video.id, type: "webcam" }];
-        tracks.push(...video.getVideoTracks());
-      } catch (err) {
-        console.error("[vue-chat] Error accessing camera:", err);
-        error(deviceError(err, "camera", isMobile()));
-        isVideoOn.value = false;
-      }
-      if (tracks.length) localStream.value = new MediaStream(tracks);
     }
 
-    videoTrack.value = localStream.value?.getVideoTracks()[0] ?? null;
+    // Both together failed (often a missing camera): try each on its own.
+    const tracks: MediaStreamTrack[] = [];
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      tracks.push(...stream.getAudioTracks());
+    } catch (err) {
+      console.error("[vue-chat] Error accessing microphone:", err);
+      error(deviceError(err, "mic", isMobile()));
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      tracks.push(...stream.getVideoTracks());
+    } catch (err) {
+      console.error("[vue-chat] Error accessing camera:", err);
+      error(deviceError(err, "camera", isMobile()));
+    }
+    if (!tracks.length) {
+      isAudioOn.value = isVideoOn.value = false;
+      return;
+    }
+    localStream.value = new MediaStream(tracks);
+    announce(localStream.value);
+  }
+
+  /** Describes our camera/mic stream to the others, by the id they will actually receive. */
+  function announce(stream: MediaStream) {
+    const hasAudio = stream.getAudioTracks().length > 0;
+    const hasVideo = stream.getVideoTracks().length > 0;
+    const type = hasAudio && hasVideo ? "webcam_audio" : hasVideo ? "webcam" : "audio";
+    trackTypes.value = [...trackTypes.value, { id: stream.id, type }];
+    if (!hasAudio) isAudioOn.value = false;
+    if (!hasVideo) isVideoOn.value = false;
   }
 
   function toggleAudio() {
@@ -240,6 +288,7 @@ export function useCallMedia({ notify, isMobile }: MediaOptions) {
 
   return {
     localStream,
+    ready,
     screenStream,
     trackTypes,
     videoTrack,

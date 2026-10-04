@@ -56,6 +56,8 @@ export default function useCall() {
     toggleFullscreen: ui.toggleFullscreen,
     toggleRemote: ui.toggleRemote,
     videoPaused: ui.videoPaused,
+    soundBlocked: ui.soundBlocked,
+    enableSound: ui.enableSound,
     toggleVideoPause: ui.toggleVideoPause,
     localVideo: ui.localVideo,
     localScreen: ui.localScreen,

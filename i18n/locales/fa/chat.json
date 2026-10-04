@@ -131,9 +131,14 @@
         "screenShareMobileMaybeUnavailable": "ممکن است اشتراک‌گذاری صفحه در دستگاه‌های موبایل در دسترس نباشد",
         "screenShareStartFailed": "راه‌اندازی اشتراک‌گذاری صفحه ناموفق بود",
         "cameraUnavailable": "دوربین در دسترس نیست",
-        "flashlightToggleFailed": "تغییر حالت چراغ قوه ناموفق بود"
+        "flashlightToggleFailed": "تغییر حالت چراغ قوه ناموفق بود",
+        "insecureContext": "دوربین و میکروفون فقط روی اتصال امن (https) کار می‌کنند. همچنان می‌توانید دیگران را ببینید و بشنوید.",
+        "callServerUnavailable": "دریافت اطلاعات سرور تماس ممکن نشد. در حال تلاش دوباره…",
+        "callServerUnreachable": "سرور تماس از این شبکه در دسترس نیست و ممکن است تماس برقرار نشود.",
+        "connectionFailed": "اتصال قطع شد. در حال اتصال دوباره…"
       },
       "controls": {
+        "enableSound": "برای روشن کردن صدا ضربه بزنید",
         "endCall": "پایان تماس",
         "minimize": "کوچک کردن",
         "maximize": "بازگشت به تماس",
