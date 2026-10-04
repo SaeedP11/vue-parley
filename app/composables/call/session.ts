@@ -21,6 +21,14 @@ const CREDENTIAL_RETRIES = 3;
 const toIceUrl = (url: string) =>
   url.startsWith("stun:") || url.startsWith("turn:") ? url : `turn:${url}`;
 
+const readDebugFlag = () => {
+  try {
+    return localStorage.getItem("vue-parley:debug") === "1";
+  } catch {
+    return false;
+  }
+};
+
 const isMobile = () =>
   /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
   !!window.matchMedia?.("(max-width: 768px)").matches;
@@ -35,7 +43,9 @@ export function createCallSession(opts: CallSessionOptions) {
   // happened to start it.
   const scope = effectScope(true);
 
-  const log = handlers.debug
+  // `localStorage["vue-parley:debug"] = "1"` turns the logs on in a host that didn't set `debug`.
+  const debug = handlers.debug || readDebugFlag();
+  const log = debug
     ? (...args: unknown[]) => console.log("[vue-chat:call]", ...args)
     : () => {};
 
@@ -191,6 +201,8 @@ export function createCallSession(opts: CallSessionOptions) {
   function end() {
     if (ended) return;
     ended = true;
+    // Who ended it: the hang-up button, or the host reacting to the other side leaving.
+    if (debug) console.trace("[vue-chat:call] leaving the call, peers:", Object.keys(peers.peers.value));
     clearTimeout(credentialRetry);
     void signaling.hangup(channel);
     signaling.stop();

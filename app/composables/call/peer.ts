@@ -13,6 +13,8 @@ export interface PeerEvents {
   onError(error: Error): void;
   /** ICE gathering finished, with the types of the local candidates found (for diagnostics). */
   onGatheringComplete?(types: RTCIceCandidateType[]): void;
+  /** Diagnostics (state changes, negotiated directions); a no-op unless the host enabled `debug`. */
+  log?(...args: unknown[]): void;
 }
 
 export interface PeerOptions extends PeerEvents {
@@ -43,7 +45,24 @@ const randomLabel = () =>
  */
 export function createPeer(opts: PeerOptions) {
   const { initiator } = opts;
+  const log = opts.log ?? (() => {});
   const pc = new RTCPeerConnection(opts.config);
+
+  /** What each m-line ended up doing: a one-way call shows here as sendonly/recvonly/inactive. */
+  function logTransceivers(when: string) {
+    log(
+      when,
+      pc.getTransceivers().map((t) => ({
+        mid: t.mid,
+        kind: t.receiver.track.kind,
+        direction: t.direction,
+        current: t.currentDirection,
+        sending: t.sender.track
+          ? `${t.sender.track.kind} ${t.sender.track.readyState}${t.sender.track.enabled ? "" : " disabled"}`
+          : null,
+      })),
+    );
+  }
 
   let destroyed = false;
   let negotiating = false;
@@ -59,13 +78,18 @@ export function createPeer(opts: PeerOptions) {
   function destroy(error?: Error) {
     if (destroyed) return;
     destroyed = true;
+    log("destroy", error ? `error: ${(error as Error & { code?: string }).code ?? error.message}` : "closed", {
+      connection: pc.connectionState,
+      ice: pc.iceConnectionState,
+      signaling: pc.signalingState,
+    });
     try {
       channel?.close();
     } catch {
       // already closed
     }
     pc.ontrack = pc.ondatachannel = pc.onconnectionstatechange = pc.onsignalingstatechange = null;
-    pc.onicecandidate = pc.onicegatheringstatechange = null;
+    pc.onicecandidate = pc.onicegatheringstatechange = pc.oniceconnectionstatechange = null;
     pc.close();
     if (error) opts.onError(error);
     opts.onClose();
@@ -78,7 +102,10 @@ export function createPeer(opts: PeerOptions) {
     channel = dc;
     // The other side destroying its connection closes the channel: that is how a leave is seen
     // without waiting for ICE to time out.
-    dc.onclose = () => destroy();
+    dc.onclose = () => {
+      log("data channel closed: the other side left or dropped");
+      destroy();
+    };
   }
 
   function waitForIce() {
@@ -101,6 +128,7 @@ export function createPeer(opts: PeerOptions) {
   async function sendDescription() {
     await waitForIce();
     if (destroyed || !pc.localDescription) return;
+    log("send", pc.localDescription.type, "candidates:", pc.localDescription.sdp.match(/^a=candidate:/gm)?.length ?? 0);
     opts.onSignal({ type: pc.localDescription.type, sdp: pc.localDescription.sdp });
   }
 
@@ -164,7 +192,10 @@ export function createPeer(opts: PeerOptions) {
   }
 
   pc.onsignalingstatechange = () => {
-    if (destroyed || pc.signalingState !== "stable") return;
+    if (destroyed) return;
+    log("signaling", pc.signalingState);
+    if (pc.signalingState !== "stable") return;
+    logTransceivers("negotiated");
     negotiating = false;
     if (queuedNegotiation) {
       queuedNegotiation = false;
@@ -172,7 +203,9 @@ export function createPeer(opts: PeerOptions) {
     }
   };
 
+  pc.oniceconnectionstatechange = () => log("ice", pc.iceConnectionState);
   pc.onconnectionstatechange = () => {
+    log("connection", pc.connectionState);
     if (pc.connectionState === "failed") fail("ERR_CONNECTION_FAILURE")(new Error("Connection failed."));
   };
 
@@ -186,6 +219,7 @@ export function createPeer(opts: PeerOptions) {
   };
 
   pc.ontrack = (event) => {
+    log("track", event.track.kind, "mid", event.transceiver.mid, "streams", event.streams.map((s) => s.id));
     for (const stream of event.streams) {
       // One event per stream, even though each of its tracks arrives separately.
       if (knownStreams.has(stream.id)) continue;
@@ -213,6 +247,7 @@ export function createPeer(opts: PeerOptions) {
     /** Applies a message from the other side. */
     signal(data: SignalData) {
       if (destroyed) return;
+      log("receive", data.type ?? (data.renegotiate ? "renegotiate" : data.candidate ? "candidate" : "?"));
       if (data.renegotiate && initiator) needsNegotiation();
       if (data.transceiverRequest && initiator) {
         const { kind, init } = data.transceiverRequest;

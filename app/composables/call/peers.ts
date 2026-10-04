@@ -112,6 +112,7 @@ export function usePeers(opts: PeerOptions) {
         initiator,
         stream: localStream.value,
         config,
+        log: (...args) => log("peer", remoteId, ...args),
         onSignal: (signal) => void signaling.signal(remoteId, signal),
         onStream: (stream) => onRemoteStream(remoteId, name, stream),
         onGatheringComplete(types) {
