@@ -307,7 +307,7 @@ const pt = {
         </span>
         <span
           v-bind="itemProps.label"
-          class="w-full truncate text-center text-label-sm text-chat-on-background"
+          class="w-full truncate text-center text-label-sm leading-normal! text-chat-on-background"
         >
           {{ item.label }}
         </span>
@@ -319,7 +319,7 @@ const pt = {
         >
           <BIcon :icon="item.phIcon" class="size-5 text-chat-error" />
         </span>
-        <span v-bind="itemProps.label" class="text-label-md text-chat-error">
+        <span v-bind="itemProps.label" class="text-label-md leading-normal! text-chat-error">
           {{ item.label }}
         </span>
       </a>
