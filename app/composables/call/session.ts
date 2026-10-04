@@ -18,8 +18,23 @@ export interface CallSessionOptions {
 /** Retries for a missing TURN credential, after 2s, 4s and 8s. */
 const CREDENTIAL_RETRIES = 3;
 
-const toIceUrl = (url: string) =>
-  url.startsWith("stun:") || url.startsWith("turn:") ? url : `turn:${url}`;
+const toIceUrl = (url: string) => (/^(stuns?|turns?):/.test(url) ? url : `turn:${url}`);
+
+/**
+ * Each plain `turn:` URL also over TCP. Networks that block UDP leave a UDP-only TURN server
+ * unreachable, and with the relay-only policy that means no candidate at all; the browser gathers
+ * both transports at once, so UDP still wins wherever it works.
+ */
+function withTcpFallback(urls: string[]) {
+  const out = new Set<string>();
+  for (const url of urls.map(toIceUrl)) {
+    out.add(url);
+    if (!url.startsWith("turn:") || /[?&]transport=tcp\b/i.test(url)) continue;
+    if (/[?&]transport=udp\b/i.test(url)) out.add(url.replace(/transport=udp\b/i, "transport=tcp"));
+    else out.add(`${url}${url.includes("?") ? "&" : "?"}transport=tcp`);
+  }
+  return [...out];
+}
 
 const readDebugFlag = () => {
   try {
@@ -78,7 +93,7 @@ export function createCallSession(opts: CallSessionOptions) {
         const policy = handlers.iceTransportPolicy ?? "relay";
         const cred = handlers.credential;
         const iceServers: RTCIceServer[] = cred?.urls?.length
-          ? [{ urls: cred.urls.map(toIceUrl), username: cred.user, credential: cred.pass }]
+          ? [{ urls: withTcpFallback(cred.urls), username: cred.user, credential: cred.pass }]
           : [];
         // Relay-only without a relay can never connect.
         if (policy === "relay" && !iceServers.length) return null;
