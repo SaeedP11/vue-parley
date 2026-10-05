@@ -394,6 +394,30 @@ test.describe("conversation lifecycle", () => {
     await expect(page.getByTestId("chat-input")).toHaveCount(0);
   });
 
+  test("the header opens and closes the contact info", async ({ page }) => {
+    await openConversation(page, "c1");
+    const panel = page.getByTestId("chat-profile");
+    await expect(panel).toHaveAttribute("aria-hidden", "true");
+
+    await page.getByTestId("chat-toggle-info").click();
+    await expect(panel).toHaveAttribute("aria-hidden", "false");
+    await expect(panel).toContainText("Sara Ahmadi");
+    await expect(page.getByTestId("chat-toggle-info")).toHaveAttribute("aria-pressed", "true");
+
+    await page.getByTestId("chat-profile-close").click();
+    await expect(panel).toHaveAttribute("aria-hidden", "true");
+  });
+
+  test("offers voice and video calls, and none once ended", async ({ page }) => {
+    await openConversation(page, "c1");
+    await expect(page.getByTestId("chat-start-voice-call")).toBeVisible();
+    await expect(page.getByTestId("chat-start-call")).toBeVisible();
+
+    await openConversation(page, "c3");
+    await expect(page.getByTestId("chat-start-call")).toHaveCount(0);
+    await expect(page.getByTestId("chat-start-voice-call")).toHaveCount(0);
+  });
+
   test("text-only conversations have no call button", async ({ page }) => {
     await openConversation(page, "c2");
     await expect(page.getByTestId("chat-start-call")).toHaveCount(0);

@@ -1,8 +1,8 @@
 <template>
   <div :dir="dir" class="vue-chat relative z-20 w-full">
-    <div
+    <header
       v-if="selectedChat"
-      class="relative z-50 flex h-16 w-full items-center justify-between gap-x-4 border-b border-b-chat-outline-variant bg-chat-background py-4 px-5 md:h-20"
+      class="relative z-50 flex h-16 w-full items-center gap-x-2 border-b border-b-chat-outline-variant bg-chat-background px-3 md:h-20 md:gap-x-3 md:px-5"
     >
       <!-- At the start and pointing back, mirrored for right-to-left. -->
       <IconButton
@@ -12,118 +12,124 @@
         class="shrink-0 md:hidden!"
         @click="goBack"
       />
-      <div
-        class="relative flex w-full items-center justify-between gap-x-4"
-      >
-        <Button
-          text
-          severity="secondary"
-          class="gap-x-3! p-1! text-start"
-          @click="openProfile"
-        >
-          <div class="relative h-10 w-10 shrink-0">
-            <ContactAvatar v-if="contact" :contact="contact" />
-          </div>
-          <div class="select-none">
-            <div class="text-label-md text-chat-on-background">
-              {{ selectedChat.name }} {{ selectedChat.lastName }}
-            </div>
-            <div
-              v-if="selectedChat.lastSeen"
-              class="text-body-sm text-chat-muted"
-            >
-              {{
-                t("lastSeen", {
-                  time: formatRelativeDate(selectedChat.lastSeen),
-                })
-              }}
-            </div>
-          </div>
-        </Button>
 
-        <div class="relative z-[1001] h-10">
-          <div
-            class="relative transition-all duration-200 ease-in-out"
-            :class="[isSelectMode ? '-translate-y-10' : 'translate-y-0']"
-          >
-            <div
-              class="relative flex items-center gap-x-4 transition-all duration-200 ease-in-out"
+      <!-- Who the conversation is with; opens their contact info. -->
+      <Button
+        unstyled
+        data-testid="chat-header-contact"
+        :aria-label="t('contactInfo', { name: fullName })"
+        class="flex min-w-0 flex-1 cursor-pointer items-center gap-x-3 rounded-xl p-1.5 text-start transition-colors hover:bg-chat-surface/60 focus-visible:outline-2 focus-visible:outline-chat-primary motion-reduce:transition-none"
+        @click="openProfile"
+      >
+        <span class="relative block size-10 shrink-0 md:size-11">
+          <ContactAvatar v-if="contact" :contact="contact" />
+        </span>
+        <span class="flex min-w-0 flex-col select-none">
+          <span class="truncate text-label-md font-semibold text-chat-on-background">
+            {{ fullName }}
+          </span>
+          <span class="flex min-w-0 items-center gap-x-1.5 text-body-sm">
+            <span
+              v-if="selectedChat.isOnline"
+              data-testid="chat-header-status"
+              class="shrink-0 font-medium text-chat-primary"
             >
-              <!-- Host actions for the open conversation, beside the call button. -->
-              <slot name="actions" :contact="selectedChat" />
-              <IconButton
-                v-if="selectedChat.serviceType !== 'chat'"
-                icon="PhPhone"
-                icon-class="size-6"
-                :label="t('actions.call')"
-                data-testid="chat-start-call"
-                class="hidden! md:inline-flex!"
-                @click="initCall"
-              />
-              <IconButton
-                v-if="options.length"
-                icon="PhDotsThreeVertical"
-                icon-class="size-6"
-                :label="t('actions.moreOptions')"
-                aria-haspopup="true"
-                data-testid="chat-more-options"
-                @click="optionsMenuRef?.toggle($event)"
-              />
-              <Menu ref="optionsMenu" :model="menuItems" popup :dir="dir" class="vue-chat">
-                <template #itemicon="{ item }">
-                  <BIcon
-                    :icon="item.phIcon"
-                    class="size-5"
-                    :class="item.danger ? 'text-chat-error' : 'text-chat-muted'"
-                  />
-                </template>
-              </Menu>
-            </div>
-            <!-- <div
-              class="hidden items-center gap-x-4 md:flex"
-             
+              {{ t("online") }}
+            </span>
+            <span
+              v-else-if="selectedChat.lastSeen"
+              data-testid="chat-header-status"
+              class="min-w-0 truncate text-chat-muted"
             >
-              <BIcon
-                icon="PhTrash"
-                class="h-6 w-6"
-                :class="[
-                  canDelete
-                    ? 'cursor-pointer fill-chat-error'
-                    : 'cursor-not-allowed fill-chat-muted',
-                ]"
-                @click="deleteMessages"
-              />
-              <BIcon
-                icon="PhCopy"
-                class="h-6 w-6 cursor-pointer fill-chat-on-background"
-                @click="copy"
-              />
-            </div> -->
-          </div>
-        </div>
+              {{ t("lastSeen", { time: formatRelativeDate(selectedChat.lastSeen) }) }}
+            </span>
+            <template v-if="selectedChat.tag">
+              <span aria-hidden="true" class="shrink-0 text-chat-muted">·</span>
+              <span class="min-w-0 truncate text-chat-muted">{{ selectedChat.tag }}</span>
+            </template>
+          </span>
+        </span>
+      </Button>
+
+      <div
+        class="flex shrink-0 items-center gap-x-1 transition-transform duration-200 ease-in-out motion-reduce:transition-none md:gap-x-2"
+        :class="[isSelectMode ? 'invisible' : 'visible']"
+      >
+        <!-- Host actions for the open conversation, before the calls. -->
+        <slot name="actions" :contact="selectedChat" />
+
+        <span
+          v-if="$slots.actions && (canVoiceCall || canVideoCall)"
+          aria-hidden="true"
+          class="mx-1 hidden h-6 w-px bg-chat-outline-variant md:block"
+        />
+
+        <!-- During a call either button brings the running call back into view. -->
+        <IconButton
+          v-if="canVoiceCall"
+          icon="PhPhone"
+          icon-class="size-5.5"
+          :label="isInCall ? t('actions.returnToCall') : t('actions.call')"
+          :data-testid="canVideoCall ? 'chat-start-voice-call' : 'chat-start-call'"
+          @click="initCall(false)"
+        />
+        <IconButton
+          v-if="canVideoCall"
+          icon="PhVideoCamera"
+          icon-class="size-5.5"
+          :label="isInCall ? t('actions.returnToCall') : t('videoCall')"
+          data-testid="chat-start-call"
+          @click="initCall(true)"
+        />
+        <IconButton
+          icon="PhSidebarSimple"
+          icon-class="size-5.5 ltr:-scale-x-100"
+          :label="t('toggleInfo')"
+          :aria-pressed="isProfileOpen"
+          data-testid="chat-toggle-info"
+          class="hidden! md:inline-flex!"
+          :class="isProfileOpen && 'bg-chat-primary/10! text-chat-primary!'"
+          @click="toggleProfile"
+        />
+        <IconButton
+          v-if="options.length"
+          icon="PhDotsThreeVertical"
+          icon-class="size-5.5"
+          :label="t('actions.moreOptions')"
+          aria-haspopup="true"
+          data-testid="chat-more-options"
+          @click="optionsMenuRef?.toggle($event)"
+        />
+        <Menu ref="optionsMenu" :model="menuItems" popup :dir="dir" class="vue-chat">
+          <template #itemicon="{ item }">
+            <BIcon
+              :icon="item.phIcon"
+              class="size-5"
+              :class="item.danger ? 'text-chat-error' : 'text-chat-muted'"
+            />
+          </template>
+        </Menu>
       </div>
-    </div>
+    </header>
 
     <!-- A conversation is open but its contact is still being fetched (e.g. a deep link). -->
     <div
       v-else-if="currentConversationId"
-      class="relative z-50 flex h-16 w-full items-center gap-x-3 border-b border-b-chat-outline-variant bg-chat-background py-4 px-5 md:h-20"
+      class="relative z-50 flex h-16 w-full items-center gap-x-3 border-b border-b-chat-outline-variant bg-chat-background px-5 md:h-20"
     >
-      <div class="h-10 w-10 shrink-0 overflow-hidden rounded-full">
-        <div v-loading="true" class="h-full w-full" />
-      </div>
-      <div class="flex flex-col gap-y-1.5">
-        <div v-loading="true" class="h-4 w-32" />
-        <div v-loading="true" class="h-3 w-20" />
+      <Skeleton shape="circle" size="2.75rem" class="shrink-0" />
+      <div class="flex flex-col gap-y-2">
+        <Skeleton width="8rem" height="0.875rem" />
+        <Skeleton width="5rem" height="0.625rem" />
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import vLoading from "~/directives/loading";
 import Button from "primevue/button";
 import Menu from "primevue/menu";
+import Skeleton from "primevue/skeleton";
 import type { MenuItem } from "primevue/menuitem";
 import type { MenuOption } from "~/types/components/menu-options";
 import IconButton from "~/components/general/IconButton.vue";
@@ -174,19 +180,39 @@ const chatStore = useChatStore();
 
 const currentConversationId = computed(() => chatStore.activeConversationId);
 const isSelectMode = computed(() => messagesStore.isSelectMode);
+const isProfileOpen = computed(() => chatStore.profileViewOpen);
+const isInCall = computed(() => callStore.isActive);
 const selectedChat = computed(() => props.contact);
+
+const fullName = computed(() =>
+  `${selectedChat.value?.name ?? ""} ${selectedChat.value?.lastName ?? ""}`.trim(),
+);
+
+// An ended conversation takes no calls and a chat-only one none at all. A host that sets no
+// `serviceType` gets both, as the single call button it had before started a video call.
+const canVoiceCall = computed(
+  () => !!selectedChat.value?.isActive && selectedChat.value.serviceType !== "chat",
+);
+const canVideoCall = computed(
+  () => canVoiceCall.value && selectedChat.value?.serviceType !== "voice-call",
+);
 
 const openProfile = () => {
   emit("open-profile");
+};
+
+const toggleProfile = () => {
+  if (isProfileOpen.value) chatStore.closeProfile();
+  else openProfile();
 };
 
 const goBack = () => {
   chatStore.setSelectedChat(null);
 };
 
-const initCall = () => {
+const initCall = (video: boolean) => {
   if (currentConversationId.value) {
-    callStore.startCall(currentConversationId.value);
+    callStore.startCall(currentConversationId.value, { video });
   }
 };
 </script>

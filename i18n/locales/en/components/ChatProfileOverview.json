@@ -1,15 +1,28 @@
 {
+  "title": "Contact info",
+  "lastSeen": "Last seen {time}",
   "info": {
-    "media": "Images",
+    "media": "Media",
     "files": "Files",
+    "shared": "Shared media and files",
     "nationalCode": "National code",
     "phoneNumber": "Phone number",
-    "age": "Age"
+    "age": "Age",
+    "status": "Conversation",
+    "years": "{count} years"
+  },
+  "status": {
+    "active": "Active",
+    "ended": "Ended"
+  },
+  "empty": {
+    "media": "No photos or videos shared yet",
+    "files": "No files shared yet"
   },
   "options": {
-    "end": "End",
-    "voiceCall": "Call",
-    "videoCall": "Video"
+    "end": "End conversation",
+    "voiceCall": "Voice call",
+    "videoCall": "Video call"
   },
   "online": "Online"
 }

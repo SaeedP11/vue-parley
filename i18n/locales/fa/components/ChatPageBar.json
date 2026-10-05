@@ -1,3 +1,7 @@
 {
-  "lastSeen": "آخرین بازدید {time}"
+  "lastSeen": "آخرین بازدید {time}",
+  "online": "آنلاین",
+  "contactInfo": "اطلاعات تماس {name}",
+  "videoCall": "تماس تصویری",
+  "toggleInfo": "نمایش اطلاعات تماس"
 }

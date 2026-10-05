@@ -1,3 +1,7 @@
 {
-  "lastSeen": "Last seen {time}"
+  "lastSeen": "Last seen {time}",
+  "online": "Online",
+  "contactInfo": "Contact info for {name}",
+  "videoCall": "Video call",
+  "toggleInfo": "Show contact info"
 }
