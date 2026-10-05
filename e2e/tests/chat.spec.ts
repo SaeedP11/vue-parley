@@ -340,6 +340,43 @@ test.describe("messaging", () => {
     await expect(bubble(page, "notes.txt")).toBeVisible();
   });
 
+  test("lets picked files be removed and added to before sending", async ({ page }) => {
+    const text = (name: string) => ({ name, mimeType: "text/plain", buffer: Buffer.from(name) });
+    await page.getByTestId("chat-attach").click();
+    let chooser = page.waitForEvent("filechooser");
+    await page.getByText("File", { exact: true }).click();
+    // The unsafe one is refused, and the toast says so.
+    await (await chooser).setFiles([text("a.txt"), text("b.txt"), text("setup.exe")]);
+
+    const dialog = page.getByTestId("chat-attach-dialog");
+    await expect(page.getByText("1 file wasn't added")).toBeVisible();
+    await expect(dialog.getByText("Send files")).toBeVisible();
+    await expect(dialog.getByText(/^2 files ·/)).toBeVisible();
+
+    await dialog.getByRole("button", { name: "Remove a.txt" }).click();
+    await expect(dialog.getByText(/^1 file ·/)).toBeVisible();
+
+    chooser = page.waitForEvent("filechooser");
+    await dialog.getByRole("button", { name: "Add more" }).click();
+    await (await chooser).setFiles([text("c.txt")]);
+    await expect(dialog.getByText(/^2 files ·/)).toBeVisible();
+
+    // Enter in the caption sends, as in the message box.
+    await dialog.getByRole("textbox", { name: "Add a caption" }).fill("two notes");
+    await dialog.getByRole("textbox", { name: "Add a caption" }).press("Enter");
+
+    await expect
+      .poll(async () => (await handlerCalls(page, "sendMessage")).length)
+      .toBe(3);
+    const sent = (await handlerCalls(page, "sendMessage")).map((c) => c.args[0]);
+    expect(sent).toMatchObject([
+      { type: "text", text: "two notes" },
+      { type: "file", fileName: "b.txt" },
+      { type: "file", fileName: "c.txt" },
+    ]);
+    await expect(dialog).toHaveCount(0);
+  });
+
   test("inserts an emoji from the picker, loaded on first use", async ({ page }) => {
     await expect(page.locator(".v3-emoji-picker")).toHaveCount(0);
     await page.getByTestId("chat-emoji").click();

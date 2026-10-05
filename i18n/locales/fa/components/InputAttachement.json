@@ -2,17 +2,23 @@
   "file": {
     "attachMedia": "عکس یا ویدیو",
     "attachFile": "فایل",
+    "addMore": "افزودن",
+    "remove": "حذف {name}",
     "cancel": "انصراف",
     "sendFile": "ارسال فایل",
+    "sendFiles": "ارسال فایل‌ها",
     "sendImages": "ارسال عکس‌ها",
     "sendImage": "ارسال عکس",
     "sendVideo": "ارسال ویدیو",
     "sendVideos": "ارسال ویدیوها",
-    "sendMedia": "ارسال عکس و ویدیو"
+    "sendMedia": "ارسال عکس و ویدیو",
+    "fileCount": "{count} فایل | {count} فایل",
+    "mediaCount": "{count} از {max}"
   },
   "errors": {
-    "maxFilesReached": "در هر ارسال حداکثر ۱۰ عکس یا ویدیو مجاز است."
+    "maxFilesReached": "در هر ارسال حداکثر ۱۰ عکس یا ویدیو مجاز است.",
+    "unsupported": "{count} فایل اضافه نشد، چون نوع آن پشتیبانی نمی‌شود. | {count} فایل اضافه نشد، چون نوع آن‌ها پشتیبانی نمی‌شود."
   },
-  "caption": "کپشن",
+  "caption": "افزودن کپشن",
   "send": "ارسال"
 }

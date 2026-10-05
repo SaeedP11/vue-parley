@@ -1,32 +1,43 @@
-<template>
-  <div class="flex w-full select-none items-center gap-x-2">
-    <div class="flex min-w-0 flex-1 flex-col gap-y-0.5 text-left">
-      <div class="truncate text-label-md text-chat-on-background">{{ fileName }}</div>
-      <div dir="ltr" class="text-body-sm text-chat-on-background/70">
+const { locale } = useI18n();
+
+const formattedSize = computed(() =>
+  replaceDigitsByLocale(formatBytes(props.file?.size || 0), locale.value),
+);<template>
+  <div class="flex w-full items-center gap-x-3 select-none">
+    <div
+      aria-hidden="true"
+      class="flex size-11 shrink-0 items-center justify-center rounded-xl bg-chat-primary/10 text-chat-primary"
+    >
+      <span v-if="fileExt" dir="ltr" class="text-[11px] font-bold uppercase leading-none tracking-wide">
+        {{ fileExt }}
+      </span>
+      <BIcon v-else icon="PhFile" class="size-5.5" />
+    </div>
+
+    <div class="flex min-w-0 flex-1 flex-col gap-y-0.5 text-start">
+      <div :title="fileName" class="truncate text-label-md text-chat-on-background">
+        <bdi>{{ fileName }}</bdi>
+      </div>
+      <div dir="ltr" class="text-body-sm text-chat-muted rtl:text-end">
         {{ formattedSize }}
       </div>
     </div>
 
-    <div
-      class="relative shrink-0 cursor-pointer transition-transform active:scale-95"
-    >
-      <BIcon icon="PhFile" class="h-10 w-10 fill-white" />
-      <div
-        class="absolute bottom-2 right-0 flex items-center justify-center rounded-sm bg-chat-error px-1 py-0.5"
-      >
-        <div
-          class="text-center text-[7px] font-bold uppercase leading-none tracking-wide text-white"
-        >
-          {{ fileExt }}
-        </div>
-      </div>
-    </div>
+    <IconButton
+      icon="PhX"
+      :label="removeLabel"
+      icon-class="size-4.5"
+      class="size-9! shrink-0"
+      @click="emit('remove')"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed } from "vue";
-import { formatBytes } from "~/utils/format";
+import { useI18n } from "vue-i18n";
+import IconButton from "~/components/general/IconButton.vue";
+import { formatBytes, replaceDigitsByLocale } from "~/utils/format";
 
 interface AttachmentFile {
   name: string;
@@ -37,15 +48,24 @@ interface AttachmentFile {
 
 const props = defineProps<{
   file: AttachmentFile;
+  /** Accessible name of the remove button. */
+  removeLabel: string;
 }>();
 
+const emit = defineEmits<{ remove: [] }>();
+
+// Up to four letters fit the tile; without an extension it shows a file icon.
 const fileExt = computed(() => {
-  if (!props.file?.name) return "FILE";
-  const parts = props.file.name.split(".");
-  return parts.length > 1 ? parts.pop()?.substring(0, 4) || "FILE" : "FILE";
+  const name = props.file?.name ?? "";
+  const lastDot = name.lastIndexOf(".");
+  return lastDot > 0 ? name.slice(lastDot + 1, lastDot + 5) : "";
 });
 
 const fileName = computed(() => props.file?.name || "Unknown File");
 
-const formattedSize = computed(() => formatBytes(props.file?.size || 0));
+const { locale } = useI18n();
+
+const formattedSize = computed(() =>
+  replaceDigitsByLocale(formatBytes(props.file?.size || 0), locale.value),
+);
 </script>

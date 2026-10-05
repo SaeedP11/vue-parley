@@ -2,17 +2,23 @@
   "file": {
     "attachMedia": "Photo or video",
     "attachFile": "File",
+    "addMore": "Add more",
+    "remove": "Remove {name}",
     "cancel": "Cancel",
     "sendFile": "Send file",
+    "sendFiles": "Send files",
     "sendImages": "Send photos",
     "sendImage": "Send photo",
     "sendVideo": "Send video",
     "sendVideos": "Send videos",
-    "sendMedia": "Send photos and videos"
+    "sendMedia": "Send photos and videos",
+    "fileCount": "{count} file | {count} files",
+    "mediaCount": "{count} of {max}"
   },
   "errors": {
-    "maxFilesReached": "You can send up to 10 photos or videos at a time."
+    "maxFilesReached": "You can send up to 10 photos or videos at a time.",
+    "unsupported": "{count} file wasn't added: its type isn't supported. | {count} files weren't added: their type isn't supported."
   },
-  "caption": "Caption",
+  "caption": "Add a caption",
   "send": "Send"
 }

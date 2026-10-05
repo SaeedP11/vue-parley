@@ -28,42 +28,51 @@ const MEDIA_TYPES = [
   "video/quicktime",
 ];
 
-/** Opens the browser's file chooser for photos and videos, or files, and hands back object URLs. */
+/**
+ * Opens the browser's file chooser for photos and videos, or files, and hands back object URLs.
+ * Files it refuses are counted to `onRejected`, so the caller can say why they are missing.
+ */
 export function useAttachmentPicker(handlers: {
   onMedia: (media: PickedMedia[]) => void;
   onFiles: (files: PickedFile[]) => void;
+  onRejected?: (count: number) => void;
 }) {
+  const reportRejected = (all: File[], kept: File[]) => {
+    if (all.length > kept.length) handlers.onRejected?.(all.length - kept.length);
+  };
+
   const media = useFileDialog({
     multiple: true,
     accept: MEDIA_TYPES.join(", "),
     reset: true,
   });
   media.onChange((list) => {
+    const all = Array.from(list ?? []);
     // The chooser's filter is only a hint; some platforms let anything through.
-    const picked = Array.from(list ?? [])
-      .filter((file) => MEDIA_TYPES.includes(file.type))
-      .map((file) => ({
-        file,
-        path: URL.createObjectURL(file),
-        kind: file.type.startsWith("video/") ? ("video" as const) : ("image" as const),
-      }));
+    const kept = all.filter((file) => MEDIA_TYPES.includes(file.type));
+    reportRejected(all, kept);
+    const picked = kept.map((file) => ({
+      file,
+      path: URL.createObjectURL(file),
+      kind: file.type.startsWith("video/") ? ("video" as const) : ("image" as const),
+    }));
     if (picked.length) handlers.onMedia(picked);
   });
 
   const files = useFileDialog({ multiple: true, reset: true });
   files.onChange((list) => {
-    const picked = Array.from(list ?? [])
-      .filter(
-        (file) =>
-          !UNSAFE_EXTENSIONS.some((ext) => file.name.toLowerCase().endsWith(ext)),
-      )
-      .map((file) => ({
-        file,
-        name: file.name,
-        path: URL.createObjectURL(file),
-        format: file.type || file.name.split(".").pop() || "",
-        size: file.size,
-      }));
+    const all = Array.from(list ?? []);
+    const kept = all.filter(
+      (file) => !UNSAFE_EXTENSIONS.some((ext) => file.name.toLowerCase().endsWith(ext)),
+    );
+    reportRejected(all, kept);
+    const picked = kept.map((file) => ({
+      file,
+      name: file.name,
+      path: URL.createObjectURL(file),
+      format: file.type || file.name.split(".").pop() || "",
+      size: file.size,
+    }));
     if (picked.length) handlers.onFiles(picked);
   });
 
