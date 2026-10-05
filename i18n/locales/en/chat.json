@@ -155,7 +155,10 @@
         "chooseCamera": "Choose camera",
         "pauseVideo": "Pause video",
         "playVideo": "Play video",
-        "nextParticipant": "Show next participant"
+        "nextParticipant": "Show next participant",
+        "more": "More options",
+        "flashlightOn": "Turn flashlight on",
+        "flashlightOff": "Turn flashlight off"
       }
     },
     "board": {

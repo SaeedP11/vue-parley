@@ -5,19 +5,23 @@ import { formatDuration } from "~/utils/format";
 import useLocalI18n, { useDirection } from "~/composables/useLocalI18n";
 import { chat } from "@i18n/locales";
 import useCall from "~/composables/useCall";
-import { useDraggable, useWindowSize } from "@vueuse/core";
+import { useSpeaking } from "~/composables/call/useSpeaking";
+import { useDraggable, useEventListener, useWindowSize } from "@vueuse/core";
 import { ref, computed, watch, onMounted, nextTick } from "vue";
+import Avatar from "primevue/avatar";
 import Button from "primevue/button";
-import Listbox from "primevue/listbox";
-import IconButton from "~/components/general/IconButton.vue";
-import ResponsiveDialog from "~/components/general/ResponsiveDialog.vue";
+import Menu from "primevue/menu";
+import Tooltip from "primevue/tooltip";
+import type { MenuItem } from "primevue/menuitem";
+import CallButton from "./CallButton.vue";
+import CallIcon from "./CallIcon.vue";
+
+const vTooltip = Tooltip;
 
 const callStore = useCallStore();
-
-// ارجاع به المان مینیمایز شده برای VueUse
 const minimizedRef = ref<HTMLElement | null>(null);
 const bodyRef = ref<HTMLElement | null>(null);
-const cameraPickerOpen = ref(false);
+
 const { t } = useLocalI18n(chat);
 const { dir } = useDirection();
 
@@ -63,13 +67,11 @@ const {
   enableSound,
 } = useCall();
 
-const pickCamera = (deviceId: string) => {
-  cameraPickerOpen.value = false;
-  switchCamera(deviceId);
-};
+// --- Controls ---
 
-// The call screen is dark whatever the host's colour scheme, so its round controls use fixed
-// translucent tokens instead of the theme's secondary and contrast colours.
+// The call screen is dark whatever the host's colour scheme, so its controls use fixed tokens
+// instead of the theme's: translucent white at rest, white when a feature is on (Meet's "lit"),
+// red when the microphone or camera is off.
 const translucent = {
   background: "rgb(255 255 255 / 0.12)",
   hoverBackground: "rgb(255 255 255 / 0.2)",
@@ -88,23 +90,155 @@ const lit = {
   borderColor: "#ffffff",
   hoverBorderColor: "#ffffff",
   activeBorderColor: "#ffffff",
-  color: "#151823",
-  hoverColor: "#151823",
-  activeColor: "#151823",
+  color: "#171717",
+  hoverColor: "#171717",
+  activeColor: "#171717",
 };
-const callScheme = { root: { secondary: translucent, contrast: lit } };
+// Tailwind's red-500 to red-700.
+const off = {
+  background: "#ef4444",
+  hoverBackground: "#dc2626",
+  activeBackground: "#b91c1c",
+  borderColor: "transparent",
+  hoverBorderColor: "transparent",
+  activeBorderColor: "transparent",
+  color: "#ffffff",
+  hoverColor: "#ffffff",
+  activeColor: "#ffffff",
+};
+const callScheme = { root: { secondary: translucent, contrast: lit, danger: off } };
 const callButtonDt = { colorScheme: { light: callScheme, dark: callScheme } };
 
-const footerButton = {
+// Its menus are dark too, Tailwind's neutral-800 under white text, in either host scheme.
+const callMenuDt = {
+  root: { background: "#262626", borderColor: "rgb(255 255 255 / 0.1)", color: "#f5f5f5" },
+  item: {
+    focusBackground: "rgb(255 255 255 / 0.1)",
+    color: "#f5f5f5",
+    focusColor: "#ffffff",
+    icon: { color: "#a3a3a3", focusColor: "#ffffff" },
+  },
+  submenuLabel: { background: "transparent", color: "#a3a3a3" },
+};
+
+// Pills, as in Google Meet: wider than tall, so the bar reads as one row of controls.
+const barButton = {
   dt: callButtonDt,
   text: false,
   size: "large",
   iconClass: "size-6",
+  class: "h-12! w-12! sm:w-14!",
 } as const;
 
-// --- PIP BACKGROUND VIDEO ---
-// در حالت مینیمایز، پس‌زمینه PIP یک ویدیوی زنده است: اگر کاربر ریموت فعال باشد
-// استریم آن کاربر نمایش داده می‌شود؛ در غیر این صورت استریم محلی کاربر.
+// Tile actions sit on the video: small round buttons, shown on hover or focus where there is a
+// pointer that hovers, always on touch screens.
+const tileButton = {
+  dt: callButtonDt,
+  text: false,
+  size: "small",
+  iconClass: "size-4.5",
+  class: "size-9!",
+} as const;
+const tileActions =
+  "absolute end-2 bottom-2 z-20 flex items-center gap-x-1.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 motion-reduce:transition-none [@media(hover:none)]:opacity-100";
+const nameChip =
+  "max-w-[60%] truncate rounded-md bg-black/55 px-2 py-0.5 text-label-sm text-white backdrop-blur-sm select-none";
+
+// Meet's shortcuts, on the tooltip and in the keyboard: Ctrl+D the microphone, Ctrl+E the camera.
+const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
+const keys = (key: string) => (isMac ? `⌘ ${key}` : `Ctrl + ${key}`);
+const withKeys = (label: string, key: string) => `${label} (${keys(key)})`;
+// Tooltips are appended to <body>, outside the chat, so they take its font and reset with them.
+const tip = (value: string) => ({ value, class: "vue-chat font-chat-family" });
+
+const audioLabel = computed(() =>
+  isAudioOn.value ? t("chat.call.controls.mute") : t("chat.call.controls.unmute"),
+);
+const videoLabel = computed(() =>
+  isVideoOn.value ? t("chat.call.controls.cameraOff") : t("chat.call.controls.cameraOn"),
+);
+const shareLabel = computed(() =>
+  isScreenSharing.value
+    ? t("chat.call.controls.stopSharing")
+    : t("chat.call.controls.shareScreen"),
+);
+const fullscreenLabel = computed(() =>
+  isFullscreen.value
+    ? t("chat.call.controls.exitFullscreen")
+    : t("chat.call.controls.fullscreen"),
+);
+
+useEventListener(window, "keydown", (event: KeyboardEvent) => {
+  if (!callStore.isActive || callStore.isMinimized) return;
+  if (!(isMac ? event.metaKey : event.ctrlKey) || event.altKey || event.shiftKey) return;
+  const key = event.key.toLowerCase();
+  if (key !== "d" && key !== "e") return;
+  // Both are browser shortcuts too (bookmark, search), which the call takes over while it's open.
+  event.preventDefault();
+  if (key === "d") toggleAudio();
+  else toggleVideo();
+});
+
+// The camera in use: read off the track when the call starts, then whatever was picked.
+const currentCameraId = ref<string | null>(null);
+watch(
+  localStream,
+  (stream) => {
+    currentCameraId.value = stream?.getVideoTracks()[0]?.getSettings().deviceId ?? null;
+  },
+  { immediate: true },
+);
+
+const cameraMenu = ref<InstanceType<typeof Menu> | null>(null);
+const cameraItems = computed<MenuItem[]>(() => [
+  {
+    label: t("chat.call.controls.cameras"),
+    items: cameras.value.map((camera, index) => ({
+      label: camera.label || `${t("chat.call.controls.chooseCamera")} ${index + 1}`,
+      callIcon: camera.deviceId === currentCameraId.value ? "check" : undefined,
+      command: () => {
+        currentCameraId.value = camera.deviceId;
+        void switchCamera(camera.deviceId);
+      },
+    })),
+  },
+]);
+
+const moreMenu = ref<InstanceType<typeof Menu> | null>(null);
+const moreItems = computed<MenuItem[]>(() => [
+  {
+    label: fullscreenLabel.value,
+    callIcon: isFullscreen.value ? "fullscreenExit" : "fullscreen",
+    command: () => toggleFullscreen(),
+  },
+  ...(isFlashlightSupported.value
+    ? [
+        {
+          label: isFlashlightOn.value
+            ? t("chat.call.controls.flashlightOff")
+            : t("chat.call.controls.flashlightOn"),
+          callIcon: isFlashlightOn.value ? "flashlightOff" : "flashlightOn",
+          command: () => toggleFlashlight(),
+        },
+      ]
+    : []),
+]);
+
+// --- Speaking ---
+
+const speaking = useSpeaking(() => ({
+  self: isAudioOn.value ? localStream.value : null,
+  ...Object.fromEntries(
+    Object.entries(remoteVideos.value).map(([id, remote]) => [id, remote.stream]),
+  ),
+}));
+const speakingRing = (on: boolean | undefined) =>
+  on ? "ring-sky-400" : "ring-transparent";
+
+// --- Picture-in-picture ---
+
+// Minimized, the call plays live behind its controls: the remote participant on show, or the
+// user's own camera when nobody else is there.
 const pipVideoRef = ref<HTMLVideoElement | null>(null);
 const activeRemoteIndex = ref(0);
 
@@ -151,44 +285,33 @@ onMounted(() => {
   bodyRef.value = document.body;
 });
 
-// --- DRAG LOGIC WITH BOUNDARIES & CORNER SNAPPING ---
+// Dragged anywhere, then snapped to the nearest corner on release.
 const { width: windowWidth, height: windowHeight } = useWindowSize();
 
-const PIP_WIDTH = 280; // معادل w-70 در Tailwind
-const PIP_HEIGHT = 160; // معادل h-40 در Tailwind
+const PIP_WIDTH = 280; // w-70
+const PIP_HEIGHT = 160; // h-40
 const PADDING = 16;
 // Top and bottom corners stay this far from the edges, clear of the chat header and the composer.
 const PIP_INSET_Y = 96;
 
-// ۱. راه‌اندازی Draggable روی عنصر minimizedRef
 const { x, y, isDragging } = useDraggable(minimizedRef, {
   initialValue: {
-    x:
-      typeof window !== "undefined"
-        ? window.innerWidth - PIP_WIDTH - PADDING
-        : PADDING,
+    x: typeof window !== "undefined" ? window.innerWidth - PIP_WIDTH - PADDING : PADDING,
     y: PIP_INSET_Y,
   },
-  // غیرفعال کردن درگ در صورتی که کامپوننت مینیمایز نباشد
   disabled: computed(() => !callStore.isMinimized),
 });
 
-// ۲. اسنپ شدن به نزدیک‌ترین گوشه بعد از رها کردن کلیک/لمس
 watch(isDragging, (dragging) => {
   if (!dragging && callStore.isMinimized) {
     const maxX = windowWidth.value - PIP_WIDTH - PADDING;
     const maxY = windowHeight.value - PIP_HEIGHT - PIP_INSET_Y;
-
-    // پیدا کردن نزدیک‌ترین گوشه بر اساس موقعیت فعلی درگ شده
-    const targetX = x.value < windowWidth.value / 2 ? PADDING : maxX;
-    const targetY = y.value < windowHeight.value / 2 ? PIP_INSET_Y : maxY;
-
-    x.value = targetX;
-    y.value = targetY;
+    x.value = x.value < windowWidth.value / 2 ? PADDING : maxX;
+    y.value = y.value < windowHeight.value / 2 ? PIP_INSET_Y : maxY;
   }
 });
 
-// بازنشانی موقعیت به گوشه مناسب در هنگام مینیمایز شدن مجدد
+// Each time it is minimized it starts in the top corner on the reading end.
 watch(
   () => callStore.isMinimized,
   (isMinimized) => {
@@ -204,189 +327,124 @@ watch(
   { immediate: true },
 );
 
-// ۳. محدود کردن مختصات در محدوده مانیتور و خروجی استایل
+// Kept on screen whatever the window does.
 const clampedStyle = computed(() => {
   if (!callStore.isMinimized) return {};
 
   const maxX = windowWidth.value - PIP_WIDTH - PADDING;
   const maxY = windowHeight.value - PIP_HEIGHT - PADDING;
 
-  const safeX = Math.max(PADDING, Math.min(x.value, maxX));
-  const safeY = Math.max(PADDING, Math.min(y.value, maxY));
-
   return {
-    left: `${safeX}px`,
-    top: `${safeY}px`,
+    left: `${Math.max(PADDING, Math.min(x.value, maxX))}px`,
+    top: `${Math.max(PADDING, Math.min(y.value, maxY))}px`,
   };
 });
 </script>
 
 <template>
-  <!-- استفاده از div معمولی به جای motion.div و اعمال پوزیشن با clampedStyle -->
+  <!-- Picture-in-picture: the call shrunk to a draggable window over the app. -->
   <div
     v-if="callStore.isActive && callStore.isMinimized"
     ref="minimizedRef"
     data-testid="call-pip"
     :style="clampedStyle"
     :dir="dir"
-    class="vue-chat font-chat-family fixed w-70 h-40 bg-black-600 rounded-2xl shadow-floating z-9999 overflow-hidden border border-white/10 flex flex-col items-center justify-center cursor-move touch-none"
-    :class="[!isDragging ? 'transition-all duration-300 ease-out' : '']"
+    class="vue-chat font-chat-family fixed z-9999 h-40 w-70 cursor-move touch-none overflow-hidden rounded-2xl bg-neutral-900 shadow-2xl ring-1 ring-white/10"
+    :class="[!isDragging && 'transition-all duration-300 ease-out motion-reduce:transition-none']"
   >
     <video
       ref="pipVideoRef"
       muted
       autoplay
       playsinline
-      class="pointer-events-none absolute inset-0 z-0 h-full w-full object-cover"
+      class="pointer-events-none absolute inset-0 size-full object-cover"
     />
     <div
-      class="pointer-events-none absolute inset-0 bg-gradient-to-br from-blue-500/5 via-purple-500/5 to-pink-500/5 opacity-0 transition-opacity duration-500 group-hover:opacity-100"
-    />
-    <div
-      class="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-black/20"
+      class="pointer-events-none absolute inset-0 bg-linear-to-t from-black/60 via-transparent to-black/30"
     />
 
-    <div class="relative h-full w-full">
+    <div class="absolute inset-x-3 top-3 flex items-center justify-between">
       <div
-        class="absolute top-3 right-3 left-3 z-10 flex items-center justify-between"
+        class="flex items-center gap-x-2 rounded-full bg-black/45 px-3 py-1.5 text-label-sm text-white backdrop-blur-sm select-none"
       >
-        <div
-          class="flex items-center gap-x-2 rounded-full bg-black/40 px-3 py-1.5 backdrop-blur-sm"
-        >
-          <div class="relative">
-            <div
-              class="h-2.5 w-2.5 animate-pulse rounded-full bg-diamond-error"
-            />
-            <div
-              class="absolute inset-0 h-2.5 w-2.5 animate-ping rounded-full bg-diamond-error/30"
-            />
-          </div>
-          <span class="text-label-sm text-white/90 select-none">{{
-            t("chat.call.active")
-          }}</span>
-          <div class="flex -space-x-1">
-            <div
-              class="h-1.5 w-1.5 animate-pulse rounded-full bg-green-400"
-              style="animation-delay: 0s"
-            />
-            <div
-              class="h-1.5 w-1.5 animate-pulse rounded-full bg-green-400"
-              style="animation-delay: 0.2s"
-            />
-            <div
-              class="h-1.5 w-1.5 animate-pulse rounded-full bg-green-400"
-              style="animation-delay: 0.4s"
-            />
-          </div>
-        </div>
-
-        <IconButton
-          icon="PhPhoneX"
-          :label="t('chat.call.controls.endCall')"
-          severity="danger"
-          :text="false"
-          icon-class="size-4"
-          data-testid="call-pip-end"
-          @pointerdown.stop
-          @click.stop="endCall"
-        />
+        <span class="relative flex size-2.5">
+          <span class="absolute inline-flex size-full animate-ping rounded-full bg-red-500/60 motion-reduce:animate-none" />
+          <span class="relative inline-flex size-2.5 rounded-full bg-red-500" />
+        </span>
+        <span dir="ltr" class="tabular-nums">{{ formatDuration(callStore.elapsedTime) }}</span>
       </div>
 
-      <div
-        class="absolute right-3 bottom-3 left-3 z-10 flex items-center justify-between"
-      >
-        <div class="flex items-center gap-2">
-          <Button
-            :label="String(participantCount)"
-            :aria-label="t('chat.call.controls.nextParticipant')"
-            :disabled="!hasRemoteVideos"
-            :dt="callButtonDt"
-            severity="secondary"
-            size="small"
-            rounded
-            @pointerdown.stop
-            @click.stop="cycleRemote"
-          >
-            <template #icon>
-              <BIcon icon="PhUsers" class="size-3" />
-            </template>
-          </Button>
+      <CallButton
+        icon="callEnd"
+        :label="t('chat.call.controls.endCall')"
+        severity="danger"
+        :dt="callButtonDt"
+        :text="false"
+        icon-class="size-5"
+        class="h-9! w-12!"
+        data-testid="call-pip-end"
+        @pointerdown.stop
+        @click.stop="endCall"
+      />
+    </div>
 
-          <div v-if="!isAudioOn || !isVideoOn" class="flex gap-1">
-            <div
-              v-if="!isAudioOn"
-              class="flex h-7 w-7 items-center justify-center rounded-full bg-diamond-error"
-            >
-              <BIcon icon="PhMicrophoneSlash" class="h-3 w-3 fill-white" />
-            </div>
-            <div
-              v-if="!isVideoOn"
-              class="flex h-7 w-7 items-center justify-center rounded-full bg-diamond-error"
-            >
-              <BIcon icon="PhVideoCameraSlash" class="h-3 w-3 fill-white" />
-            </div>
-          </div>
-        </div>
-
-        <IconButton
-          icon="PhResize"
-          :label="t('chat.call.controls.maximize')"
+    <div class="absolute inset-x-3 bottom-3 flex items-center justify-between">
+      <div class="flex items-center gap-1.5">
+        <Button
+          :label="String(participantCount)"
+          :aria-label="t('chat.call.controls.nextParticipant')"
+          :disabled="!hasRemoteVideos"
           :dt="callButtonDt"
-          :text="false"
-          icon-class="size-4"
-          data-testid="call-maximize"
+          severity="secondary"
+          size="small"
+          rounded
+          class="h-8!"
           @pointerdown.stop
-          @click.stop="callStore.maximize()"
-        />
+          @click.stop="cycleRemote"
+        >
+          <template #icon>
+            <CallIcon name="group" class="size-4" />
+          </template>
+        </Button>
+
+        <span
+          v-if="!isAudioOn"
+          class="flex size-8 items-center justify-center rounded-full bg-red-500 text-white"
+        >
+          <CallIcon name="micOff" class="size-4" />
+        </span>
+        <span
+          v-if="!isVideoOn"
+          class="flex size-8 items-center justify-center rounded-full bg-red-500 text-white"
+        >
+          <CallIcon name="videocamOff" class="size-4" />
+        </span>
       </div>
+
+      <CallButton
+        icon="openInFull"
+        :label="t('chat.call.controls.maximize')"
+        :dt="callButtonDt"
+        :text="false"
+        icon-class="size-4.5"
+        class="size-9!"
+        data-testid="call-maximize"
+        @pointerdown.stop
+        @click.stop="callStore.maximize()"
+      />
     </div>
   </div>
 
+  <!-- The full call screen. -->
   <div
     v-show="callStore.isActive && !callStore.isMinimized"
     data-testid="call-view"
     :dir="dir"
-    class="vue-chat font-chat-family fixed inset-0 z-[60] flex h-full w-full flex-col bg-diamond-black"
+    class="vue-chat font-chat-family fixed inset-0 z-60 flex size-full flex-col bg-neutral-900 text-white"
   >
-    <!-- Header -->
+    <!-- Stage -->
     <div
-      v-if="!callStore.isMinimized"
-      class="flex h-16 items-center justify-between px-4 transition-all duration-300 sm:h-20"
-      :class="showControls ? 'opacity-100' : 'opacity-0'"
-      @mouseenter="resetControlsTimeout"
-      @mousemove="resetControlsTimeout"
-    >
-      <div class="flex items-center gap-x-4">
-        <div class="hidden select-none text-label-lg text-white md:block">
-          {{ callTitle }}
-        </div>
-        <div class="flex items-center gap-x-2 text-white text-body-sm">
-          <BIcon icon="PhUsers" class="h-4 w-4 fill-white" />
-          <span data-testid="call-participants"
->{{ t("chat.call.participants", participantCount) }}</span>
-        </div>
-      </div>
-      <div class="flex items-center gap-x-4.5">
-        <div
-          dir="ltr"
-          class="flex h-6 items-center justify-center rounded-full bg-white/15 px-2.5 text-body-sm text-white tabular-nums select-none"
-        >
-          {{ formatDuration(callStore.elapsedTime) }}
-        </div>
-        <IconButton
-          icon="PhCaretDown"
-          :label="t('chat.call.controls.minimize')"
-          v-bind="footerButton"
-          data-testid="call-minimize"
-          @click="callStore.minimize"
-        />
-      </div>
-    </div>
-
-    <!-- Main Content -->
-    <div
-      class="relative grid w-full overflow-hidden"
-      :class="callStore.isMinimized ? 'h-full p-0' : 'h-full p-4'"
+      class="relative min-h-0 flex-1 px-3 pt-16 pb-2 md:p-4"
       @mousemove="resetControlsTimeout"
     >
       <!-- The browser blocked the others' sound until a tap: they play muted until then. -->
@@ -394,372 +452,314 @@ const clampedStyle = computed(() => {
         v-if="soundBlocked"
         :label="t('chat.call.controls.enableSound')"
         :dt="callButtonDt"
-        severity="secondary"
+        severity="contrast"
         rounded
         data-testid="call-enable-sound"
-        class="absolute! top-6 left-1/2 z-30 -translate-x-1/2"
+        class="absolute! top-6 left-1/2 z-30 -translate-x-1/2 shadow-lg"
         @click="enableSound"
       >
         <template #icon>
-          <BIcon icon="PhSpeakerHigh" class="size-4" />
+          <CallIcon name="volumeUp" class="size-5" />
         </template>
       </Button>
+
       <div
         v-show="tileCount"
-        class="grid h-full min-h-0 w-full min-w-0 grid-cols-1 gap-4 md:grid-cols-[repeat(auto-fit,minmax(300px,1fr))]"
+        class="grid size-full min-h-0 min-w-0 grid-cols-1 gap-3 md:grid-cols-[repeat(auto-fit,minmax(300px,1fr))] md:gap-4"
       >
+        <!-- Own screen share -->
         <div
           v-show="isScreenSharing"
-          :ref="(el) => (remoteParents[`self_screen`] = el as any)"
-          class="group relative flex aspect-video h-full w-full flex-col items-center justify-center overflow-hidden rounded-2xl border-2 border-chat-primary/0 bg-black-600 p-2"
+          :ref="(el) => (remoteParents['self_screen'] = el as any)"
+          class="group relative flex min-h-0 overflow-hidden rounded-2xl bg-neutral-800"
         >
           <video
             ref="localScreen"
             autoplay
             muted
             playsinline
-            class="absolute inset-0 z-0 h-full w-full object-cover"
+            class="absolute inset-0 size-full object-contain"
           />
-
-          <div class="absolute bottom-3 left-3 z-20 flex items-center gap-x-2">
-            <div
-              class="rounded bg-black-500 px-2 py-1 text-label-sm text-white select-none"
-            >
-              {{ t("chat.call.yourPresentation") }}
-            </div>
-            <div
-              class="flex h-10 w-10 items-center justify-center rounded-full bg-black-500"
-            >
-              <BIcon icon="PhMonitor" class="h-4 w-4 fill-white" />
-            </div>
-            <IconButton
-              :icon="videoPaused['self_screen'] ? 'PhPlay' : 'PhPause'"
+          <div class="absolute start-2 bottom-2 z-20 flex max-w-[60%] items-center gap-x-1.5">
+            <span class="flex size-7 shrink-0 items-center justify-center rounded-full bg-black/55 backdrop-blur-sm">
+              <CallIcon name="presentToAll" class="size-4" />
+            </span>
+            <span :class="nameChip">{{ t("chat.call.yourPresentation") }}</span>
+          </div>
+          <div :class="tileActions">
+            <CallButton
+              :icon="videoPaused['self_screen'] ? 'play' : 'pause'"
               :label="videoPaused['self_screen'] ? t('chat.call.controls.playVideo') : t('chat.call.controls.pauseVideo')"
-              :dt="callButtonDt"
-              :text="false"
-              icon-class="size-4"
+              v-bind="tileButton"
               @click="toggleVideoPause('self_screen', localScreen as any)"
             />
-            <IconButton
-              :icon="isFullscreen ? 'PhCornersIn' : 'PhFrameCorners'"
-              :label="
-
-                isFullscreen
-
-                  ? t('chat.call.controls.exitFullscreen')
-
-                  : t('chat.call.controls.fullscreen')
-
-              "
-              :dt="callButtonDt"
-              :text="false"
-              icon-class="size-4"
-              @click="toggleRemote(`self_screen`)"
+            <CallButton
+              :icon="isFullscreen ? 'fullscreenExit' : 'fullscreen'"
+              :label="fullscreenLabel"
+              v-bind="tileButton"
+              @click="toggleRemote('self_screen')"
             />
           </div>
         </div>
+
+        <!-- Remote cameras -->
         <div
-          v-for="(stream, remoteUserId) in remoteVideos"
+          v-for="(remote, remoteUserId) in remoteVideos"
           :key="`remote-${remoteUserId}`"
           data-testid="call-remote-video"
-          :ref="
-            (el) => (remoteParents[`remote_video_${remoteUserId}`] = el as any)
-          "
-          class="group relative flex aspect-video h-full w-full flex-col items-center justify-center overflow-hidden rounded-2xl border-2 border-chat-primary/0 bg-black-600 p-2"
+          :ref="(el) => (remoteParents[`remote_video_${remoteUserId}`] = el as any)"
+          class="group relative flex min-h-0 overflow-hidden rounded-2xl bg-neutral-800 ring-3 ring-inset transition-shadow motion-reduce:transition-none"
+          :class="speakingRing(speaking[remoteUserId])"
         >
           <video
-            :ref="
-              (el) => {
-                if (el) remoteRefs[remoteUserId] = el as any;
-              }
-            "
+            :ref="(el) => { if (el) remoteRefs[remoteUserId] = el as any; }"
             autoplay
             playsinline
-            class="absolute inset-0 z-0 h-full w-full object-cover"
+            class="absolute inset-0 size-full object-cover"
           />
-
-          <div class="absolute bottom-2 left-2 z-20 flex items-center gap-x-1">
-            <div
-              class="rounded bg-black-500 px-1.5 py-0.5 text-label-sm text-white select-none"
-            >
-              {{ stream.name.slice(0, 15) }}
-            </div>
-            <IconButton
-              :icon="videoPaused[`remote_video_${remoteUserId}`] ? 'PhPlay' : 'PhPause'"
-              :label="
-                videoPaused[`remote_video_${remoteUserId}`]
-                  ? t('chat.call.controls.playVideo')
-                  : t('chat.call.controls.pauseVideo')
-              "
-              :dt="callButtonDt"
-              :text="false"
-              icon-class="size-4"
-              @click="
-                toggleVideoPause(
-                  `remote_video_${remoteUserId}`,
-                  remoteRefs[remoteUserId] as any,
-                )
-              "
+          <span :class="[nameChip, 'absolute start-2 bottom-2 z-20']">
+            <bdi>{{ remote.name }}</bdi>
+          </span>
+          <div :class="tileActions">
+            <CallButton
+              :icon="videoPaused[`remote_video_${remoteUserId}`] ? 'play' : 'pause'"
+              :label="videoPaused[`remote_video_${remoteUserId}`] ? t('chat.call.controls.playVideo') : t('chat.call.controls.pauseVideo')"
+              v-bind="tileButton"
+              @click="toggleVideoPause(`remote_video_${remoteUserId}`, remoteRefs[remoteUserId] as any)"
             />
-            <IconButton
-              :icon="isFullscreen ? 'PhCornersIn' : 'PhFrameCorners'"
-              :label="
-
-                isFullscreen
-
-                  ? t('chat.call.controls.exitFullscreen')
-
-                  : t('chat.call.controls.fullscreen')
-
-              "
-              :dt="callButtonDt"
-              :text="false"
-              icon-class="size-4"
+            <CallButton
+              :icon="isFullscreen ? 'fullscreenExit' : 'fullscreen'"
+              :label="fullscreenLabel"
+              v-bind="tileButton"
               @click="toggleRemote(`remote_video_${remoteUserId}`)"
             />
           </div>
         </div>
 
+        <!-- Remote screen shares -->
         <div
-          v-for="(stream, remoteUserId) in remoteScreens"
+          v-for="(remote, remoteUserId) in remoteScreens"
           :key="`remote-screen-${remoteUserId}`"
           data-testid="call-remote-screen"
-          :ref="
-            (el) => (remoteParents[`remote_screen_${remoteUserId}`] = el as any)
-          "
-          class="group relative flex aspect-video h-full w-full flex-col items-center justify-center overflow-hidden rounded-2xl border-2 border-chat-primary/0 bg-black-600 p-2"
+          :ref="(el) => (remoteParents[`remote_screen_${remoteUserId}`] = el as any)"
+          class="group relative flex min-h-0 overflow-hidden rounded-2xl bg-neutral-800"
         >
           <video
-            :ref="
-              (el) => {
-                if (el) remoteScreenRefs[remoteUserId] = el as any;
-              }
-            "
+            :ref="(el) => { if (el) remoteScreenRefs[remoteUserId] = el as any; }"
             autoplay
             muted
             playsinline
-            class="absolute inset-0 z-0 h-full w-full object-cover"
+            class="absolute inset-0 size-full object-contain"
           />
-
-          <div class="absolute bottom-3 left-3 z-20 flex items-center gap-x-2">
-            <div
-              class="rounded bg-black-500 px-2 py-1 text-label-sm text-white select-none"
-            >
-              {{ t("chat.call.presentationOf", { name: stream.name.slice(0, 15) }) }}
-            </div>
-            <div
-              class="flex h-10 w-10 items-center justify-center rounded-full bg-black-500"
-            >
-              <BIcon icon="PhMonitor" class="h-4 w-4 fill-white" />
-            </div>
-            <IconButton
-              :icon="videoPaused[`remote_screen_${remoteUserId}`] ? 'PhPlay' : 'PhPause'"
-              :label="
-                videoPaused[`remote_screen_${remoteUserId}`]
-                  ? t('chat.call.controls.playVideo')
-                  : t('chat.call.controls.pauseVideo')
-              "
-              :dt="callButtonDt"
-              :text="false"
-              icon-class="size-4"
-              @click="
-                toggleVideoPause(
-                  `remote_screen_${remoteUserId}`,
-                  remoteScreenRefs[remoteUserId] || null,
-                )
-              "
+          <div class="absolute start-2 bottom-2 z-20 flex max-w-[60%] items-center gap-x-1.5">
+            <span class="flex size-7 shrink-0 items-center justify-center rounded-full bg-black/55 backdrop-blur-sm">
+              <CallIcon name="presentToAll" class="size-4" />
+            </span>
+            <span :class="nameChip">
+              {{ t("chat.call.presentationOf", { name: remote.name }) }}
+            </span>
+          </div>
+          <div :class="tileActions">
+            <CallButton
+              :icon="videoPaused[`remote_screen_${remoteUserId}`] ? 'play' : 'pause'"
+              :label="videoPaused[`remote_screen_${remoteUserId}`] ? t('chat.call.controls.playVideo') : t('chat.call.controls.pauseVideo')"
+              v-bind="tileButton"
+              @click="toggleVideoPause(`remote_screen_${remoteUserId}`, remoteScreenRefs[remoteUserId] || null)"
             />
-            <IconButton
-              :icon="isFullscreen ? 'PhCornersIn' : 'PhFrameCorners'"
-              :label="
-
-                isFullscreen
-
-                  ? t('chat.call.controls.exitFullscreen')
-
-                  : t('chat.call.controls.fullscreen')
-
-              "
-              :dt="callButtonDt"
-              :text="false"
-              icon-class="size-4"
+            <CallButton
+              :icon="isFullscreen ? 'fullscreenExit' : 'fullscreen'"
+              :label="fullscreenLabel"
+              v-bind="tileButton"
               @click="toggleRemote(`remote_screen_${remoteUserId}`)"
             />
           </div>
         </div>
       </div>
 
-      <!-- وب‌کم محلی (وقتی هنوز کارهای دیگر در صفحه فعال است) -->
-      <div class="flex min-h-0" :class="[tileCount && 'absolute inset-0 m-4']">
+      <!-- Own camera: the whole stage when alone, a small floating tile once others show. -->
+      <div
+        :ref="(el) => (remoteParents['self_cam'] = el as any)"
+        class="group overflow-hidden rounded-2xl bg-neutral-800 ring-3 ring-inset transition-shadow [clip-path:inset(0_round_var(--radius-2xl))] motion-reduce:transition-none"
+        :class="[
+          tileCount
+            ? 'absolute end-5 bottom-4 z-10 aspect-video w-36 sm:w-56 md:end-6 md:bottom-6 md:w-64'
+            : 'relative size-full',
+          speakingRing(speaking.self),
+        ]"
+      >
+        <video
+          ref="localVideo"
+          data-testid="call-local-video"
+          autoplay
+          muted
+          playsinline
+          class="pointer-events-none absolute inset-0 size-full -scale-x-100 rounded-[inherit] object-cover"
+        />
+
         <div
-          v-if="!callStore.isMinimized"
-          class="relative flex flex-col items-center justify-center overflow-hidden rounded-2xl border-2 border-chat-primary/0 bg-black-600 p-2"
-          :class="[
-            tileCount ? 'absolute z-10 h-[132px] w-[236px]' : 'h-full w-full',
-          ]"
+          v-if="!isVideoOn"
+          class="absolute inset-0 flex flex-col items-center justify-center gap-y-2 bg-neutral-800"
         >
-          <video
-            ref="localVideo"
-            data-testid="call-local-video"
-            autoplay
-            muted
-            playsinline
-            class="pointer-events-none absolute inset-0 z-0 h-full w-full object-cover"
+          <Avatar
+            :label="t('chat.call.you').slice(0, 1)"
+            shape="circle"
+            :size="tileCount ? 'large' : 'xlarge'"
+            class="bg-sky-600! text-white! select-none"
           />
+          <p v-if="!tileCount" class="text-label-md text-neutral-300 select-none">
+            {{ t("chat.call.cameraIsOff") }}
+          </p>
+        </div>
 
-          <div
-            class="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"
+        <span
+          v-if="!isAudioOn"
+          class="absolute end-2 top-2 z-20 flex size-7 items-center justify-center rounded-full bg-red-500 text-white"
+          :title="t('chat.call.controls.unmute')"
+        >
+          <CallIcon name="micOff" class="size-4" />
+        </span>
+
+        <span :class="[nameChip, 'absolute start-2 bottom-2 z-20']">{{ t("chat.call.you") }}</span>
+
+        <div v-if="!tileCount" :class="tileActions">
+          <CallButton
+            :icon="videoPaused['self_cam'] ? 'play' : 'pause'"
+            :label="videoPaused['self_cam'] ? t('chat.call.controls.playVideo') : t('chat.call.controls.pauseVideo')"
+            v-bind="tileButton"
+            @click="toggleVideoPause('self_cam', localVideo as any)"
           />
-
-          <div class="absolute bottom-3 left-3 z-20 flex items-center gap-x-2">
-            <div
-              class="rounded bg-black-500 px-2 py-1 text-label-sm text-white select-none"
-            >
-              {{ t("chat.call.you") }}
-            </div>
-            <div
-              v-if="!isAudioOn"
-              class="flex h-7 w-7 items-center justify-center rounded-full bg-diamond-error"
-            >
-              <BIcon icon="PhMicrophoneSlash" class="h-3 w-3 fill-white" />
-            </div>
-            <IconButton
-              :icon="videoPaused['self_cam'] ? 'PhPlay' : 'PhPause'"
-              :label="videoPaused['self_cam'] ? t('chat.call.controls.playVideo') : t('chat.call.controls.pauseVideo')"
-              :dt="callButtonDt"
-              :text="false"
-              icon-class="size-4"
-              @click="toggleVideoPause('self_cam', localVideo as any)"
-            />
-            <IconButton
-              :icon="isFullscreen ? 'PhCornersIn' : 'PhFrameCorners'"
-              :label="
-
-                isFullscreen
-
-                  ? t('chat.call.controls.exitFullscreen')
-
-                  : t('chat.call.controls.fullscreen')
-
-              "
-              :dt="callButtonDt"
-              :text="false"
-              icon-class="size-4"
-              @click="toggleRemote('self_cam')"
-            />
-          </div>
-
-          <div
-            v-if="!isVideoOn"
-            class="absolute inset-0 flex items-center justify-center bg-black-600"
-          >
-            <div class="text-center text-white">
-              <div
-                class="mx-auto mb-2 flex h-16 w-16 items-center justify-center rounded-full bg-chat-primary"
-              >
-                <span class="text-title-lg font-semibold">{{ t("chat.call.you") }}</span>
-              </div>
-              <p class="text-label-md">{{ t("chat.call.cameraIsOff") }}</p>
-            </div>
-          </div>
         </div>
       </div>
     </div>
 
-    <!-- Footer Controls -->
+    <!-- Control bar: time and title, the controls, then the people and minimize. On phones the
+         two sides move to the top of the screen, leaving the controls a row of their own. -->
     <div
-      v-if="!callStore.isMinimized"
-      class="flex h-21 w-full items-center justify-center gap-x-1.5 border-t border-t-[#2C2C2E] bg-black-600 transition-all duration-300 sm:gap-x-3"
+      class="grid h-20 shrink-0 grid-cols-1 items-center px-3 transition-opacity duration-300 motion-reduce:transition-none md:relative md:grid-cols-[1fr_auto_1fr] md:px-6"
       :class="showControls ? 'opacity-100' : 'opacity-0'"
       @mouseenter="resetControlsTimeout"
       @mousemove="resetControlsTimeout"
     >
-      <IconButton
-        :icon="isAudioOn ? 'PhMicrophone' : 'PhMicrophoneSlash'"
-        :label="isAudioOn ? t('chat.call.controls.mute') : t('chat.call.controls.unmute')"
-        :severity="isAudioOn ? 'secondary' : 'contrast'"
-        v-bind="footerButton"
-        data-testid="call-toggle-audio"
-        :data-active="isAudioOn"
-        @click="toggleAudio"
-      />
+      <div
+        class="absolute start-4 top-4 flex min-w-0 items-center gap-x-3 text-body-md select-none md:static"
+      >
+        <span dir="ltr" class="tabular-nums">{{ formatDuration(callStore.elapsedTime) }}</span>
+        <span class="hidden h-4 w-px bg-white/30 md:block" />
+        <span class="hidden truncate md:block">{{ callTitle }}</span>
+      </div>
 
-      <IconButton
-        :icon="isVideoOn ? 'PhVideo' : 'PhVideoCameraSlash'"
-        :label="isVideoOn ? t('chat.call.controls.cameraOff') : t('chat.call.controls.cameraOn')"
-        :severity="isVideoOn ? 'secondary' : 'contrast'"
-        v-bind="footerButton"
-        data-testid="call-toggle-video"
-        :data-active="isVideoOn"
-        @click="toggleVideo"
-      />
-
-      <template v-if="cameras.length > 1">
-        <IconButton
-          icon="PhCaretUp"
-          :label="t('chat.call.controls.chooseCamera')"
-          v-bind="footerButton"
-          @click="cameraPickerOpen = true"
+      <div class="flex items-center justify-center gap-x-2 sm:gap-x-3">
+        <CallButton
+          v-tooltip.top="tip(withKeys(audioLabel, 'D'))"
+          :icon="isAudioOn ? 'mic' : 'micOff'"
+          :label="audioLabel"
+          :severity="isAudioOn ? 'secondary' : 'danger'"
+          :aria-keyshortcuts="isMac ? 'Meta+D' : 'Control+D'"
+          v-bind="barButton"
+          data-testid="call-toggle-audio"
+          :data-active="isAudioOn"
+          @click="toggleAudio"
         />
-        <ResponsiveDialog
-          v-model:visible="cameraPickerOpen"
-          :header="t('chat.call.controls.cameras')"
-          width="24rem"
-        >
-          <Listbox
-            :options="cameras"
-            option-value="deviceId"
-            :option-label="(camera: MediaDeviceInfo) => camera.label || `Camera ${camera.deviceId}`"
-            class="w-full"
-            @change="(event) => pickCamera(event.value)"
+
+        <!-- The camera, with Meet's caret for picking which one when there are several. -->
+        <div class="flex items-center rounded-full" :class="cameras.length > 1 && 'bg-white/12'">
+          <CallButton
+            v-if="cameras.length > 1"
+            v-tooltip.top="tip(t('chat.call.controls.chooseCamera'))"
+            icon="arrowDropUp"
+            :label="t('chat.call.controls.chooseCamera')"
+            :dt="callButtonDt"
+            text
+            severity="secondary"
+            icon-class="size-6"
+            class="h-12! w-8! rounded-e-none! ps-1!"
+            aria-haspopup="true"
+            @click="cameraMenu?.toggle($event)"
           />
-        </ResponsiveDialog>
-      </template>
+          <CallButton
+            v-tooltip.top="tip(withKeys(videoLabel, 'E'))"
+            :icon="isVideoOn ? 'videocam' : 'videocamOff'"
+            :label="videoLabel"
+            :severity="isVideoOn ? 'secondary' : 'danger'"
+            :aria-keyshortcuts="isMac ? 'Meta+E' : 'Control+E'"
+            v-bind="barButton"
+            data-testid="call-toggle-video"
+            :data-active="isVideoOn"
+            @click="toggleVideo"
+          />
+        </div>
 
-      <IconButton
-        icon="PhMonitorArrowUp"
-        :label="isScreenSharing ? t('chat.call.controls.stopSharing') : t('chat.call.controls.shareScreen')"
-        :severity="isScreenSharing ? 'contrast' : 'secondary'"
-        v-bind="footerButton"
-        data-testid="call-toggle-screen"
-        :data-active="isScreenSharing"
-        @click="toggleScreenShare"
-      />
+        <CallButton
+          v-tooltip.top="tip(shareLabel)"
+          :icon="isScreenSharing ? 'cancelPresentation' : 'presentToAll'"
+          :label="shareLabel"
+          :severity="isScreenSharing ? 'contrast' : 'secondary'"
+          v-bind="barButton"
+          data-testid="call-toggle-screen"
+          :data-active="isScreenSharing"
+          @click="toggleScreenShare"
+        />
 
-      <IconButton
-        :icon="isFullscreen ? 'PhCornersIn' : 'PhFrameCorners'"
-        :label="
+        <CallButton
+          v-tooltip.top="tip(t('chat.call.controls.more'))"
+          icon="moreVert"
+          :label="t('chat.call.controls.more')"
+          v-bind="barButton"
+          class="h-12! w-10! sm:w-12!"
+          aria-haspopup="true"
+          data-testid="call-more"
+          @click="moreMenu?.toggle($event)"
+        />
 
-          isFullscreen
+        <CallButton
+          v-tooltip.top="tip(t('chat.call.controls.endCall'))"
+          icon="callEnd"
+          :label="t('chat.call.controls.endCall')"
+          severity="danger"
+          :dt="callButtonDt"
+          :text="false"
+          size="large"
+          icon-class="size-6"
+          class="h-12! w-16! sm:w-18!"
+          data-testid="call-end"
+          @click="endCall"
+        />
+      </div>
 
-            ? t('chat.call.controls.exitFullscreen')
-
-            : t('chat.call.controls.fullscreen')
-
-        "
-        v-bind="footerButton"
-        @click="toggleFullscreen"
-      />
-
-      <IconButton
-        v-if="isFlashlightSupported"
-        :icon="isFlashlightOn ? 'PhLightning' : 'PhLightningSlash'"
-        :label="t('chat.call.controls.flashlight')"
-        :severity="isFlashlightOn ? 'contrast' : 'secondary'"
-        v-bind="footerButton"
-        @click="toggleFlashlight"
-      />
-
-      <IconButton
-        icon="PhPhoneX"
-        :label="t('chat.call.controls.endCall')"
-        severity="danger"
-        :text="false"
-        size="large"
-        icon-class="size-6"
-        data-testid="call-end"
-        @click="endCall"
-      />
+      <div class="absolute end-3 top-2.5 flex items-center justify-end gap-x-2 md:static">
+        <div
+          data-testid="call-participants"
+          class="flex h-10 items-center gap-x-1.5 rounded-full bg-white/12 px-3 text-label-md select-none"
+          :title="t('chat.call.participants', participantCount)"
+        >
+          <CallIcon name="group" class="size-5" />
+          <span aria-hidden="true">{{ participantCount }}</span>
+          <span class="sr-only">{{ t("chat.call.participants", participantCount) }}</span>
+        </div>
+        <CallButton
+          v-tooltip.top="tip(t('chat.call.controls.minimize'))"
+          icon="pictureInPicture"
+          :label="t('chat.call.controls.minimize')"
+          :dt="callButtonDt"
+          :text="false"
+          icon-class="size-5"
+          class="size-10!"
+          data-testid="call-minimize"
+          @click="callStore.minimize"
+        />
+      </div>
     </div>
+
+    <Menu ref="cameraMenu" :model="cameraItems" popup :dir="dir" :dt="callMenuDt" class="vue-chat">
+      <template #itemicon="{ item }">
+        <CallIcon v-if="item.callIcon" :name="item.callIcon" class="size-5 text-sky-400" />
+        <span v-else class="size-5" />
+      </template>
+    </Menu>
+    <Menu ref="moreMenu" :model="moreItems" popup :dir="dir" :dt="callMenuDt" class="vue-chat">
+      <template #itemicon="{ item }">
+        <CallIcon :name="item.callIcon" class="size-5 text-neutral-400" />
+      </template>
+    </Menu>
   </div>
 </template>

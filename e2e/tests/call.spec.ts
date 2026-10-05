@@ -128,6 +128,29 @@ test.describe("video call", () => {
     expect(await localTrack("video")).toBe(true);
   });
 
+  test("Meet's shortcuts toggle the microphone and camera, and the more menu holds the rest", async () => {
+    await startCall(alice);
+    await expectPlayingVideo(alice.getByTestId("call-local-video"));
+    const audio = alice.getByTestId("call-toggle-audio");
+    const video = alice.getByTestId("call-toggle-video");
+
+    await alice.keyboard.press("Control+d");
+    await expect(audio).toHaveAttribute("data-active", "false");
+    await alice.keyboard.press("Control+e");
+    await expect(video).toHaveAttribute("data-active", "false");
+    await alice.keyboard.press("Control+d");
+    await expect(audio).toHaveAttribute("data-active", "true");
+
+    // Minimized, the keys are the browser's again.
+    await alice.getByTestId("call-minimize").click();
+    await alice.keyboard.press("Control+d");
+    await alice.getByTestId("call-maximize").click();
+    await expect(audio).toHaveAttribute("data-active", "true");
+
+    await alice.getByTestId("call-more").click();
+    await expect(alice.getByRole("menuitem", { name: "Full screen" })).toBeVisible();
+  });
+
   test("the remote side keeps receiving video across camera toggles", async () => {
     await joinBoth(bob, alice);
     const remote = bob.getByTestId("call-remote-video").locator("video");

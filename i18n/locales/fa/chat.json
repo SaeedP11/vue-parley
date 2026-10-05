@@ -155,7 +155,10 @@
         "chooseCamera": "انتخاب دوربین",
         "pauseVideo": "توقف ویدیو",
         "playVideo": "پخش ویدیو",
-        "nextParticipant": "نمایش شرکت‌کننده بعدی"
+        "nextParticipant": "نمایش شرکت‌کننده بعدی",
+        "more": "گزینه‌های بیشتر",
+        "flashlightOn": "روشن کردن چراغ‌قوه",
+        "flashlightOff": "خاموش کردن چراغ‌قوه"
       }
     },
     "board": {
