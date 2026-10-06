@@ -104,12 +104,31 @@ export const useMediaStore = defineStore("media", () => {
       opts?.onProgress?.(100);
       return cached;
     }
+    const started = generation;
     const blob = await handlers.download(url, opts);
-    await putCachedBlob(url, blob);
+    if (started === generation) await putCachedBlob(url, blob);
     return blob;
   };
 
+  /** Bumped by `clearCache`, so a download started before it is not cached after it. */
+  let generation = 0;
+
+  /**
+   * Empties the downloaded-file cache, for a host whose signed-in user changes: it holds the
+   * previous user's files, which must not outlive their session on a shared device.
+   */
+  const clearCache = async (): Promise<void> => {
+    generation++;
+    try {
+      const db = await getDB();
+      await request(db.transaction(STORE_NAME, "readwrite").objectStore(STORE_NAME).clear());
+    } catch {
+      // Nothing cached, or IndexedDB unavailable (private mode): nothing to clear.
+    }
+  };
+
   return {
+    clearCache,
     setHandlers,
     fetchFileSize,
     getCachedBlob,

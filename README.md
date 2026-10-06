@@ -222,6 +222,7 @@ Every component and directive the chat uses is imported by the component itself,
 | `BIcon`, `BEmojiPicker`, `BVirtualVerticalList` | A Phosphor icon by name, the emoji picker and the virtualised list the chat uses. Every other control is a PrimeVue component. |
 | `useChatStore`, `useMessagesStore`, `useMediaStore`, `useProfileStore`, `useCallStore` | The Pinia stores. |
 | `messageMedia(message)` | A message's photo and video album: its `media`, or its `imageUrl` as photos. |
+| `resetChat()` | Forgets everything the chat loaded for the signed-in user (conversations, threads, drafts, shared media, the downloaded-file cache) and ends a running call. Call it on sign-out or an account switch, before the next user's chat mounts; the handlers stay. Each store also has its own `reset()` (`clearCache()` on the media store). |
 | Types | Handler interfaces, `Contact`, `Message`, `MediaItem`, `SignalData`, `ChatOptions`, `ChatUser` and the rest of `app/types`. |
 | `vue-parley/fakes` | `createFakeBackend`, `createBroadcastCallHandlers`, `demoData`, `e2eData`: see [Fake backend](#fake-backend). |
 

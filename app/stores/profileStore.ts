@@ -22,6 +22,8 @@ export const useProfileStore = defineStore("profile-store", () => {
   const pageSize = ref(DEFAULT_PAGE_SIZE);
   const mediaLoading = ref(false);
   const filesLoading = ref(false);
+  /** Bumped by `reset`, so a page started for the previous user is dropped when it lands. */
+  let generation = 0;
 
   const fetchMedia = async (
     conversationId: string,
@@ -30,6 +32,7 @@ export const useProfileStore = defineStore("profile-store", () => {
   ) => {
     if (mediaLoading.value) return;
     if (page > 1 && !mediaHasNextPage.value[conversationId]) return;
+    const started = generation;
     mediaLoading.value = true;
     try {
       const batch: ProfileAttachmentsPage = await handlers.fetchMedia({
@@ -37,13 +40,14 @@ export const useProfileStore = defineStore("profile-store", () => {
         page,
         pageSize: size,
       });
+      if (started !== generation) return;
       const existing = mediaMap.value[conversationId] ?? [];
       mediaMap.value[conversationId] =
         page === 1 ? batch.data : [...existing, ...batch.data];
       mediaPage.value[conversationId] = page;
       mediaHasNextPage.value[conversationId] = batch.hasNextPage;
     } finally {
-      mediaLoading.value = false;
+      if (started === generation) mediaLoading.value = false;
     }
   };
 
@@ -54,6 +58,7 @@ export const useProfileStore = defineStore("profile-store", () => {
   ) => {
     if (filesLoading.value) return;
     if (page > 1 && !filesHasNextPage.value[conversationId]) return;
+    const started = generation;
     filesLoading.value = true;
     try {
       const batch: ProfileAttachmentsPage = await handlers.fetchFiles({
@@ -61,14 +66,34 @@ export const useProfileStore = defineStore("profile-store", () => {
         page,
         pageSize: size,
       });
+      if (started !== generation) return;
       const existing = filesMap.value[conversationId] ?? [];
       filesMap.value[conversationId] =
         page === 1 ? batch.data : [...existing, ...batch.data];
       filesPage.value[conversationId] = page;
       filesHasNextPage.value[conversationId] = batch.hasNextPage;
     } finally {
-      filesLoading.value = false;
+      if (started === generation) filesLoading.value = false;
     }
+  };
+
+  /**
+   * Forgets the signed-in user and every conversation's media and files, for a host whose user
+   * changes. The handlers stay. A page still loading for the previous user is dropped.
+   */
+  const reset = () => {
+    generation++;
+    userId.value = "";
+    userName.value = "";
+    userAvatar.value = undefined;
+    mediaMap.value = {};
+    filesMap.value = {};
+    mediaPage.value = {};
+    filesPage.value = {};
+    mediaHasNextPage.value = {};
+    filesHasNextPage.value = {};
+    mediaLoading.value = false;
+    filesLoading.value = false;
   };
 
   const clear = (conversationId: string) => {
@@ -81,6 +106,7 @@ export const useProfileStore = defineStore("profile-store", () => {
   };
 
   return {
+    reset,
     setHandlers,
     fetchMedia,
     fetchFiles,
