@@ -21,6 +21,7 @@ Formerly `@yonus_amire01/chat`. To switch, replace that name with `vue-parley` i
   - [Photos and videos](#photos-and-videos)
   - [Read receipts](#read-receipts)
   - [Calls outside the chat page](#calls-outside-the-chat-page)
+  - [Joining a call in progress](#joining-a-call-in-progress)
   - [Fake backend](#fake-backend)
 - [What `createChat()` does](#what-createchat-does)
 - [Exports](#exports)
@@ -173,6 +174,18 @@ A call belongs to the call store, not to a component, so it keeps running when t
 Calls use the browser's WebRTC API directly (no `simple-peer`, no Node polyfills). The signalling messages keep simple-peer's format, so tabs still on an older, simple-peer based release can call this one and back; `e2e/tests/interop.spec.ts` checks that.
 
 Call handlers also accept `iceTransportPolicy` (default `"relay"`; `"all"` allows direct connections without TURN) and `debug` (logs signalling to the console).
+
+### Joining a call in progress
+
+When others are in a call on a conversation, its header shows **Join** in place of the call buttons. It joins with the camera on only if the call was started as a video call. Everyone in a call publishes a `presence` message when they join and every 15 seconds after. A call counts as running until its last participant hangs up or goes 45 seconds without being heard from. A closed tab sends no hangup, so that timeout is what ends its call.
+
+The call's own subscriber only hears the conversation it is on, so the host has to pass along what it hears on all of them. Hand every call message (`signal`, `join`, `track_type`, `call`, `hangup`, `presence`) from every conversation's channel to the store:
+
+```ts
+callStore.observeCall(message, conversationId);
+```
+
+`conversationId` can be left out for messages that carry `payload.channel`. Messages from the signed-in user are ignored. A host that never calls `observeCall` keeps the start-call buttons.
 
 ### Fake backend
 

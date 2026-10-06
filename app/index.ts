@@ -51,7 +51,7 @@ export {
  * empty.
  */
 export async function resetChat(): Promise<void> {
-  useCallStore().endCall();
+  useCallStore().reset();
   useMessagesStore().reset();
   useProfileStore().reset();
   useChatStore().reset();

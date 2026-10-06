@@ -89,6 +89,12 @@ export function createSignaling(
         type: CallMessageType.Call,
         payload: { from: self.id, name: self.name(), channel, avatar: avatar ?? "" },
       }),
+    /** Tells members outside the call that we are in it. */
+    presence: (channel: string, video: boolean) =>
+      publish({
+        type: CallMessageType.Presence,
+        payload: { from: self.id, channel, video },
+      }),
     hangup: (channel: string) =>
       publish({
         type: CallMessageType.Hangup,

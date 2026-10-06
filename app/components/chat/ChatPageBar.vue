@@ -64,9 +64,30 @@
           class="mx-1 hidden h-6 w-px bg-chat-outline-variant md:block"
         />
 
+        <!-- Others are in a call here: joining it replaces starting one. -->
+        <Button
+          v-if="canJoin"
+          rounded
+          severity="success"
+          size="small"
+          :aria-label="joinVideo ? t('joinVideoCall') : t('joinVoiceCall')"
+          data-testid="chat-join-call"
+          class="min-h-10 shrink-0 gap-x-2! px-3.5!"
+          @click="initCall(joinVideo)"
+        >
+          <span aria-hidden="true" class="relative flex size-2">
+            <span
+              class="absolute inset-0 animate-ping rounded-full bg-current opacity-75 motion-reduce:animate-none"
+            />
+            <span class="relative size-2 rounded-full bg-current" />
+          </span>
+          <BIcon :icon="joinVideo ? 'PhVideoCamera' : 'PhPhone'" weight="fill" class="size-4.5" />
+          <span class="text-label-md font-semibold">{{ t("join") }}</span>
+        </Button>
+
         <!-- During a call either button brings the running call back into view. -->
         <IconButton
-          v-if="canVoiceCall"
+          v-else-if="canVoiceCall"
           icon="PhPhone"
           icon-class="size-5.5"
           :label="isInCall ? t('actions.returnToCall') : t('actions.call')"
@@ -74,7 +95,7 @@
           @click="initCall(false)"
         />
         <IconButton
-          v-if="canVideoCall"
+          v-if="canVideoCall && !canJoin"
           icon="PhVideoCamera"
           icon-class="size-5.5"
           :label="isInCall ? t('actions.returnToCall') : t('videoCall')"
@@ -133,6 +154,7 @@ import Skeleton from "primevue/skeleton";
 import type { MenuItem } from "primevue/menuitem";
 import type { MenuOption } from "~/types/components/menu-options";
 import IconButton from "~/components/general/IconButton.vue";
+import BIcon from "~/components/global/BIcon.vue";
 import { useMessagesStore } from "~/stores/messageStores.js";
 import ContactAvatar from "./contact/ContactAvatar.vue";
 import useLocalI18n, { useDirection } from "~/composables/useLocalI18n";
@@ -196,6 +218,13 @@ const canVoiceCall = computed(
 const canVideoCall = computed(
   () => canVoiceCall.value && selectedChat.value?.serviceType !== "voice-call",
 );
+
+// A call others are in on this conversation. While the user is in a call themselves the buttons
+// keep bringing that one back instead.
+const ongoingCall = computed(() => callStore.ongoingCall(currentConversationId.value));
+const canJoin = computed(() => canVoiceCall.value && !isInCall.value && !!ongoingCall.value);
+// Joins the way the call was started, with the camera on only for a video call.
+const joinVideo = computed(() => canVideoCall.value && !!ongoingCall.value?.video);
 
 const openProfile = () => {
   emit("open-profile");

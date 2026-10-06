@@ -3,5 +3,8 @@
   "online": "آنلاین",
   "contactInfo": "اطلاعات تماس {name}",
   "videoCall": "تماس تصویری",
-  "toggleInfo": "نمایش اطلاعات تماس"
+  "toggleInfo": "نمایش اطلاعات تماس",
+  "join": "پیوستن",
+  "joinVoiceCall": "پیوستن به تماس صوتی",
+  "joinVideoCall": "پیوستن به تماس تصویری"
 }
