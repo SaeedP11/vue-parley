@@ -51,14 +51,15 @@ watch(activeFilter, (newFilter) => {
   const scrollEl = listRef.value;
   if (scrollEl) scrollEl.scrollTop = 0;
 
-  // 2. Fetch if category is empty
-  if (chatStore.conversationStates[newFilter].data.length === 0) {
-    chatStore.fetchConversations(newFilter, 1);
+  // 2. Fetch if the tab is empty or was loaded for another search
+  const state = chatStore.conversationStates[newFilter];
+  if (state.data.length === 0 || state.search !== query.value) {
+    chatStore.fetchConversations(newFilter, 1, query.value);
   }
 });
 
 // Handle Search with Debounce
-watch(searchText, (newQuery) => {
+watch(query, (newQuery) => {
   if (searchTimeout) clearTimeout(searchTimeout);
 
   searchTimeout = setTimeout(() => {

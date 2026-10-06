@@ -12,6 +12,8 @@ interface ListState {
   refreshing: boolean;
   page: number;
   hasNextPage: boolean;
+  /** The search the list was loaded with; its next pages and a return to its tab keep it. */
+  search: string;
 }
 
 /** One conversation list as `conversationStates` exposes it. */
@@ -22,6 +24,7 @@ export interface ConversationListView {
   refreshing?: boolean;
   page: number;
   hasNextPage: boolean;
+  search: string;
 }
 
 const lastActivityOf = (contact: Contact) => {
@@ -67,6 +70,7 @@ export const useChatStore = defineStore("chat", () => {
     refreshing: false,
     page: 0,
     hasNextPage: true,
+    search: "",
   });
   const lists = ref<Record<StateKeys, ListState>>({
     "": emptyList(),
@@ -95,6 +99,7 @@ export const useChatStore = defineStore("chat", () => {
               refreshing: list.refreshing,
               page: list.page,
               hasNextPage: list.hasNextPage,
+              search: list.search,
             },
           ];
         }),
@@ -175,6 +180,7 @@ export const useChatStore = defineStore("chat", () => {
       list.ids = page === 1 ? ids : [...list.ids, ...ids.filter((id) => !list.ids.includes(id))];
       list.page = page;
       list.hasNextPage = result.hasNextPage;
+      list.search = search;
     } finally {
       list.loading = false;
       list.refreshing = false;
@@ -189,7 +195,7 @@ export const useChatStore = defineStore("chat", () => {
   const loadNextPage = async (filter: StateKeys) => {
     const list = lists.value[filter];
     if (list.hasNextPage && !list.loading) {
-      await fetchConversations(filter, list.page + 1);
+      await fetchConversations(filter, list.page + 1, list.search);
     }
   };
 
