@@ -119,7 +119,8 @@ To build a different layout, use the exported building blocks instead: `ChatList
 
 ### Photos and videos
 
-"Photo or video" in the attachment menu sends one message of type `image` holding the whole album, up to 10 items, in the order they were picked:
+The attachment menu offers Photo, Video and File. Photos and videos (and "Add more" mixes the two) go out as one message of type `image` holding the whole album, up to 10 items, in the order they were picked:
+
 
 ```ts
 {
@@ -134,7 +135,10 @@ To build a different layout, use the exported building blocks instead: `ChatList
 
 `sendMessage` should upload every `media` item and return, and later fetch, the message with `media` pointing at the stored files. Hosts that only handle photos can keep reading and returning `imageUrl`: the bubble and viewer fall back to it, but videos in the album are then lost. `messageMedia(message)` gives a message's album either way. Tapping an item opens the full-screen viewer, where photos zoom and pan and videos play with their own controls.
 
+Videos are always compressed in the browser before they are handed to `sendMessage`: re-encoded with WebCodecs (through [mediabunny](https://mediabunny.dev), loaded on first use) to MP4 at most 1280 px on the long side and 30 fps. Send closes the dialog at once; the message's bubble shows "Compressing… N%", then "Uploading… N%" from your `onProgress`. Albums compress one after another. A video under 1 MB, one the browser can't encode, or one that would lose a track or shrink by less than 10% goes out as picked. In the message `sendMessage` receives, a compressed video's `media` url is a `blob:` url of its own holding the `video/mp4` copy (the bubble keeps showing the picked original); read it during `sendMessage`, as it is released once the send succeeds, and kept for a retry when it fails. "File" sends anything as is, videos included.
+
 A round video note recorded in the chat is different: it is `type: "video"` with `videoUrl`, and plays in its bubble.
+
 
 ### Read receipts
 

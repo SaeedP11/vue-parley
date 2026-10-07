@@ -1,7 +1,12 @@
 {
   "file": {
-    "attachMedia": "Photo or video",
+    "attachPhoto": "Photo",
+    "attachVideo": "Video",
     "attachFile": "File",
+    "photoHint": "JPG, PNG, WebP or GIF",
+    "videoHint": "Compressed before sending",
+    "videoHintPlain": "MP4, WebM or MOV",
+    "fileHint": "Any document, sent as is",
     "addMore": "Add more",
     "remove": "Remove {name}",
     "cancel": "Cancel",
@@ -14,6 +19,10 @@
     "sendMedia": "Send photos and videos",
     "fileCount": "{count} file | {count} files",
     "mediaCount": "{count} of {max}"
+  },
+  "compress": {
+    "note": "The video is compressed when you send it | The videos are compressed when you send them",
+    "unsupported": "This browser can't compress videos, so they go out as they are"
   },
   "errors": {
     "maxFilesReached": "You can send up to 10 photos or videos at a time.",

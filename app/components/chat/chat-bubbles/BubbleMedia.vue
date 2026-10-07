@@ -18,6 +18,8 @@ const props = defineProps<{
   items: MediaItem[];
   isSent: boolean;
   upload?: UploadProgressEvent;
+  /** 0–100 while its videos are compressed, before the upload. */
+  compress?: number;
 }>();
 
 const emit = defineEmits<{ preview: [index: number] }>();
@@ -25,7 +27,13 @@ const emit = defineEmits<{ preview: [index: number] }>();
 const { t } = useLocalI18n(chatBubble);
 
 const displayed = computed(() => props.items.slice(0, MAX_VISIBLE));
-const showUpload = computed(() => !props.isSent && !!props.upload);
+// Compressing comes first, then the upload.
+const sending = computed(() => {
+  if (props.isSent) return null;
+  if (props.compress !== undefined) return { phase: "compress" as const, progress: props.compress };
+  if (props.upload) return { phase: "upload" as const, progress: props.upload.progress };
+  return null;
+});
 const label = (item: MediaItem) => t(`attachementTypes.${item.kind}`);
 
 const TILE = "relative block overflow-hidden rounded-xl p-0 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-chat-primary";
@@ -41,7 +49,12 @@ const TILE = "relative block overflow-hidden rounded-xl p-0 cursor-pointer focus
     @click.stop="emit('preview', 0)"
   >
     <MediaThumb :item="items[0]!" class="size-full" />
-    <UploadProgressOverlay v-if="showUpload" :progress="upload!.progress" size="lg" />
+    <UploadProgressOverlay
+        v-if="sending"
+        :progress="sending.progress"
+        :phase="sending.phase"
+        size="lg"
+      />
   </Button>
 
   <div v-else class="flex h-16 max-w-75 items-center gap-x-3">
@@ -67,7 +80,12 @@ const TILE = "relative block overflow-hidden rounded-xl p-0 cursor-pointer focus
       @click.stop="emit('preview', index)"
     >
       <MediaThumb :item="item" badge="sm" :show-duration="false" class="size-full" />
-      <UploadProgressOverlay v-if="showUpload" :progress="upload!.progress" size="sm" />
+      <UploadProgressOverlay
+        v-if="sending"
+        :progress="sending.progress"
+        :phase="sending.phase"
+        size="sm"
+      />
     </Button>
   </div>
 </template>

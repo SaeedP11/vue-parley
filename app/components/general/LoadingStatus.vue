@@ -8,6 +8,8 @@ const props = withDefaults(
     strokeWidth?: number;
     isUploading?: boolean;
     isDownloading?: boolean;
+    /** Replaces the upload/download icon. */
+    icon?: string;
   }>(),
   {
     progress: 0,
@@ -67,7 +69,13 @@ const iconSize = computed(() => props.size * 0.4);
 
     <div class="flex items-center justify-center transition-colors">
       <BIcon
-        v-if="isUploading"
+        v-if="icon"
+        :icon="icon"
+        :style="{ width: `${iconSize}px`, height: `${iconSize}px` }"
+        class="fill-chat-on-background"
+      />
+      <BIcon
+        v-else-if="isUploading"
         icon="PhUploadSimple"
         :style="{ width: `${iconSize}px`, height: `${iconSize}px` }"
         class="fill-chat-on-background"
