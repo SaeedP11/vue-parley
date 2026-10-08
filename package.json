@@ -15,15 +15,16 @@
     "primevue",
     "tailwindcss"
   ],
-  "homepage": "https://github.com/yonus-a/vue-chat#readme",
+  "homepage": "https://github.com/SaeedP11/vue-parley#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/yonus-a/vue-chat.git"
+    "url": "git+https://github.com/SaeedP11/vue-parley.git"
   },
   "bugs": {
-    "url": "https://github.com/yonus-a/vue-chat/issues"
+    "url": "https://github.com/SaeedP11/vue-parley/issues"
   },
   "license": "MIT",
+  "author": "SaeedP11 <saeed_abdi.p11@outlook.com>",
   "sideEffects": [
     "**/*.css",
     "**/*.vue"

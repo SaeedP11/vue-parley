@@ -2,8 +2,6 @@
 
 A drop-in Vue 3 chat and video-call UI. You supply the backend through a few handler objects; the package brings the screens, the state (Pinia stores), the translations and the styles.
 
-Formerly `@yonus_amire01/chat`. To switch, replace that name with `vue-parley` in `package.json` and in imports; nothing else changed.
-
 - Contact list with search, filters and infinite scroll
 - Virtualised message list with text, image, file, voice and video messages, replies, edits, deletes, drafts and retries on failed sends
 - Voice and video calls with screen sharing over plain browser WebRTC
@@ -320,4 +318,4 @@ e2e/              Playwright tests and harness
 
 [MIT](LICENSE)
 
-Repository: [github.com/yonus-a/vue-chat](https://github.com/yonus-a/vue-chat)
+Repository: [github.com/SaeedP11/vue-parley](https://github.com/SaeedP11/vue-parley)
