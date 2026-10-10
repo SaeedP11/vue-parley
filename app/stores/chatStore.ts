@@ -145,6 +145,8 @@ export const useChatStore = defineStore("chat", () => {
   };
 
   const queued: Partial<Record<StateKeys, string>> = {};
+  /** Bumped by `reset`, so a load started for the previous user cannot land in the next one's lists. */
+  let generation = 0;
 
   const fetchConversations = async (
     filterState: StateKeys = "",
@@ -159,6 +161,7 @@ export const useChatStore = defineStore("chat", () => {
       if (page === 1) queued[filterState] = search;
       return;
     }
+    const started = generation;
     list.loading = true;
     list.refreshing = page === 1;
     try {
@@ -168,6 +171,7 @@ export const useChatStore = defineStore("chat", () => {
         search,
         page,
       });
+      if (started !== generation) return;
 
       // The newest copy of a contact wins, whichever list it came in with.
       for (const contact of result.data) contactsById.value[contact.id] = contact;
@@ -178,7 +182,8 @@ export const useChatStore = defineStore("chat", () => {
     } finally {
       list.loading = false;
       list.refreshing = false;
-      const next = queued[filterState];
+      // After a reset `list` is detached and the queue belongs to the next user.
+      const next = started === generation ? queued[filterState] : undefined;
       if (next !== undefined) {
         delete queued[filterState];
         void fetchConversations(filterState, 1, next);
@@ -233,6 +238,23 @@ export const useChatStore = defineStore("chat", () => {
       ).length,
   );
 
+  /**
+   * Forgets every conversation, for a host whose signed-in user changes (sign-out, switching
+   * accounts) while the app keeps running. The handlers stay: they belong to the host, not the
+   * user. A load still in flight for the previous user is dropped when it lands, and a list
+   * mounted afterwards loads again since it starts out empty.
+   */
+  const reset = () => {
+    generation++;
+    for (const key of Object.keys(queued) as StateKeys[]) delete queued[key];
+    contactsById.value = {};
+    lists.value = Object.fromEntries(FILTERS.map((key) => [key, emptyList()])) as Record<StateKeys, ListState>;
+    activeConversationId.value = null;
+    profileViewOpen.value = false;
+    typingByConversation.value = {};
+    calls.value = [];
+  };
+
   return {
     chosenRole,
     currentUserBirthDate,
@@ -256,5 +278,6 @@ export const useChatStore = defineStore("chat", () => {
     updateContact,
     addContact,
     calls,
+    reset,
   };
 });

@@ -33,11 +33,18 @@ async function expectPlayingVideo(video: Locator) {
     .toBe(true);
 }
 
+/** Joins the call someone else is already in, from the conversation's header. */
+async function joinCall(page: Page) {
+  await openConversation(page, "c1");
+  await page.getByTestId("chat-join-call").click();
+  await expect(page.getByTestId("call-view")).toBeVisible();
+}
+
 /** Puts `first` in the call, waits until it is set up, then brings in `second`. */
 async function joinBoth(first: Page, second: Page) {
   await startCall(first);
   await expectPlayingVideo(first.getByTestId("call-local-video"));
-  await startCall(second);
+  await joinCall(second);
 }
 
 function published(page: Page) {
@@ -353,12 +360,47 @@ test.describe("video call", () => {
       timeout: 20_000,
     });
 
-    await alice.getByTestId("chat-start-call").click();
+    // Bob is still in it, so the header offers to join rather than to start a call.
+    await alice.getByTestId("chat-join-call").click();
     await expect(alice.getByTestId("call-remote-video")).toHaveCount(1, {
       timeout: 20_000,
     });
     await expectPlayingVideo(
       bob.getByTestId("call-remote-video").locator("video"),
     );
+  });
+
+  test("a call in progress is offered to join instead of starting one", async () => {
+    await openConversation(bob, "c1");
+    await expect(bob.getByTestId("chat-start-call")).toBeVisible();
+    await expect(bob.getByTestId("chat-join-call")).toHaveCount(0);
+
+    await startCall(alice);
+    const join = bob.getByTestId("chat-join-call");
+    await expect(join).toBeVisible({ timeout: 20_000 });
+    await expect(join).toHaveAccessibleName("Join the video call");
+    await expect(bob.getByTestId("chat-start-call")).toHaveCount(0);
+    await expect(bob.getByTestId("chat-start-voice-call")).toHaveCount(0);
+
+    // The last one in hanging up ends the call for everyone outside it too.
+    await alice.getByTestId("call-end").click();
+    await expect(join).toHaveCount(0, { timeout: 20_000 });
+    await expect(bob.getByTestId("chat-start-call")).toBeVisible();
+  });
+
+  test("a voice call is joined with the camera off", async () => {
+    await openConversation(alice, "c1");
+    await alice.getByTestId("chat-start-voice-call").click();
+    await expect(alice.getByTestId("call-view")).toBeVisible();
+
+    await openConversation(bob, "c1");
+    await expect(bob.getByTestId("chat-join-call")).toHaveAccessibleName("Join the voice call", {
+      timeout: 20_000,
+    });
+    await bob.getByTestId("chat-join-call").click();
+    await expect(bob.getByTestId("call-toggle-video")).toHaveAttribute("data-active", "false", {
+      timeout: 20_000,
+    });
+    await expect(bob.getByTestId("call-participants")).toContainText("2", { timeout: 20_000 });
   });
 });

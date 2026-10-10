@@ -3,5 +3,8 @@
   "online": "Online",
   "contactInfo": "Contact info for {name}",
   "videoCall": "Video call",
-  "toggleInfo": "Show contact info"
+  "toggleInfo": "Show contact info",
+  "join": "Join",
+  "joinVoiceCall": "Join the voice call",
+  "joinVideoCall": "Join the video call"
 }

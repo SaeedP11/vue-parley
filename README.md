@@ -19,6 +19,7 @@ A drop-in Vue 3 chat and video-call UI. You supply the backend through a few han
   - [Photos and videos](#photos-and-videos)
   - [Read receipts](#read-receipts)
   - [Calls outside the chat page](#calls-outside-the-chat-page)
+  - [Joining a call in progress](#joining-a-call-in-progress)
   - [Fake backend](#fake-backend)
 - [What `createChat()` does](#what-createchat-does)
 - [Exports](#exports)
@@ -176,6 +177,18 @@ Calls use the browser's WebRTC API directly (no `simple-peer`, no Node polyfills
 
 Call handlers also accept `iceTransportPolicy` (default `"relay"`; `"all"` allows direct connections without TURN) and `debug` (logs signalling to the console).
 
+### Joining a call in progress
+
+When others are in a call on a conversation, its header shows **Join** in place of the call buttons. It joins with the camera on only if the call was started as a video call. Everyone in a call publishes a `presence` message when they join and every 15 seconds after. A call counts as running until its last participant hangs up or goes 45 seconds without being heard from. A closed tab sends no hangup, so that timeout is what ends its call.
+
+The call's own subscriber only hears the conversation it is on, so the host has to pass along what it hears on all of them. Hand every call message (`signal`, `join`, `track_type`, `call`, `hangup`, `presence`) from every conversation's channel to the store:
+
+```ts
+callStore.observeCall(message, conversationId);
+```
+
+`conversationId` can be left out for messages that carry `payload.channel`. Messages from the signed-in user are ignored. A host that never calls `observeCall` keeps the start-call buttons.
+
 ### Fake backend
 
 `vue-parley/fakes` is an in-memory implementation of every handler, for demos, playgrounds and tests. It is a separate entry, so apps that don't import it don't ship it.
@@ -224,6 +237,7 @@ Every component and directive the chat uses is imported by the component itself,
 | `BIcon`, `BEmojiPicker`, `BVirtualVerticalList` | A Phosphor icon by name, the emoji picker and the virtualised list the chat uses. Every other control is a PrimeVue component. |
 | `useChatStore`, `useMessagesStore`, `useMediaStore`, `useProfileStore`, `useCallStore` | The Pinia stores. |
 | `messageMedia(message)` | A message's photo and video album: its `media`, or its `imageUrl` as photos. |
+| `resetChat()` | Forgets everything the chat loaded for the signed-in user (conversations, threads, drafts, shared media, the downloaded-file cache) and ends a running call. Call it on sign-out or an account switch, before the next user's chat mounts; the handlers stay. Each store also has its own `reset()` (`clearCache()` on the media store). |
 | Types | Handler interfaces, `Contact`, `Message`, `MediaItem`, `SignalData`, `ChatOptions`, `ChatUser` and the rest of `app/types`. |
 | `vue-parley/fakes` | `createFakeBackend`, `createBroadcastCallHandlers`, `demoData`, `e2eData`: see [Fake backend](#fake-backend). |
 

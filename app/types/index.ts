@@ -275,6 +275,7 @@ export const CallMessageType = {
   TrackType: "track_type",
   Call: "call",
   Hangup: "hangup",
+  Presence: "presence",
 } as const;
 export type CallMessageType = (typeof CallMessageType)[keyof typeof CallMessageType];
 
@@ -320,5 +321,18 @@ export type CallMessageSchema =
       payload: {
         from: string;
         channel: string;
+      };
+    }
+  | {
+      /**
+       * Sent by everyone in a call when they join and then every 15 seconds while they stay, so
+       * members outside it can tell a call is running and join it (`callStore.observeCall`).
+       */
+      type: typeof CallMessageType.Presence;
+      payload: {
+        from: string;
+        channel: string;
+        /** Whether the sender started it as a video call rather than a voice call. */
+        video: boolean;
       };
     };

@@ -15,6 +15,9 @@ export interface CallSessionOptions {
   video?: boolean;
 }
 
+/** How often someone in a call says so to the members outside it. */
+export const PRESENCE_INTERVAL = 15_000;
+
 /** Retries for a missing TURN credential, after 2s, 4s and 8s. */
 const CREDENTIAL_RETRIES = 3;
 
@@ -114,6 +117,7 @@ export function createCallSession(opts: CallSessionOptions) {
   const { signaling, media, peers } = session;
 
   let credentialRetry: ReturnType<typeof setTimeout> | undefined;
+  let presenceTimer: ReturnType<typeof setInterval> | undefined;
   let credentialAttempts = 0;
 
   /**
@@ -188,6 +192,12 @@ export function createCallSession(opts: CallSessionOptions) {
     void signaling.trackTypes(media.trackTypes.value);
     void ringOtherSide();
     void signaling.join();
+
+    // Repeated, so members who open the conversation later still see the call, and a call whose
+    // last member vanished without a hangup (a closed tab) stops showing once it falls silent.
+    const announce = () => void signaling.presence(channel, opts.video !== false);
+    announce();
+    presenceTimer = setInterval(announce, PRESENCE_INTERVAL);
   }
 
   function stopScreenShare() {
@@ -219,6 +229,7 @@ export function createCallSession(opts: CallSessionOptions) {
     // Who ended it: the hang-up button, or the host reacting to the other side leaving.
     if (debug) console.trace("[vue-chat:call] leaving the call, peers:", Object.keys(peers.peers.value));
     clearTimeout(credentialRetry);
+    clearInterval(presenceTimer);
     void signaling.hangup(channel);
     signaling.stop();
     peers.destroyAll();

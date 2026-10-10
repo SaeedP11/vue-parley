@@ -41,3 +41,19 @@ export {
   useMediaStore,
   useProfileStore,
 };
+
+/**
+ * Forgets everything the chat loaded for the signed-in user: conversations, threads, drafts,
+ * shared media, the downloaded-file cache, and the running call, which is ended. Call it when the
+ * user changes (sign-out, switching accounts) while the app keeps running; the stores outlive
+ * pages, so the next user would otherwise see the previous one's conversations. The handlers the
+ * host registered stay. Call it before the next user's chat mounts: a list loads when it mounts
+ * empty.
+ */
+export async function resetChat(): Promise<void> {
+  useCallStore().reset();
+  useMessagesStore().reset();
+  useProfileStore().reset();
+  useChatStore().reset();
+  await useMediaStore().clearCache();
+}

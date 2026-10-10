@@ -430,6 +430,7 @@ export const useMessagesStore = defineStore("messages-store", () => {
     pageSize: number = messagesPageSize.value,
   ) => {
     if (messagesLoadingMap.value[conversationId]) return;
+    const started = generation;
     messagesLoadingMap.value[conversationId] = true;
     try {
       const batch = await handlers.fetchMessages({
@@ -437,6 +438,7 @@ export const useMessagesStore = defineStore("messages-store", () => {
         page,
         pageSize,
       });
+      if (started !== generation) return;
 
       const existing = messagesMap.value[conversationId] ?? [];
       // Pages count back from the newest message, so each one sent or received shifts them: an
@@ -447,11 +449,32 @@ export const useMessagesStore = defineStore("messages-store", () => {
       messagesPage.value[conversationId] = page;
       messagesHasNextPage.value[conversationId] = batch.length === pageSize;
     } finally {
-      delete messagesLoadingMap.value[conversationId];
+      if (started === generation) delete messagesLoadingMap.value[conversationId];
     }
   };
 
+  /** Bumped by `reset`, so a load started for the previous user cannot land in the next one's threads. */
+  let generation = 0;
+
+  /**
+   * Forgets every thread, draft and pending action, for a host whose signed-in user changes. The
+   * handlers stay. A send or load still in flight settles into nothing.
+   */
+  const reset = () => {
+    generation++;
+    clearActions();
+    isOptionMenuOpen.value = false;
+    drafts.value = {};
+    messagesMap.value = {};
+    messagesLoadingMap.value = {};
+    messagesPage.value = {};
+    messagesHasNextPage.value = {};
+    uploadProgress.value = new Map();
+    processingActions.value = new Map();
+  };
+
   return {
+    reset,
     isOptionMenuOpen,
     isSelectMode,
     selectedMessages,
