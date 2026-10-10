@@ -18,18 +18,14 @@ export interface PickedFile {
 
 const UNSAFE_EXTENSIONS = [".exe", ".bat", ".sh", ".js"];
 
-const MEDIA_TYPES = [
-  "image/jpeg",
-  "image/png",
-  "image/webp",
-  "image/gif",
-  "video/mp4",
-  "video/webm",
-  "video/quicktime",
-];
+const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+const VIDEO_TYPES = ["video/mp4", "video/webm", "video/quicktime"];
+const MEDIA_TYPES = [...IMAGE_TYPES, ...VIDEO_TYPES];
+
+const TYPES_OF = { image: IMAGE_TYPES, video: VIDEO_TYPES, all: MEDIA_TYPES };
 
 /**
- * Opens the browser's file chooser for photos and videos, or files, and hands back object URLs.
+ * Opens the browser's file chooser for photos, videos or both, or files, and hands back object URLs.
  * Files it refuses are counted to `onRejected`, so the caller can say why they are missing.
  */
 export function useAttachmentPicker(handlers: {
@@ -41,6 +37,8 @@ export function useAttachmentPicker(handlers: {
     if (all.length > kept.length) handlers.onRejected?.(all.length - kept.length);
   };
 
+  // What the open media chooser asked for; anything else that comes back is refused.
+  let mediaTypes = MEDIA_TYPES;
   const media = useFileDialog({
     multiple: true,
     accept: MEDIA_TYPES.join(", "),
@@ -49,7 +47,7 @@ export function useAttachmentPicker(handlers: {
   media.onChange((list) => {
     const all = Array.from(list ?? []);
     // The chooser's filter is only a hint; some platforms let anything through.
-    const kept = all.filter((file) => MEDIA_TYPES.includes(file.type));
+    const kept = all.filter((file) => mediaTypes.includes(file.type));
     reportRejected(all, kept);
     const picked = kept.map((file) => ({
       file,
@@ -77,5 +75,10 @@ export function useAttachmentPicker(handlers: {
   });
 
   // Must run inside the click handler: browsers only open a chooser on a user gesture.
-  return { pickMedia: () => media.open(), pickFiles: () => files.open() };
+  const pickMedia = (kind: MediaItem["kind"] | "all" = "all") => {
+    mediaTypes = TYPES_OF[kind];
+    media.open({ accept: mediaTypes.join(", ") });
+  };
+
+  return { pickMedia, pickFiles: () => files.open() };
 }

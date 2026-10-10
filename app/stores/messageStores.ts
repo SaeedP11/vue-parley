@@ -10,7 +10,14 @@ import { useStoreI18n } from "~/composables/useHostI18n";
 import { useProfileStore } from "./profileStore";
 import { useChatStore } from "./chatStore";
 import { chat } from "@i18n/locales";
+import { canCompressVideo, compressVideo } from "~/utils/compressVideo";
 import { defineStore } from "pinia";
+
+// Messages compress one after another, so two albums never share the encoder.
+let compressionQueue: Promise<unknown> = Promise.resolve();
+// A sent video's object URL → its compressed copy's, kept until the send goes through so a retry
+// doesn't compress it again.
+const compressedUrls = new Map<string, string>();
 
 export const useMessagesStore = defineStore("messages-store", () => {
   const { t } = useStoreI18n(chat);
@@ -29,6 +36,8 @@ export const useMessagesStore = defineStore("messages-store", () => {
   const isSelectMode = ref(false);
   const selectedMessages = ref<Map<string, ExtendedMessage>>(new Map());
   const uploadProgress = ref<Map<string, UploadProgressEvent>>(new Map());
+  /** 0–100 per message while its videos are compressed, before the upload starts. */
+  const compressionProgress = ref<Map<string, number>>(new Map());
   const replyingTo = ref<ExtendedMessage | null>(null);
 
   // Unsent text per conversation, so switching chats never loses what was being typed.
@@ -301,11 +310,63 @@ export const useMessagesStore = defineStore("messages-store", () => {
     updateBus.emit({ id, updates });
   };
 
+  /**
+   * The album as it should leave the device: each video swapped for a smaller MP4 copy where one
+   * comes out smaller. The bubble keeps showing what was picked.
+   */
+  const compressMedia = async (message: Message): Promise<Message> => {
+    const videos = (message.media ?? []).filter((item) => item.kind === "video");
+    if (message.type !== "image" || !videos.length || !canCompressVideo()) return message;
+
+    const { id } = message;
+    compressionProgress.value.set(id, 0);
+    const run = compressionQueue.then(async () => {
+      for (const [index, item] of videos.entries()) {
+        if (compressedUrls.has(item.url)) continue;
+        const report = (p: number) =>
+          compressionProgress.value.set(id, Math.round(((index + p) / videos.length) * 100));
+        report(0);
+        try {
+          const blob = await fetch(item.url).then((r) => r.blob());
+          const smaller = await compressVideo(new File([blob], "video", { type: blob.type }), {
+            onProgress: report,
+          });
+          if (smaller) compressedUrls.set(item.url, URL.createObjectURL(smaller));
+        } catch (error) {
+          console.warn("[vue-parley] video compression failed, sending the original", error);
+        }
+      }
+    });
+    compressionQueue = run;
+    await run;
+    compressionProgress.value.delete(id);
+
+    return {
+      ...message,
+      media: message.media!.map((item) => ({
+        ...item,
+        url: compressedUrls.get(item.url) ?? item.url,
+      })),
+    };
+  };
+
+  const releaseCompressed = (message: Message) =>
+    message.media?.forEach((item) => {
+      const url = compressedUrls.get(item.url);
+      if (!url) return;
+      URL.revokeObjectURL(url);
+      compressedUrls.delete(item.url);
+    });
+
   const deliver = async (tempMsg: Message) => {
     const { conversationId } = tempMsg;
     const tracksProgress = tempMsg.type !== "text";
     try {
-      const canonical = await handlers.sendMessage(tempMsg, {
+      const outgoing = await compressMedia(tempMsg);
+      // The bubble moves straight from compressing to uploading, before the first upload event.
+      if (outgoing !== tempMsg)
+        uploadProgress.value.set(tempMsg.id, { progress: 0, uploaded: 0, total: 0 });
+      const canonical = await handlers.sendMessage(outgoing, {
         onProgress: tracksProgress
           ? (e) => {
               if (e.progress >= 100) {
@@ -322,6 +383,7 @@ export const useMessagesStore = defineStore("messages-store", () => {
       });
 
       uploadProgress.value.delete(tempMsg.id);
+      releaseCompressed(tempMsg);
       applyUpdate(conversationId, tempMsg.id, {
         id: canonical.id,
         isSent: true,
@@ -460,5 +522,6 @@ export const useMessagesStore = defineStore("messages-store", () => {
     isActionBusy,
     handleRemoteAction,
     uploadProgress,
+    compressionProgress,
   };
 });

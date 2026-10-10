@@ -5,14 +5,50 @@
       :label="t('actions.attach')"
       icon-class="size-6"
       data-testid="chat-attach"
-      aria-haspopup="true"
-      @click="menu?.toggle($event)"
+      aria-haspopup="menu"
+      :aria-expanded="pickerOpen"
+      @click="togglePicker"
     />
-    <Menu ref="menu" :model="menuItems" popup :dir="dir" class="vue-chat">
-      <template #itemicon="{ item }">
-        <BIcon :icon="item.phIcon" class="size-5 text-chat-muted" />
-      </template>
-    </Menu>
+    <Popover
+      ref="picker"
+      :dir="dir"
+      class="vue-chat"
+      :pt="{ content: { class: 'p-1.5!' } }"
+      @show="onPickerShow"
+      @hide="pickerOpen = false"
+    >
+      <div
+        ref="pickerList"
+        role="menu"
+        :aria-label="t('actions.attach')"
+        class="flex w-64 max-w-[calc(100vw-2rem)] flex-col gap-y-0.5"
+        data-testid="chat-attach-menu"
+        @keydown="onPickerKeydown"
+      >
+        <Button
+          v-for="option in pickerOptions"
+          :key="option.key"
+          role="menuitem"
+          text
+          severity="secondary"
+          class="w-full justify-start! gap-x-3! rounded-xl! px-2! py-1.5! text-start"
+          :data-testid="`chat-attach-${option.key}`"
+          @click="choose(option)"
+        >
+          <span
+            aria-hidden="true"
+            class="flex size-10 shrink-0 items-center justify-center rounded-full"
+            :class="option.tint"
+          >
+            <BIcon :icon="option.icon" weight="fill" class="size-5" />
+          </span>
+          <span class="flex min-w-0 flex-1 flex-col gap-y-0.5">
+            <span class="text-label-md text-chat-on-background">{{ option.label }}</span>
+            <span class="truncate text-body-sm text-chat-muted">{{ option.hint }}</span>
+          </span>
+        </Button>
+      </div>
+    </Popover>
 
     <ResponsiveDialog
       v-model:visible="dialogOpen"
@@ -99,6 +135,16 @@
           </li>
         </ul>
 
+        <!-- The chat bubble shows the compression, then the upload, once it is sent. -->
+        <p
+          v-if="dialogMode !== 'file' && videoCount > 0"
+          class="flex items-center gap-x-2 text-body-sm text-chat-muted"
+          data-testid="chat-attach-compress"
+        >
+          <BIcon icon="PhFilmStrip" class="size-4.5 shrink-0" aria-hidden="true" />
+          {{ canCompress ? t("compress.note", videoCount) : t("compress.unsupported") }}
+        </p>
+
         <Textarea
           v-model="caption"
           :placeholder="t('caption')"
@@ -124,10 +170,15 @@
             class="flex-1 md:min-w-28 md:flex-none"
             :label="t('send')"
             :disabled="itemCount === 0"
-            @click="sendMessages"
+            data-testid="chat-attach-send"
+            @click="send"
           >
             <template #icon>
-              <BIcon icon="PhPaperPlaneTilt" weight="fill" class="size-4.5 rtl:-scale-x-100" />
+              <BIcon
+                icon="PhPaperPlaneTilt"
+                weight="fill"
+                class="size-4.5 rtl:-scale-x-100"
+              />
             </template>
           </Button>
         </div>
@@ -137,12 +188,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, watch } from "vue";
+import { ref, computed, watch, nextTick } from "vue";
 import { useMediaQuery } from "@vueuse/core";
 import Button from "primevue/button";
-import Menu from "primevue/menu";
+import Popover from "primevue/popover";
 import Textarea from "primevue/textarea";
-import type { MenuItem } from "primevue/menuitem";
 import IconButton from "~/components/general/IconButton.vue";
 import MediaThumb from "~/components/general/MediaThumb.vue";
 import ResponsiveDialog from "~/components/general/ResponsiveDialog.vue";
@@ -152,6 +202,7 @@ import {
   type PickedFile,
   type PickedMedia,
 } from "~/composables/useAttachmentPicker";
+import { canCompressVideo } from "~/utils/compressVideo";
 import { useAppToast } from "~/composables/useAppToast";
 import useLocalI18n, { useDirection } from "~/composables/useLocalI18n";
 import { inputAttachement } from "@i18n/locales";
@@ -161,6 +212,15 @@ type DialogMode = "single-media" | "multi-media" | "file";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type AttachmentData = any;
+
+interface PickerOption {
+  key: "photo" | "video" | "file";
+  icon: string;
+  label: string;
+  hint: string;
+  tint: string;
+  pick: () => void;
+}
 
 const MAX_MEDIA = 10;
 
@@ -185,10 +245,10 @@ const { t, locale } = useLocalI18n(inputAttachement);
 const { dir } = useDirection();
 const { openToast } = useAppToast();
 const localDigits = (value: string | number) => replaceDigitsByLocale(value, locale.value);
+const size = (bytes: number) => localDigits(formatBytes(bytes));
 // Focusing the caption on a phone would throw the keyboard over the preview.
 const isTouch = useMediaQuery("(pointer: coarse)");
 
-const menu = ref<InstanceType<typeof Menu> | null>(null);
 const dialogOpen = ref(false);
 const dialogMode = ref<DialogMode>("file");
 const caption = ref("");
@@ -204,6 +264,12 @@ watch(
   },
   { immediate: true },
 );
+
+// Videos are compressed after Send, by the messages store, with the progress on the bubble.
+const canCompress = canCompressVideo();
+const videoCount = computed(() => selectedMedia.value.filter((m) => m.kind === "video").length);
+
+/* --- Picking ----------------------------------------------------------------------------- */
 
 const itemCount = computed(() =>
   dialogMode.value === "file" ? selectedFiles.value.length : selectedMedia.value.length,
@@ -240,7 +306,9 @@ const { pickMedia, pickFiles } = useAttachmentPicker({
 
 const removeMedia = (index: number) => {
   const [removed] = selectedMedia.value.splice(index, 1);
-  if (removed) URL.revokeObjectURL(removed.path);
+  if (removed) {
+    URL.revokeObjectURL(removed.path);
+  }
   if (selectedMedia.value.length === 0) dialogOpen.value = false;
   else syncMediaMode();
 };
@@ -254,6 +322,7 @@ const removeFile = (index: number) => {
 const canAddMore = computed(
   () => dialogMode.value === "file" || selectedMedia.value.length < MAX_MEDIA,
 );
+// An album takes photos and videos alike, whichever it was started from.
 const addMore = () => (dialogMode.value === "file" ? pickFiles() : pickMedia());
 
 const discard = () => {
@@ -266,24 +335,81 @@ const discard = () => {
   selectedFiles.value = [];
 };
 
-const menuItems = computed<MenuItem[]>(() => [
+/* --- The attach popover ------------------------------------------------------------------ */
+
+const picker = ref<InstanceType<typeof Popover> | null>(null);
+const pickerList = ref<HTMLElement | null>(null);
+const pickerOpen = ref(false);
+let pickerTrigger: HTMLElement | null = null;
+
+const pickerOptions = computed<PickerOption[]>(() => [
   {
-    label: t("file.attachMedia"),
-    phIcon: "PhImage",
-    command: () => {
-      discard();
-      pickMedia();
-    },
+    key: "photo",
+    icon: "PhImage",
+    label: t("file.attachPhoto"),
+    hint: t("file.photoHint"),
+    tint: "bg-chat-primary/12 text-chat-primary",
+    pick: () => pickMedia("image"),
   },
   {
+    key: "video",
+    icon: "PhVideoCamera",
+    label: t("file.attachVideo"),
+    hint: canCompress ? t("file.videoHint") : t("file.videoHintPlain"),
+    tint: "bg-chat-secondary/14 text-chat-secondary",
+    pick: () => pickMedia("video"),
+  },
+  {
+    key: "file",
+    icon: "PhFileText",
     label: t("file.attachFile"),
-    phIcon: "PhFile",
-    command: () => {
-      discard();
-      pickFiles();
-    },
+    hint: t("file.fileHint"),
+    tint: "bg-chat-surface-3 text-chat-on-surface",
+    pick: pickFiles,
   },
 ]);
+
+const togglePicker = (event: MouseEvent) => {
+  pickerTrigger = event.currentTarget as HTMLElement;
+  picker.value?.toggle(event);
+};
+
+const pickerItems = () =>
+  Array.from(pickerList.value?.querySelectorAll<HTMLElement>('[role="menuitem"]') ?? []);
+
+const onPickerShow = async () => {
+  pickerOpen.value = true;
+  await nextTick();
+  pickerItems()[0]?.focus();
+};
+
+// Arrow keys, Home and End move between the options, as in a menu; Escape returns to the clip.
+const onPickerKeydown = (event: KeyboardEvent) => {
+  const items = pickerItems();
+  const current = items.indexOf(document.activeElement as HTMLElement);
+  const go = (index: number) => {
+    event.preventDefault();
+    items[(index + items.length) % items.length]?.focus();
+  };
+  if (event.key === "ArrowDown") go(current + 1);
+  else if (event.key === "ArrowUp") go(current - 1);
+  else if (event.key === "Home") go(0);
+  else if (event.key === "End") go(items.length - 1);
+  else if (event.key === "Escape") {
+    event.preventDefault();
+    picker.value?.hide();
+    pickerTrigger?.focus();
+  }
+};
+
+const choose = (option: PickerOption) => {
+  discard();
+  // The chooser only opens inside the click itself.
+  option.pick();
+  picker.value?.hide();
+};
+
+/* --- Sending ----------------------------------------------------------------------------- */
 
 const dialogTitle = computed(() => {
   if (dialogMode.value === "file") {
@@ -297,29 +423,29 @@ const dialogTitle = computed(() => {
   return single ? t("file.sendImage") : t("file.sendImages");
 });
 
-// "3 of 10 · 4.2 MB" for an album, "2 files · 1.3 MB" for files.
+// "3 of 10 · 4.2 MB" for an album, "2 files · 1.3 MB" for files, as picked.
 const summary = computed(() => {
   const items = dialogMode.value === "file" ? selectedFiles.value : selectedMedia.value;
   const bytes = items.reduce((total, item) => total + item.file.size, 0);
-  const size = localDigits(formatBytes(bytes));
   const count =
     dialogMode.value === "file"
-      ? t("file.fileCount", { count: localDigits(items.length) }, items.length)
+      ? t("file.fileCount", { count: localDigits(selectedFiles.value.length) }, selectedFiles.value.length)
       : t("file.mediaCount", {
-          count: localDigits(items.length),
+          count: localDigits(selectedMedia.value.length),
           max: localDigits(MAX_MEDIA),
         });
-  return { count, size };
+  return { count, size: size(bytes) };
 });
 
 // Enter sends, as in the message box; Shift+Enter and an IME's own Enter keep typing.
 const onCaptionEnter = (event: KeyboardEvent) => {
   if (event.isComposing) return;
   event.preventDefault();
-  if (itemCount.value > 0) sendMessages();
+  send();
 };
 
-const sendMessages = () => {
+const send = () => {
+  if (itemCount.value === 0) return;
   const messagesToEmit: AttachmentData[] = [];
 
   if (caption.value.trim()) {

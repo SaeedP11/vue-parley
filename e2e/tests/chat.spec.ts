@@ -536,9 +536,13 @@ test.describe("images", () => {
   test("sends photos and videos picked together as one album", async ({ page }) => {
     await openConversation(page, "c2");
     await page.getByTestId("chat-attach").click();
-    const chooser = page.waitForEvent("filechooser");
-    await page.getByText("Photo or video", { exact: true }).click();
-    await (await chooser).setFiles(["e2e/harness/public/sample.jpg", "e2e/harness/public/sample.webm"]);
+    let chooser = page.waitForEvent("filechooser");
+    await page.getByTestId("chat-attach-photo").click();
+    await (await chooser).setFiles(["e2e/harness/public/sample.jpg"]);
+    // An album started from photos takes videos too.
+    chooser = page.waitForEvent("filechooser");
+    await page.getByTestId("chat-attach-dialog").getByRole("button", { name: "Add more" }).click();
+    await (await chooser).setFiles(["e2e/harness/public/sample.webm"]);
 
     await expect(page.getByText("Send photos and videos")).toBeVisible();
     await page.getByRole("button", { name: "Send", exact: true }).click();
@@ -553,6 +557,69 @@ test.describe("images", () => {
     });
     // Hosts that only know photos still get the photo.
     expect(call.args[0].imageUrl).toHaveLength(1);
+  });
+
+  test("offers photo, video and file in a keyboard-friendly attach menu", async ({ page }) => {
+    const attach = page.getByTestId("chat-attach");
+    await attach.click();
+    const menu = page.getByRole("menu", { name: "Attach" });
+    await expect(menu.getByRole("menuitem")).toHaveCount(3);
+    await expect(page.getByTestId("chat-attach-photo")).toBeFocused();
+
+    await page.keyboard.press("ArrowDown");
+    await expect(page.getByTestId("chat-attach-video")).toBeFocused();
+    await page.keyboard.press("ArrowUp");
+    await page.keyboard.press("ArrowUp");
+    await expect(page.getByTestId("chat-attach-file")).toBeFocused();
+
+    await page.keyboard.press("Escape");
+    await expect(menu).toHaveCount(0);
+    await expect(attach).toBeFocused();
+  });
+
+  test("compresses a video in its bubble, then uploads it", async ({ page }) => {
+    // A failed send keeps the compressed copy for the retry, so it can be inspected here.
+    await setHarnessFlag(page, "failNextSend");
+    await page.getByTestId("chat-attach").click();
+    const chooser = page.waitForEvent("filechooser");
+    await page.getByTestId("chat-attach-video").click();
+    await (await chooser).setFiles(["e2e/harness/public/sample-large.webm"]);
+
+    const dialog = page.getByTestId("chat-attach-dialog");
+    await expect(dialog.getByText("Send video")).toBeVisible();
+    await expect(dialog.getByTestId("chat-attach-compress")).toContainText(
+      "The video is compressed when you send it",
+    );
+    // Sending doesn't wait: the bubble shows the compression, then the upload.
+    await dialog.getByTestId("chat-attach-send").click();
+    await expect(dialog).toBeHidden();
+
+    const progress = page.getByTestId("upload-progress");
+    await expect(progress).toHaveAttribute("data-phase", "compress");
+    await expect(progress).toContainText("Compressing…");
+    await expect(progress).toHaveAttribute("data-phase", "upload", { timeout: 45_000 });
+    await expect(progress).toContainText("Uploading…");
+
+    await expect
+      .poll(async () => (await handlerCalls(page, "sendMessage")).length)
+      .toBe(1);
+    const [call] = await handlerCalls(page, "sendMessage");
+    expect(call.args[0]).toMatchObject({ type: "image", media: [{ kind: "video" }] });
+
+    const sent = await page.evaluate(async (url) => {
+      const blob = await fetch(url).then((r) => r.blob());
+      return { type: blob.type, size: blob.size };
+    }, call.args[0].media[0].url);
+    expect(sent.type).toBe("video/mp4");
+    expect(sent.size).toBeLessThan(1_148_922 * 0.9);
+
+    // The retry uploads the same copy without compressing again.
+    await page.getByRole("button", { name: "Not sent. Tap to retry" }).click();
+    await expect
+      .poll(async () => (await handlerCalls(page, "sendMessage")).length)
+      .toBe(2);
+    const [, retry] = await handlerCalls(page, "sendMessage");
+    expect(retry.args[0].media[0].url).toBe(call.args[0].media[0].url);
   });
 });
 

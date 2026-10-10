@@ -104,6 +104,9 @@ const roundingClasses = computed(() => {
   return [prev && "rounded-tl-md", next ? "rounded-bl-md" : "rounded-bl-xs"];
 });
 
+const compressData = computed(() =>
+  messagesStore.compressionProgress.get(props.message.id),
+);
 const uploadData = computed(() =>
   messagesStore.uploadProgress.get(props.message.id),
 );
@@ -260,6 +263,7 @@ const longPress = useLongPress(handleRightClick);
                     :items="media"
                     :is-sent="message.isSent"
                     :upload="uploadData"
+                    :compress="compressData"
                     @preview="previewImage"
                   />
                   <BubbleVideo

@@ -7,5 +7,9 @@
     "image": "عکس"
   },
   "unreadMessages": "خوانده نشده.",
-  "sendFailed": "ارسال نشد. برای تلاش دوباره بزنید"
+  "sendFailed": "ارسال نشد. برای تلاش دوباره بزنید",
+  "sending": {
+    "compressing": "در حال فشرده‌سازی… {progress}٪",
+    "uploading": "در حال ارسال… {progress}٪"
+  }
 }

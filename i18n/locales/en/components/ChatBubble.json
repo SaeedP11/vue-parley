@@ -7,5 +7,9 @@
     "image": "Photo"
   },
   "unreadMessages": "Unread.",
-  "sendFailed": "Not sent. Tap to retry"
+  "sendFailed": "Not sent. Tap to retry",
+  "sending": {
+    "compressing": "Compressing… {progress}%",
+    "uploading": "Uploading… {progress}%"
+  }
 }

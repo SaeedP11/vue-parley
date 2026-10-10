@@ -1,7 +1,12 @@
 {
   "file": {
-    "attachMedia": "عکس یا ویدیو",
+    "attachPhoto": "عکس",
+    "attachVideo": "ویدیو",
     "attachFile": "فایل",
+    "photoHint": "JPG، PNG، WebP یا GIF",
+    "videoHint": "پیش از ارسال فشرده می‌شود",
+    "videoHintPlain": "MP4، WebM یا MOV",
+    "fileHint": "هر سندی، بدون تغییر",
     "addMore": "افزودن",
     "remove": "حذف {name}",
     "cancel": "انصراف",
@@ -14,6 +19,10 @@
     "sendMedia": "ارسال عکس و ویدیو",
     "fileCount": "{count} فایل | {count} فایل",
     "mediaCount": "{count} از {max}"
+  },
+  "compress": {
+    "note": "ویدیو هنگام ارسال فشرده می‌شود | ویدیوها هنگام ارسال فشرده می‌شوند",
+    "unsupported": "این مرورگر امکان فشرده‌سازی ویدیو را ندارد؛ ویدیوها بدون تغییر ارسال می‌شوند"
   },
   "errors": {
     "maxFilesReached": "در هر ارسال حداکثر ۱۰ عکس یا ویدیو مجاز است.",
