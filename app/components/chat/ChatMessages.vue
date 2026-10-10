@@ -264,22 +264,48 @@ const floatingHeader = computed(() => {
 
 // --- Lifecycle ---
 onMounted(() => {
+  shownId = chatId.value;
   if (chatId.value) {
+    // On phones the pane is rebuilt each time a conversation opens from the list.
+    const offset = offsetToRestore(chatId.value);
+    if (offset) nextTick(() => scroll.jumpTo(offset));
     messagesStore.markAsRead(chatId.value);
     msgList.fetchMessages(1);
   }
 });
 
 onBeforeUnmount(() => {
+  // The selection is already cleared by now (back to the list on phones), so save under the
+  // conversation this pane last showed.
+  if (shownId && scrollContainer.value)
+    messagesStore.scrollPositions.set(shownId, scrollContainer.value.scrollTop);
   scroll.cleanup();
 });
+
+// The conversation on screen, which `chatId` may already have moved off when the pane unmounts.
+let shownId: string | null = null;
+
+// The thread stays loaded when the user switches away, so coming back to it picks up where they
+// left it rather than at the bottom. Unless something new came in: that is what they came for.
+// Read before `markAsRead`, which clears the unread count.
+const offsetToRestore = (id: string) => {
+  const hasUnread = (chatStore.getContactById(id)?.unreadCount ?? 0) > 0;
+  if (hasUnread || !msgList.messages.value.length) return 0;
+  return messagesStore.scrollPositions.get(id) ?? 0;
+};
 
 watch(
   () => chatId.value,
   (newId, oldId) => {
+    // A pre-flush watcher: the container still shows the conversation being left.
+    if (oldId && scrollContainer.value)
+      messagesStore.scrollPositions.set(oldId, scrollContainer.value.scrollTop);
+    shownId = newId;
     if (newId && newId !== oldId) {
+      const offset = offsetToRestore(newId);
       messagesStore.markAsRead(newId);
       if (scrollContainer.value) scrollContainer.value.scrollTop = 0;
+      if (offset) nextTick(() => scroll.jumpTo(offset));
       msgList.fetchMessages(1);
     }
   },

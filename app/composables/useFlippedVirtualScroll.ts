@@ -134,6 +134,15 @@ export function useFlippedVirtualScroll(options: ScrollOptions) {
     virtualizer.value.scrollToOffset(0, { behavior: "smooth" });
   };
 
+  /** Jumps to a distance from the newest message, e.g. where the user left a conversation. */
+  const jumpTo = (offset: number) => {
+    if (animationFrame) cancelAnimationFrame(animationFrame);
+    animationFrame = null;
+    targetScroll.value = offset;
+    scrollOffset.value = offset;
+    virtualizer.value.scrollToOffset(offset);
+  };
+
   const cleanup = () => {
     if (animationFrame) cancelAnimationFrame(animationFrame);
     if (scrollTimer) clearTimeout(scrollTimer);
@@ -147,6 +156,7 @@ export function useFlippedVirtualScroll(options: ScrollOptions) {
     handleScroll,
     handleWheel,
     resetScroll,
+    jumpTo,
     cleanup,
     // Exposed to allow component to pass dynamic data without circular refs
     setItemCount: (count: number) => {

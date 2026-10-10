@@ -40,6 +40,10 @@ export const useMessagesStore = defineStore("messages-store", () => {
   const compressionProgress = ref<Map<string, number>>(new Map());
   const replyingTo = ref<ExtendedMessage | null>(null);
 
+  // Where the user left each thread, as a distance from its newest message. Not reactive: only
+  // the message list reads it, when a conversation opens again.
+  const scrollPositions = new Map<string, number>();
+
   // Unsent text per conversation, so switching chats never loses what was being typed.
   const drafts = ref<Record<string, string>>({});
   const setDraft = (conversationId: string, text: string) => {
@@ -424,6 +428,33 @@ export const useMessagesStore = defineStore("messages-store", () => {
     }
   };
 
+  /**
+   * A fresh newest page laid over the thread already loaded, as when a conversation is opened
+   * again. The page replaces the stretch it covers (so edits and deletions there show), older
+   * pages the user scrolled back through stay, and sends still in flight or failed keep their
+   * place. Older pages are dropped only when the page is the whole thread or no longer meets
+   * them (more arrived meanwhile than a page holds), which would leave a gap.
+   */
+  const mergeNewest = (existing: Message[], batch: Message[], pageSize: number) => {
+    const isPending = (m: Message) => m.id.startsWith("tmp-");
+    const inBatch = new Set(batch.map((m) => m.id));
+    const settled = existing.filter((m) => !isPending(m));
+    const pending = existing.filter((m) => isPending(m) && !inBatch.has(m.id));
+
+    const oldest = batch[0];
+    const meets = settled.some((m) => inBatch.has(m.id));
+    const cut = oldest ? new Date(oldest.date).getTime() : 0;
+    const older =
+      oldest && batch.length === pageSize && meets
+        ? settled.filter((m) => !inBatch.has(m.id) && new Date(m.date).getTime() < cut)
+        : [];
+
+    const time = (m: Message) => new Date(m.date).getTime();
+    // A stable sort: only the pending sends move, to where their date puts them.
+    const list = [...older, ...batch, ...pending].sort((a, b) => time(a) - time(b));
+    return { list, keptOlder: older.length > 0 };
+  };
+
   const fetchMessages = async (
     conversationId: string,
     page: number = 1,
@@ -441,11 +472,22 @@ export const useMessagesStore = defineStore("messages-store", () => {
       if (started !== generation) return;
 
       const existing = messagesMap.value[conversationId] ?? [];
+
+      if (page === 1) {
+        const { list, keptOlder } = mergeNewest(existing, batch, pageSize);
+        messagesMap.value[conversationId] = list;
+        // Older pages still loaded keep their place, so loading more carries on from them.
+        if (!keptOlder) {
+          messagesPage.value[conversationId] = 1;
+          messagesHasNextPage.value[conversationId] = batch.length === pageSize;
+        }
+        return;
+      }
+
       // Pages count back from the newest message, so each one sent or received shifts them: an
       // older page can repeat messages already shown.
       const known = new Set(existing.map((m) => m.id));
-      messagesMap.value[conversationId] =
-        page === 1 ? batch : [...batch.filter((m) => !known.has(m.id)), ...existing];
+      messagesMap.value[conversationId] = [...batch.filter((m) => !known.has(m.id)), ...existing];
       messagesPage.value[conversationId] = page;
       messagesHasNextPage.value[conversationId] = batch.length === pageSize;
     } finally {
@@ -465,6 +507,7 @@ export const useMessagesStore = defineStore("messages-store", () => {
     clearActions();
     isOptionMenuOpen.value = false;
     drafts.value = {};
+    scrollPositions.clear();
     messagesMap.value = {};
     messagesLoadingMap.value = {};
     messagesPage.value = {};
@@ -497,6 +540,7 @@ export const useMessagesStore = defineStore("messages-store", () => {
     sendBus,
     updateBus,
     drafts,
+    scrollPositions,
     setDraft,
     sendMessage,
     retryMessage,
