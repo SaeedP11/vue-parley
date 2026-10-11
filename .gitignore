@@ -36,3 +36,6 @@ auto-imports.d.ts
 # Playwright
 e2e/results/
 e2e/report/
+
+# Claude Code worktrees
+.claude/worktrees/
