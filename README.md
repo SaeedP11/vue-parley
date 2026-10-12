@@ -110,9 +110,19 @@ Render the chat inside `<ClientOnly>`: its handlers are only installed in the br
 | Slot               | Where                                              | Slot props                      |
 | ------------------ | -------------------------------------------------- | ------------------------------- |
 | `empty`            | Replaces the "no conversation selected" placeholder | none                            |
-| `header-actions`   | Conversation header, beside the call button        | `{ contact }`                   |
+| `header-actions`   | Conversation header, beside the call button        | `{ contact, compact }`          |
 | `conversation-top` | Between the header and the messages                | `{ conversationId, contact }`   |
 | `above-input`      | Above the input, while the conversation is active  | `{ conversationId, contact }`   |
+
+The header folds by its own width (under 640px), not the screen's, since the list and the contact panel take from it. Folded, it keeps the voice call (or Join) and moves the video call into its "more options" menu, and `compact` is true. A host then hides its `header-actions` buttons; the menu lists the `headerOptions` prop in their place (`MenuOption[]`; `icon` is a Phosphor name or any component, `command` runs on select). The header is also a size container named `chat-header`, so host buttons can drop their labels with container queries (`@3xl/chat-header:inline`).
+
+```vue
+<ChatPage :header-options="[{ key: 'members', label: 'Members', icon: UsersIcon, command: openMembers }]">
+  <template #header-actions="{ compact }">
+    <MembersButton v-if="!compact" />
+  </template>
+</ChatPage>
+```
 
 To build a different layout, use the exported building blocks instead: `ChatList`, `ChatConversation`, `ChatHeader`, `ChatMessages`, `ChatInput` and `ChatBubble`. They read the same stores, so they work together once `createChat()` is installed.
 

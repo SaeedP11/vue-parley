@@ -13,11 +13,12 @@
           <ChatPageBar
             :contact="selectedChat"
             :options="medicOptions"
+            :host-options="headerOptions"
             @open-profile="openProfile"
             @select="handleOption"
           >
-            <template v-if="$slots['header-actions']" #actions="{ contact }">
-              <slot name="header-actions" :contact="contact" />
+            <template v-if="$slots['header-actions']" #actions="{ contact, compact }">
+              <slot name="header-actions" :contact="contact" :compact="compact" />
             </template>
           </ChatPageBar>
         </div>
@@ -88,6 +89,14 @@ import useLocalI18n, { useDirection } from "~/composables/useLocalI18n";
 import { useChatStore } from "~/stores/chatStore";
 import { chatView } from "@i18n/locales";
 
+withDefaults(
+  defineProps<{
+    /** The host's actions, listed in the header's "more options" menu while it is compact. */
+    headerOptions?: MenuOption[];
+  }>(),
+  { headerOptions: () => [] },
+);
+
 const chatStore = useChatStore();
 const { t } = useLocalI18n(chatView);
 const { dir } = useDirection();
@@ -110,7 +119,7 @@ const medicOptions = computed<MenuOption[]>(() =>
     ? [
         {
           label: t("barOptions.endChat"),
-          icon: "PhXSquare",
+          icon: "PhX",
           key: "end-chat",
           color: "error",
         },

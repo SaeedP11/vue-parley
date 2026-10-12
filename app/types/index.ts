@@ -336,3 +336,5 @@ export type CallMessageSchema =
         video: boolean;
       };
     };
+
+export type { MenuOption } from "./components/menu-options";

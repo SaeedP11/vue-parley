@@ -12,6 +12,7 @@ import { computed, defineAsyncComponent, useSlots } from "vue";
 // Loaded with the first call, not with the chat.
 const Call = defineAsyncComponent(() => import("./call/Call.vue"));
 import type { Contact } from "~/types";
+import type { MenuOption } from "~/types/components/menu-options";
 
 const props = withDefaults(
   defineProps<{
@@ -20,15 +21,23 @@ const props = withDefaults(
      * keep the call on screen while the user navigates away from the chat.
      */
     renderCall?: boolean;
+    /**
+     * Host actions as items of the conversation header's "more options" menu, listed while the
+     * header is too narrow for `header-actions` (that slot's `compact`).
+     */
+    headerOptions?: MenuOption[];
   }>(),
-  { renderCall: true },
+  { renderCall: true, headerOptions: () => [] },
 );
 
 defineSlots<{
   /** Replaces the "no conversation selected" placeholder. */
   empty?: () => unknown;
-  /** Extra actions in the conversation header, beside the call button. */
-  "header-actions"?: (props: { contact: Contact | null }) => unknown;
+  /**
+   * Extra actions in the conversation header, beside the call button. `compact` is true while the
+   * header is too narrow for them: hide them then, and list them through `headerOptions`.
+   */
+  "header-actions"?: (props: { contact: Contact | null; compact: boolean }) => unknown;
   /** Between the header and the messages. */
   "conversation-top"?: (props: {
     conversationId: string | null;
@@ -62,7 +71,7 @@ const isInChat = computed(() => chatStore.activeConversationId !== null);
       :class="isInChat ? 'block' : 'hidden md:block'"
     >
       <!-- Each is forwarded only when filled, so ChatView's `$slots[...]` checks stay accurate. -->
-      <ChatView v-if="isInChat">
+      <ChatView v-if="isInChat" :header-options="props.headerOptions">
         <template v-if="slots['header-actions']" #header-actions="scope">
           <slot name="header-actions" v-bind="scope" />
         </template>

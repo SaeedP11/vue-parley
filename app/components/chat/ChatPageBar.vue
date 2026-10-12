@@ -1,8 +1,11 @@
 <template>
   <div :dir="dir" class="vue-chat relative z-20 w-full">
+    <!-- A size container (`chat-header`): the header folds by its own width, not the screen's, since
+         the list, the contact panel and a host's sidebar all take from it. -->
     <header
       v-if="selectedChat"
-      class="relative z-50 flex h-16 w-full items-center gap-x-2 border-b border-b-chat-outline-variant bg-chat-background px-3 md:h-20 md:gap-x-3 md:px-5"
+      ref="header"
+      class="@container/chat-header relative z-50 flex h-16 w-full items-center gap-x-2 border-b border-b-chat-outline-variant bg-chat-background px-3 md:h-20 md:gap-x-3 md:px-5"
     >
       <!-- At the start and pointing back, mirrored for right-to-left. -->
       <IconButton
@@ -55,13 +58,14 @@
         class="flex shrink-0 items-center gap-x-1 transition-transform duration-200 ease-in-out motion-reduce:transition-none md:gap-x-2"
         :class="[isSelectMode ? 'invisible' : 'visible']"
       >
-        <!-- Host actions for the open conversation, before the calls. -->
-        <slot name="actions" :contact="selectedChat" />
+        <!-- Host actions for the open conversation, before the calls. When the header is narrow
+             (`compact`) a host can list them in the menu instead, through `hostOptions`. -->
+        <slot name="actions" :contact="selectedChat" :compact="compact" />
 
         <span
-          v-if="$slots.actions && (canVoiceCall || canVideoCall)"
+          v-if="$slots.actions && !compact && (canVoiceCall || canVideoCall)"
           aria-hidden="true"
-          class="mx-1 hidden h-6 w-px bg-chat-outline-variant md:block"
+          class="mx-1 h-6 w-px shrink-0 bg-chat-outline-variant"
         />
 
         <!-- Others are in a call here: joining it replaces starting one. -->
@@ -94,8 +98,9 @@
           :data-testid="canVideoCall ? 'chat-start-voice-call' : 'chat-start-call'"
           @click="initCall(false)"
         />
+        <!-- When narrow the voice call keeps its button and the video call moves into the menu. -->
         <IconButton
-          v-if="canVideoCall && !canJoin"
+          v-if="canVideoCall && !canJoin && !compact"
           icon="PhVideoCamera"
           icon-class="size-5.5"
           :label="isInCall ? t('actions.returnToCall') : t('videoCall')"
@@ -113,21 +118,53 @@
           @click="toggleProfile"
         />
         <IconButton
-          v-if="options.length"
+          v-if="menuItems.length"
           icon="PhDotsThreeVertical"
           icon-class="size-5.5"
           :label="t('actions.moreOptions')"
-          aria-haspopup="true"
+          aria-haspopup="menu"
+          :aria-expanded="menuOpen"
           data-testid="chat-more-options"
+          :class="menuOpen && 'bg-chat-primary/10! text-chat-primary!'"
           @click="optionsMenuRef?.toggle($event)"
         />
-        <Menu ref="optionsMenu" :model="menuItems" popup :dir="dir" class="vue-chat">
-          <template #itemicon="{ item }">
-            <BIcon
-              :icon="item.phIcon"
-              class="size-5"
-              :class="item.danger ? 'text-chat-error' : 'text-chat-muted'"
-            />
+        <!-- A card like the message menu: rows a thumb can hit, each led by a tinted icon chip. -->
+        <Menu
+          ref="optionsMenu"
+          :model="menuItems"
+          popup
+          :dir="dir"
+          :pt="menuPt"
+          class="vue-chat"
+          data-testid="chat-more-menu"
+          @show="menuOpen = true"
+          @hide="menuOpen = false"
+        >
+          <template #item="{ item, props: itemProps }">
+            <a
+              v-bind="itemProps.action"
+              :data-testid="`chat-menu-${item.key}`"
+              class="flex min-h-11 cursor-pointer items-center gap-x-3 px-2 py-1.5"
+            >
+              <span
+                aria-hidden="true"
+                class="flex size-8 shrink-0 items-center justify-center rounded-full"
+                :class="chipClass(item)"
+              >
+                <BIcon
+                  v-if="typeof item.phIcon === 'string'"
+                  :icon="item.phIcon"
+                  class="size-4.5"
+                />
+                <component :is="item.phIcon" v-else-if="item.phIcon" class="size-4.5" />
+              </span>
+              <span
+                class="min-w-0 flex-1 truncate text-label-md"
+                :class="item.danger ? 'text-chat-error' : 'text-chat-on-background'"
+              >
+                {{ item.label }}
+              </span>
+            </a>
           </template>
         </Menu>
       </div>
@@ -163,17 +200,21 @@ import { useChatStore } from "~/stores/chatStore.js";
 import { useDate } from "~/composables/useDate.js";
 import { chatPageBar } from "@i18n/locales";
 import type { Contact } from "~/types";
-import { computed, useTemplateRef } from "vue";
+import { computed, ref, useTemplateRef } from "vue";
+import { useElementSize } from "@vueuse/core";
 
 const props = withDefaults(
   defineProps<{
     contact: Contact | null;
     /** Actions for the open conversation, listed in the header's "more options" menu. */
     options: MenuOption[];
+    /** The host's actions as menu items, listed before `options` while the header is compact. */
+    hostOptions?: MenuOption[];
   }>(),
   {
     contact: null,
     options: () => [],
+    hostOptions: () => [],
   },
 );
 
@@ -184,14 +225,71 @@ const emit = defineEmits<{
 }>();
 
 const optionsMenuRef = useTemplateRef<InstanceType<typeof Menu>>("optionsMenu");
-const menuItems = computed<MenuItem[]>(() =>
-  props.options.map((option) => ({
-    label: option.label,
-    phIcon: option.icon,
-    danger: option.color === "error",
-    command: () => emit("select", option.key),
-  })),
-);
+
+// Below this the header cannot fit a host's actions beside the calls and the contact's name.
+const COMPACT_BELOW = 640;
+const headerRef = useTemplateRef<HTMLElement>("header");
+const { width: headerWidth } = useElementSize(headerRef);
+const compact = computed(() => headerWidth.value < COMPACT_BELOW);
+
+const menuOpen = ref(false);
+
+const menuPt = {
+  root: {
+    class:
+      "w-64! max-w-[calc(100vw-1.5rem)]! rounded-2xl! border-chat-outline-variant/60! bg-chat-background/95! p-1.5! shadow-xl! backdrop-blur-md!",
+  },
+  list: { class: "gap-y-0.5! p-0!" },
+  itemContent: { class: "rounded-xl!" },
+  separator: { class: "mx-2! my-1! border-chat-outline-variant/70!" },
+  // Drops out of the button, which sits at the header's end.
+  transition: {
+    enterFromClass: "opacity-0 scale-95",
+    enterActiveClass:
+      "transition duration-150 ease-out origin-top-right rtl:origin-top-left motion-reduce:transition-none",
+    leaveActiveClass: "transition-opacity duration-100 ease-in motion-reduce:transition-none",
+    leaveToClass: "opacity-0",
+  },
+};
+
+// The call is the one primary action in the menu, ending the chat the one destructive one.
+const chipClass = (item: MenuItem) =>
+  item.danger
+    ? "bg-chat-error/10 text-chat-error"
+    : item.accent
+      ? "bg-chat-primary/12 text-chat-primary"
+      : "bg-chat-surface text-chat-on-surface";
+
+const toItem = (option: MenuOption): MenuItem => ({
+  key: option.key,
+  label: option.label,
+  phIcon: option.icon,
+  accent: option.color === "primary",
+  danger: option.color === "error",
+  disabled: option.disabled,
+  command: () => (option.command ? option.command() : emit("select", option.key)),
+});
+
+// When compact the menu takes what the header has no room for, in groups set off by a line: the
+// video call, the host's actions, then the conversation's own, so ending it comes last.
+const menuItems = computed<MenuItem[]>(() => {
+  if (!compact.value) return props.options.map(toItem);
+  const video: MenuOption[] =
+    canVideoCall.value && !canJoin.value
+      ? [
+          {
+            key: "video-call",
+            label: isInCall.value ? t("actions.returnToCall") : t("videoCall"),
+            icon: "PhVideoCamera",
+            color: "primary",
+            command: () => initCall(true),
+          },
+        ]
+      : [];
+  return [video, props.hostOptions, props.options]
+    .filter((group) => group.length)
+    .flatMap((group, index) => [...(index ? [{ separator: true }] : []), ...group.map(toItem)]);
+});
 
 const messagesStore = useMessagesStore();
 const { formatRelativeDate } = useDate();
