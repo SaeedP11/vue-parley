@@ -333,6 +333,7 @@ app/
   types/          handler interfaces and data types
   assets/css/     theme tokens and base styles
 i18n/locales/     en and fa translations
+scripts/          generate-icons.mjs: BIcon's Phosphor SVGs, one module per weight (add an icon there)
 fakes/            in-memory backend and call handlers (published as `vue-parley/fakes`)
 demo/             demo app (workspace package)
 e2e/              Playwright tests and harness
