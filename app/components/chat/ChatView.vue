@@ -67,7 +67,7 @@
 
     <PermissionPopup />
     <ConfirmModal ref="modal" :loading="ending" @action="endConversation" />
-    <Toast :group="TOAST_GROUP" position="bottom-center" :dir="dir" class="vue-chat" />
+    <Toast :group="TOAST_GROUP" position="top-center" :dir="dir" class="vue-chat" />
   </div>
 </template>
 
