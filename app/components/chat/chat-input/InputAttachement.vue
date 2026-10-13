@@ -87,14 +87,14 @@
             fit="contain"
             class="h-72 max-h-[50dvh] w-full"
           />
-          <button
-            type="button"
-            :class="[removeChip, 'end-2 top-2 size-9']"
-            :aria-label="t('file.remove', { name: selectedMedia[0].file.name })"
+          <IconButton
+            icon="PhX"
+            weight="bold"
+            icon-class="size-4"
+            :label="t('file.remove', { name: selectedMedia[0].file.name })"
+            :class="[removeChip, 'end-2 top-2 size-9!']"
             @click="removeMedia(0)"
-          >
-            <BIcon icon="PhX" weight="bold" class="size-4" />
-          </button>
+          />
         </div>
 
         <ul
@@ -111,14 +111,14 @@
               badge="sm"
               class="size-full"
             />
-            <button
-              type="button"
-              :class="[removeChip, 'end-1 top-1 size-8']"
-              :aria-label="t('file.remove', { name: media.file.name })"
+            <IconButton
+              icon="PhX"
+              weight="bold"
+              icon-class="size-3.5"
+              :label="t('file.remove', { name: media.file.name })"
+              :class="[removeChip, 'end-1 top-1 size-8!']"
               @click="removeMedia(index)"
-            >
-              <BIcon icon="PhX" weight="bold" class="size-3.5" />
-            </button>
+            />
           </li>
         </ul>
 
@@ -226,7 +226,7 @@ const MAX_MEDIA = 10;
 
 // Sits over any photo, so it carries its own dark backing rather than a theme colour.
 const removeChip =
-  "absolute flex cursor-pointer items-center justify-center rounded-full bg-black/55 text-white backdrop-blur-sm transition-colors hover:bg-black/70 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-chat-primary motion-reduce:transition-none";
+  "absolute! border-0! bg-black/55! p-0! text-white! backdrop-blur-sm hover:bg-black/70! motion-reduce:transition-none";
 
 const props = withDefaults(
   defineProps<{

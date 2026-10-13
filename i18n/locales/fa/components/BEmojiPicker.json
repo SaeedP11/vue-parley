@@ -1,0 +1,22 @@
+{
+  "label": "ایموجی",
+  "search": "جستجوی ایموجی",
+  "clear": "پاک کردن جستجو",
+  "categories": "دسته‌های ایموجی",
+  "resultCount": "{count} ایموجی پیدا شد",
+  "noResults": "ایموجی‌ای برای «{query}» پیدا نشد",
+  "noResultsHint": "یک کلمهٔ انگلیسی امتحان کنید، مثل «heart» یا «smile».",
+  "groups": {
+    "results": "نتایج جستجو",
+    "recent": "اخیراً استفاده‌شده",
+    "smileys-emotion": "شکلک‌ها و احساسات",
+    "people-body": "افراد و بدن",
+    "animals-nature": "حیوانات و طبیعت",
+    "food-drink": "خوراکی و نوشیدنی",
+    "travel-places": "سفر و مکان‌ها",
+    "activities": "فعالیت‌ها",
+    "objects": "اشیا",
+    "symbols": "نمادها",
+    "flags": "پرچم‌ها"
+  }
+}

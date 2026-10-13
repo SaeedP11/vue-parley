@@ -69,13 +69,14 @@
     "vue-i18n": "^9.0.0 || ^10.0.0 || ^11.0.0"
   },
   "dependencies": {
+    "@iconify/vue": "^5.0.3",
     "@tanstack/vue-virtual": "^3.13.39",
     "mediabunny": "^1.61.3",
-    "nanoid": "^6.0.0",
-    "vue3-emoji-picker": "^1.1.8"
+    "nanoid": "^6.0.0"
   },
   "devDependencies": {
-    "@phosphor-icons/vue": "^2.2.1",
+    "@iconify-json/ph": "^1.2.2",
+    "@iconify/utils": "^3.1.7",
     "@playwright/test": "1.52.0",
     "@primeuix/themes": "^1.2.5",
     "@tailwindcss/vite": "4.3.2",
@@ -83,6 +84,7 @@
     "@types/simple-peer": "^9.11.9",
     "@vitejs/plugin-vue": "^5.2.0",
     "@vueuse/core": "^14.2.1",
+    "emojibase-data": "^17.0.0",
     "pinia": "^2.3.0",
     "postcss": "^8.5.17",
     "primevue": "^4.5.5",

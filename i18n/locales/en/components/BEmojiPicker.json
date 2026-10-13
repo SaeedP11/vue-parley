@@ -1,0 +1,22 @@
+{
+  "label": "Emoji",
+  "search": "Search emoji",
+  "clear": "Clear search",
+  "categories": "Emoji categories",
+  "resultCount": "{count} emoji found",
+  "noResults": "No emoji match “{query}”",
+  "noResultsHint": "Try an English word, like “heart” or “smile”.",
+  "groups": {
+    "results": "Search results",
+    "recent": "Recently used",
+    "smileys-emotion": "Smileys & emotion",
+    "people-body": "People & body",
+    "animals-nature": "Animals & nature",
+    "food-drink": "Food & drink",
+    "travel-places": "Travel & places",
+    "activities": "Activities",
+    "objects": "Objects",
+    "symbols": "Symbols",
+    "flags": "Flags"
+  }
+}

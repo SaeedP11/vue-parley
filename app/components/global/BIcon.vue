@@ -1,5 +1,6 @@
 <script lang="ts">
 import { computed, shallowReactive, useAttrs, watchEffect } from "vue";
+import { Icon, type IconifyIcon } from "@iconify/vue";
 
 import bold from "./icons/bold";
 import fill from "./icons/fill";
@@ -8,11 +9,10 @@ import regular from "./icons/regular";
 type Weight = "thin" | "light" | "regular" | "bold" | "fill" | "duotone";
 
 /*
- * The icons are Phosphor's SVG markup, generated per weight by
- * scripts/generate-icons.mjs, instead of @phosphor-icons/vue's components:
- * each of those carries all six weights, ~105 KB brotli for the 84 icons here.
- * The chat itself uses regular, bold and fill (~23 KB); the other three load
- * the first time something asks for them, shared by every BIcon.
+ * Phosphor icons through @iconify/vue, as the frontend's `ph:` icons are. The SVG bodies
+ * come from @iconify-json/ph, generated per weight by scripts/generate-icons.mjs, and go to
+ * <Icon> as data, so it never calls the Iconify API. The chat itself uses regular, bold and
+ * fill; the other three load the first time something asks for them, shared by every BIcon.
  */
 const weights = shallowReactive<Partial<Record<Weight, Record<string, string>>>>({
   regular,
@@ -71,23 +71,22 @@ const filteredAttrs = computed(() => {
 
 watchEffect(() => loadWeight(props.weight));
 
-const markup = computed(() =>
-  props.icon ? weights[props.weight]?.[normalizeIconName(props.icon)] : undefined,
-);
+const data = computed<IconifyIcon | undefined>(() => {
+  const body = props.icon ? weights[props.weight]?.[normalizeIconName(props.icon)] : undefined;
+  return body ? { body, width: 256, height: 256 } : undefined;
+});
 </script>
 
 <template>
-  <svg
-    v-if="markup"
-    xmlns="http://www.w3.org/2000/svg"
-    viewBox="0 0 256 256"
+  <Icon
+    v-if="data"
+    :icon="data"
     :width="size"
     :height="size"
-    :fill="color"
-    :transform="mirrored ? 'scale(-1, 1)' : undefined"
+    :color="color"
+    :flip="mirrored ? 'horizontal' : undefined"
     v-bind="filteredAttrs"
-    :class="['inline-block fill-current transition-all duration-200']"
-    v-html="markup"
+    :class="['inline-block transition-all duration-200']"
   />
-  <span v-else v-bind="filteredAttrs" :class="['inline-block fill-current transition-all duration-200']" />
+  <span v-else v-bind="filteredAttrs" :class="['inline-block transition-all duration-200']" />
 </template>

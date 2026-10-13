@@ -1,55 +1,60 @@
 /**
- * Generates app/components/global/icons/<weight>.ts: the SVG markup of every
- * Phosphor icon BIcon knows, one module per weight, rendered from
- * @phosphor-icons/vue. Each of that package's components carries all six
- * weights, so 84 icons cost ~105 KB brotli in the host; as markup, a weight is
- * a small string map, and BIcon loads the weights nobody here uses on demand.
+ * Generates app/components/global/icons/<weight>.ts: the Iconify SVG body of every
+ * Phosphor icon BIcon knows, one module per weight, taken from @iconify-json/ph (the
+ * set the frontend's @nuxt/icon uses as `ph:`). BIcon hands these to @iconify/vue as
+ * icon data, so nothing is fetched from the Iconify API; shipping the whole set would
+ * be ~9000 icons, so only the ones named here go in, and BIcon loads the weights
+ * nobody here uses on demand.
  *
  * To add an icon, put its name (without "Ph") in ICONS and run
  * `node scripts/generate-icons.mjs`.
  */
+import { createRequire } from "node:module";
 import { writeFileSync, mkdirSync } from "node:fs";
-import { createSSRApp, h } from "vue";
-import { renderToString } from "vue/server-renderer";
-import * as phosphor from "@phosphor-icons/vue";
+import { getIconData } from "@iconify/utils";
+
+const require = createRequire(import.meta.url);
+const phosphor = require("@iconify-json/ph/icons.json");
 
 const ICONS = [
-  "ArrowBendUpLeft", "ArrowDown", "ArrowLeft", "ArrowRight", "ArrowUUpLeft", "ArrowUUpRight",
-  "ArrowsClockwise", "ArrowsInSimple", "Buildings", "Cake", "Camera", "CaretDown", "CaretLeft",
-  "CaretRight", "CaretUp", "ChatCircleDots", "Check", "CheckCircle", "Checks", "CircleNotch",
-  "Clock", "Copy", "CornersIn", "DotsThreeVertical", "DownloadSimple", "Eraser", "File",
-  "FileText", "Files", "FilmStrip", "Flag", "FrameCorners", "Hamburger", "IdentificationCard",
-  "Image", "Images", "Info", "Lightbulb", "Lightning", "LightningSlash", "LockKey",
-  "MagnifyingGlass", "Microphone", "MicrophoneSlash", "Monitor", "MonitorArrowUp", "Moon",
-  "MusicNotes", "Palette", "PaperPlaneTilt", "Paperclip", "Pause", "PauseCircle", "PawPrint",
-  "PencilLine", "PencilSimpleLine", "Phone", "PhoneCall", "PhoneX", "Play", "PlayCircle", "Plus",
-  "Resize", "SidebarSimple", "Smiley", "SoccerBall", "SpeakerHigh", "SpeakerSlash", "Subtitles",
-  "SunDim", "Trash", "TrayArrowDown", "UploadSimple", "Users", "Video", "VideoCamera",
-  "VideoCameraSlash", "Warning", "WarningCircle", "WarningOctagon", "Waveform", "X", "XCircle",
-  "XSquare",
+  "AirplaneTilt", "ArrowBendUpLeft", "ArrowDown", "ArrowLeft", "ArrowRight", "ArrowUUpLeft",
+  "ArrowUUpRight", "ArrowsClockwise", "ArrowsInSimple", "Buildings", "Cake", "Camera",
+  "CaretDown", "CaretLeft", "CaretRight", "CaretUp", "ChatCircleDots", "Check", "CheckCircle",
+  "Checks", "CircleNotch", "Clock", "Copy", "CornersIn", "DotsThreeVertical", "DownloadSimple",
+  "Eraser", "File", "FileText", "Files", "FilmStrip", "Flag", "FrameCorners", "Hamburger",
+  "HandWaving", "Heart", "IdentificationCard", "Image", "Images", "Info", "Lightbulb",
+  "Lightning", "LightningSlash", "LockKey", "MagnifyingGlass", "Microphone", "MicrophoneSlash",
+  "Monitor", "MonitorArrowUp", "Moon", "MusicNotes", "Palette", "PaperPlaneTilt", "Paperclip",
+  "Pause", "PauseCircle", "PawPrint", "PencilLine", "PencilSimpleLine", "Phone", "PhoneCall",
+  "PhoneX", "Play", "PlayCircle", "Plus", "Resize", "SidebarSimple", "Smiley", "SmileyMeh",
+  "SoccerBall", "SpeakerHigh", "SpeakerSlash", "Subtitles", "SunDim", "Trash", "TrayArrowDown",
+  "UploadSimple", "Users", "Video", "VideoCamera", "VideoCameraSlash", "Warning",
+  "WarningCircle", "WarningOctagon", "Waveform", "X", "XCircle", "XSquare",
 ];
 
 const WEIGHTS = ["regular", "bold", "fill", "thin", "light", "duotone"];
 const OUT = new URL("../app/components/global/icons/", import.meta.url);
 
-/** The inside of the <svg> a component renders, without Vue's fragment comments. */
-async function inner(component, weight) {
-  const html = await renderToString(createSSRApp({ render: () => h(component, { weight }) }));
-  const start = html.indexOf(">", html.indexOf("<svg")) + 1;
-  return html.slice(start, html.lastIndexOf("</svg>")).replace(/<!--[^>]*-->/g, "");
+/** "ArrowUUpLeft" + "bold" is Iconify's "arrow-u-up-left-bold"; regular has no suffix. */
+function iconifyName(name, weight) {
+  const kebab = name.replace(/(?<!^)([A-Z])/g, "-$1").toLowerCase();
+  return weight === "regular" ? kebab : `${kebab}-${weight}`;
+}
+
+if (phosphor.width !== 256 || phosphor.height !== 256) {
+  throw new Error("BIcon assumes Phosphor's 256x256 grid");
 }
 
 mkdirSync(OUT, { recursive: true });
 for (const weight of WEIGHTS) {
-  const entries = [];
-  for (const name of ICONS) {
-    const component = phosphor["Ph" + name];
-    if (!component) throw new Error("No Phosphor icon Ph" + name);
-    entries.push(`  ${name}: ${JSON.stringify(await inner(component, weight))},`);
-  }
+  const entries = ICONS.map((name) => {
+    const data = getIconData(phosphor, iconifyName(name, weight));
+    if (!data) throw new Error(`No Phosphor icon ph:${iconifyName(name, weight)}`);
+    return `  ${name}: ${JSON.stringify(data.body)},`;
+  });
   writeFileSync(
     new URL(`${weight}.ts`, OUT),
-    `// Generated by scripts/generate-icons.mjs from @phosphor-icons/vue; do not edit.\n` +
+    `// Generated by scripts/generate-icons.mjs from @iconify-json/ph; do not edit.\n` +
       `export default {\n${entries.join("\n")}\n} as Record<string, string>;\n`,
   );
 }
