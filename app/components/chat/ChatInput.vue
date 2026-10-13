@@ -62,8 +62,17 @@
             @mousedown.prevent
             @click="openEmojiPopover"
           />
-          <Popover ref="emojiPopover" :dir="dir" class="vue-chat">
-            <BEmojiPicker v-if="emojiUsed" @select="handleEmojiSelect" />
+          <Popover
+            ref="emojiPopover"
+            :dir="dir"
+            class="vue-chat overflow-hidden"
+            :pt="{ content: { class: 'p-0!' } }"
+          >
+            <BEmojiPicker
+              v-if="emojiUsed"
+              class="h-[407px] w-[332px] max-w-[calc(100vw-2rem)]"
+              @select="handleEmojiSelect"
+            />
           </Popover>
           <IconButton
             icon="PhSmiley"
@@ -95,7 +104,7 @@
         showMobileEmojiPicker ? 'max-h-60 opacity-100' : 'max-h-0 opacity-0'
       "
     >
-      <BEmojiPicker v-if="emojiUsed" @select="handleEmojiSelect" />
+      <BEmojiPicker v-if="emojiUsed" class="h-60 w-full" @select="handleEmojiSelect" />
     </div>
   </div>
 </template>
@@ -129,7 +138,7 @@ import { useInputDraft } from "~/composables/chat/useInputDraft";
 import useLocalI18n, { useDirection } from "~/composables/useLocalI18n";
 import { useChatStore } from "~/stores/chatStore.js";
 import { useCallStore } from "~/stores/callStore.js";
-import { type EmojiExt } from "vue3-emoji-picker";
+import type { EmojiSelection } from "~/components/global/emoji/types";
 import { chat, chatInput } from "@i18n/locales";
 import { albumKind, messageMedia } from "~/utils/media";
 
@@ -422,8 +431,8 @@ const toggleMobileEmoji = () => {
   }
 };
 
-const handleEmojiSelect = (emoji: EmojiExt) => {
-  editor.handleEmojiSelect(emoji.i, showMobileEmojiPicker.value);
+const handleEmojiSelect = (emoji: EmojiSelection) => {
+  editor.handleEmojiSelect(emoji.emoji, showMobileEmojiPicker.value);
 };
 
 // Cleaned up pointer/click handlers

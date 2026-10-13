@@ -244,7 +244,7 @@ Every component and directive the chat uses is imported by the component itself,
 | `ChatPage` | The whole chat: contact list, conversation and call view. |
 | `Call` | The call view (async). |
 | `ChatList`, `ChatConversation`, `ChatHeader`, `ChatMessages`, `ChatInput`, `ChatBubble` | Building blocks for custom layouts. |
-| `BIcon`, `BEmojiPicker`, `BVirtualVerticalList` | A Phosphor icon by name, the emoji picker and the virtualised list the chat uses. Every other control is a PrimeVue component. |
+| `BIcon`, `BEmojiPicker`, `BVirtualVerticalList` | A Phosphor icon by name (rendered by `@iconify/vue` from bundled `ph` data, so it never calls the Iconify API), the emoji picker (PrimeVue and Tailwind; its `select` event carries an `EmojiSelection`, `{ emoji, label }`) and the virtualised list the chat uses. Every other control is a PrimeVue component. |
 | `useChatStore`, `useMessagesStore`, `useMediaStore`, `useProfileStore`, `useCallStore` | The Pinia stores. |
 | `messageMedia(message)` | A message's photo and video album: its `media`, or its `imageUrl` as photos. |
 | `resetChat()` | Forgets everything the chat loaded for the signed-in user (conversations, threads, drafts, shared media, the downloaded-file cache) and ends a running call. Call it on sign-out or an account switch, before the next user's chat mounts; the handlers stay. Each store also has its own `reset()` (`clearCache()` on the media store). |
@@ -333,7 +333,8 @@ app/
   types/          handler interfaces and data types
   assets/css/     theme tokens and base styles
 i18n/locales/     en and fa translations
-scripts/          generate-icons.mjs: BIcon's Phosphor SVGs, one module per weight (add an icon there)
+scripts/          generate-icons.mjs: BIcon's Phosphor icons from @iconify-json/ph, one module per weight (add an icon there)
+                  generate-emoji.mjs: BEmojiPicker's emoji list from emojibase-data (rerun after bumping it)
 fakes/            in-memory backend and call handlers (published as `vue-parley/fakes`)
 demo/             demo app (workspace package)
 e2e/              Playwright tests and harness

@@ -21,6 +21,7 @@ export { default as ChatBubble } from "./components/chat/ChatBubble.vue";
 
 export { default as BVirtualVerticalList } from "./components/global/BVirtualVerticalList.vue";
 export { default as BEmojiPicker } from "./components/global/BEmojiPicker.vue";
+export type { EmojiSelection } from "./components/global/emoji/types";
 export { default as BIcon } from "./components/global/BIcon.vue";
 
 export * from "./types";

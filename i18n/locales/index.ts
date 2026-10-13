@@ -24,6 +24,7 @@ import chatContactDisplayEn from "./en/components/ChatContactDisplay.json";
 import chatInputEn from "./en/components/ChatInput.json";
 import chatListEn from "./en/components/ChatList.json";
 import chatListSearchEn from "./en/components/ChatListSearch.json";
+import bEmojiPickerEn from "./en/components/BEmojiPicker.json";
 import chatMessagesEn from "./en/components/ChatMessages.json";
 import chatPageEn from "./en/components/ChatPage.json";
 import chatPageBarEn from "./en/components/ChatPageBar.json";
@@ -45,6 +46,7 @@ import chatContactDisplayFa from "./fa/components/ChatContactDisplay.json";
 import chatInputFa from "./fa/components/ChatInput.json";
 import chatListFa from "./fa/components/ChatList.json";
 import chatListSearchFa from "./fa/components/ChatListSearch.json";
+import bEmojiPickerFa from "./fa/components/BEmojiPicker.json";
 import chatMessagesFa from "./fa/components/ChatMessages.json";
 import chatPageFa from "./fa/components/ChatPage.json";
 import chatPageBarFa from "./fa/components/ChatPageBar.json";
@@ -189,4 +191,9 @@ export const chatBubblesFileDisplay = {
 export const profileFileDisplay = {
   en: { ...componentsGeneral.en, ...profileFileDisplayEn },
   fa: { ...componentsGeneral.fa, ...profileFileDisplayFa },
+};
+
+export const bEmojiPicker = {
+  en: { ...componentsGeneral.en, ...bEmojiPickerEn },
+  fa: { ...componentsGeneral.fa, ...bEmojiPickerFa },
 };

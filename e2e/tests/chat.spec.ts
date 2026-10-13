@@ -378,10 +378,26 @@ test.describe("messaging", () => {
   });
 
   test("inserts an emoji from the picker, loaded on first use", async ({ page }) => {
-    await expect(page.locator(".v3-emoji-picker")).toHaveCount(0);
+    await expect(page.getByTestId("chat-emoji-picker")).toHaveCount(0);
     await page.getByTestId("chat-emoji").click();
-    await page.getByRole("button", { name: "😀" }).first().click();
+    await page.getByRole("button", { name: "grinning face", exact: true }).click();
     await expect(page.getByTestId("chat-input")).toContainText("😀");
+  });
+
+  test("finds emoji by name and picks one from the keyboard", async ({ page }) => {
+    await page.getByTestId("chat-emoji").click();
+    // The phone layout's picker is mounted too, hidden; this is the popover's.
+    const picker = page.locator(".p-popover").getByTestId("chat-emoji-picker");
+    const search = picker.getByTestId("chat-emoji-search");
+    await search.fill("thumbs up");
+    await expect(page.getByRole("button", { name: "thumbs up", exact: true })).toBeVisible();
+    await search.press("ArrowDown");
+    await expect(page.getByRole("button", { name: "thumbs up", exact: true })).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(page.getByTestId("chat-input")).toContainText("👍");
+
+    await search.fill("zzqx");
+    await expect(picker).toContainText("No emoji match");
   });
 
   test("keeps a per-conversation draft", async ({ page }) => {
@@ -533,6 +549,24 @@ test.describe("images", () => {
     await expect(stage).toHaveAttribute("data-zoomed", "false");
   });
 
+  test("removes a photo or video before sending", async ({ page }) => {
+    await openConversation(page, "c2");
+    await page.getByTestId("chat-attach").click();
+    let chooser = page.waitForEvent("filechooser");
+    await page.getByTestId("chat-attach-photo").click();
+    await (await chooser).setFiles(["e2e/harness/public/sample.jpg"]);
+    chooser = page.waitForEvent("filechooser");
+    const dialog = page.getByTestId("chat-attach-dialog");
+    await dialog.getByRole("button", { name: "Add more" }).click();
+    await (await chooser).setFiles(["e2e/harness/public/sample.webm"]);
+
+    // Two items: each tile in the grid has its own remove button.
+    await dialog.getByRole("button", { name: "Remove sample.webm" }).click();
+    await expect(dialog.getByRole("button", { name: "Remove sample.webm" })).toHaveCount(0);
+    // One left: shown large, with its remove button in the corner.
+    await expect(dialog.getByRole("button", { name: "Remove sample.jpg" })).toBeVisible();
+  });
+
   test("sends photos and videos picked together as one album", async ({ page }) => {
     await openConversation(page, "c2");
     await page.getByTestId("chat-attach").click();
@@ -560,6 +594,7 @@ test.describe("images", () => {
   });
 
   test("offers photo, video and file in a keyboard-friendly attach menu", async ({ page }) => {
+    await openConversation(page, "c1");
     const attach = page.getByTestId("chat-attach");
     await attach.click();
     const menu = page.getByRole("menu", { name: "Attach" });
@@ -578,6 +613,7 @@ test.describe("images", () => {
   });
 
   test("compresses a video in its bubble, then uploads it", async ({ page }) => {
+    await openConversation(page, "c1");
     // A failed send keeps the compressed copy for the retry, so it can be inspected here.
     await setHarnessFlag(page, "failNextSend");
     await page.getByTestId("chat-attach").click();
