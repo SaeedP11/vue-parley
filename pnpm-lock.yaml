@@ -8,9 +8,6 @@ importers:
 
   .:
     dependencies:
-      '@phosphor-icons/vue':
-        specifier: ^2.2.1
-        version: 2.2.1(vue@3.5.38(typescript@5.9.3))
       '@tanstack/vue-virtual':
         specifier: ^3.13.39
         version: 3.13.39(vue@3.5.38(typescript@5.9.3))
@@ -24,6 +21,9 @@ importers:
         specifier: ^1.1.8
         version: 1.1.8(typescript@5.9.3)
     devDependencies:
+      '@phosphor-icons/vue':
+        specifier: ^2.2.1
+        version: 2.2.1(vue@3.5.38(typescript@5.9.3))
       '@playwright/test':
         specifier: 1.52.0
         version: 1.52.0

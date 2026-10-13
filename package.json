@@ -69,13 +69,13 @@
     "vue-i18n": "^9.0.0 || ^10.0.0 || ^11.0.0"
   },
   "dependencies": {
-    "@phosphor-icons/vue": "^2.2.1",
     "@tanstack/vue-virtual": "^3.13.39",
     "mediabunny": "^1.61.3",
     "nanoid": "^6.0.0",
     "vue3-emoji-picker": "^1.1.8"
   },
   "devDependencies": {
+    "@phosphor-icons/vue": "^2.2.1",
     "@playwright/test": "1.52.0",
     "@primeuix/themes": "^1.2.5",
     "@tailwindcss/vite": "4.3.2",
