@@ -44,7 +44,7 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: `pnpm exec vite --config e2e/vite.config.ts --host 127.0.0.1 --port ${PORT}`,
+    command: `node_modules/.bin/vite --config e2e/vite.config.ts --host 127.0.0.1 --port ${PORT}`,
     url: `http://127.0.0.1:${PORT}`,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,

@@ -68,26 +68,30 @@
           class="mx-1 h-6 w-px shrink-0 bg-chat-outline-variant"
         />
 
-        <!-- Others are in a call here: joining it replaces starting one. -->
-        <Button
-          v-if="canJoin"
-          rounded
-          severity="success"
-          size="small"
-          :aria-label="joinVideo ? t('joinVideoCall') : t('joinVoiceCall')"
-          data-testid="chat-join-call"
-          class="min-h-10 shrink-0 gap-x-2! px-3.5!"
-          @click="initCall(joinVideo)"
-        >
-          <span aria-hidden="true" class="relative flex size-2">
-            <span
-              class="absolute inset-0 animate-ping rounded-full bg-current opacity-75 motion-reduce:animate-none"
-            />
-            <span class="relative size-2 rounded-full bg-current" />
-          </span>
-          <BIcon :icon="joinVideo ? 'PhVideoCamera' : 'PhPhone'" weight="fill" class="size-4.5" />
-          <span class="text-label-md font-semibold">{{ t("join") }}</span>
-        </Button>
+        <!-- Others are in a call here: joining it replaces starting one. A full call keeps the
+             button, disabled, with the reason; the wrapper carries the tooltip, since a disabled
+             button gets no pointer events. -->
+        <span v-if="canJoin" v-tooltip.bottom="isFull ? { value: fullHint, class: 'vue-chat font-chat-family' } : undefined" class="inline-flex shrink-0">
+          <Button
+            rounded
+            :severity="isFull ? 'secondary' : 'success'"
+            size="small"
+            :disabled="isFull"
+            :aria-label="isFull ? `${t('joinFull')}. ${fullHint}` : joinVideo ? t('joinVideoCall') : t('joinVoiceCall')"
+            data-testid="chat-join-call"
+            class="min-h-10 shrink-0 gap-x-2! px-3.5!"
+            @click="initCall(joinVideo)"
+          >
+            <span v-if="!isFull" aria-hidden="true" class="relative flex size-2">
+              <span
+                class="absolute inset-0 animate-ping rounded-full bg-current opacity-75 motion-reduce:animate-none"
+              />
+              <span class="relative size-2 rounded-full bg-current" />
+            </span>
+            <BIcon :icon="joinVideo ? 'PhVideoCamera' : 'PhPhone'" weight="fill" class="size-4.5" />
+            <span class="text-label-md font-semibold">{{ isFull ? t("joinFull") : t("join") }}</span>
+          </Button>
+        </span>
 
         <!-- During a call either button brings the running call back into view. -->
         <IconButton
@@ -188,6 +192,7 @@
 import Button from "primevue/button";
 import Menu from "primevue/menu";
 import Skeleton from "primevue/skeleton";
+import Tooltip from "primevue/tooltip";
 import type { MenuItem } from "primevue/menuitem";
 import type { MenuOption } from "~/types/components/menu-options";
 import IconButton from "~/components/general/IconButton.vue";
@@ -202,6 +207,8 @@ import { chatPageBar } from "@i18n/locales";
 import type { Contact } from "~/types";
 import { computed, ref, useTemplateRef } from "vue";
 import { useElementSize } from "@vueuse/core";
+
+const vTooltip = Tooltip;
 
 const props = withDefaults(
   defineProps<{
@@ -323,6 +330,9 @@ const ongoingCall = computed(() => callStore.ongoingCall(currentConversationId.v
 const canJoin = computed(() => canVoiceCall.value && !isInCall.value && !!ongoingCall.value);
 // Joins the way the call was started, with the camera on only for a video call.
 const joinVideo = computed(() => canVideoCall.value && !!ongoingCall.value?.video);
+// As many are in it as a call takes: Join stays visible, so the user sees why they can't.
+const isFull = computed(() => canJoin.value && !!ongoingCall.value?.full);
+const fullHint = computed(() => t("joinFullHint", { max: ongoingCall.value?.max ?? 0 }));
 
 const openProfile = () => {
   emit("open-profile");

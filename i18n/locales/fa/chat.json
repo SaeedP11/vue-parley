@@ -113,6 +113,19 @@
       "yourPresentation": "ارائه شما",
       "presentationOf": "ارائه {name}",
       "cameraIsOff": "دوربین خاموش است",
+      "cameraOff": "دوربین خاموش",
+      "people": "افراد",
+      "muted": "میکروفون خاموش",
+      "micOn": "میکروفون روشن",
+      "cameraOn": "دوربین روشن",
+      "waiting": "در انتظار پیوستن دیگران…",
+      "everyoneLeft": "بقیه از تماس خارج شدند",
+      "joined": "{names} به تماس پیوست | {names} به تماس پیوستند",
+      "left": "{names} از تماس خارج شد | {names} از تماس خارج شدند",
+      "andJoin": "و",
+      "connecting": "در حال اتصال…",
+      "reconnecting": "در حال اتصال دوباره…",
+      "cantConnect": "اتصال به {name} برقرار نشد",
       "deviceDoesntSupport": "دستگاه شما از این قابلیت پشتیبانی نمیکند.",
       "errors": {
         "noMicDevice": "میکروفونی شناسایی نشد",
@@ -135,7 +148,8 @@
         "insecureContext": "دوربین و میکروفون فقط روی اتصال امن (https) کار می‌کنند. همچنان می‌توانید دیگران را ببینید و بشنوید.",
         "callServerUnavailable": "دریافت اطلاعات سرور تماس ممکن نشد. در حال تلاش دوباره…",
         "callServerUnreachable": "سرور تماس از این شبکه در دسترس نیست و ممکن است تماس برقرار نشود.",
-        "connectionFailed": "اتصال قطع شد. در حال اتصال دوباره…"
+        "connectionFailed": "اتصال قطع شد. در حال اتصال دوباره…",
+        "callFull": "این تماس پر است (حداکثر {max} نفر)"
       },
       "controls": {
         "enableSound": "برای روشن کردن صدا ضربه بزنید",
@@ -158,7 +172,12 @@
         "nextParticipant": "نمایش شرکت‌کننده بعدی",
         "more": "گزینه‌های بیشتر",
         "flashlightOn": "روشن کردن چراغ‌قوه",
-        "flashlightOff": "خاموش کردن چراغ‌قوه"
+        "flashlightOff": "خاموش کردن چراغ‌قوه",
+        "pin": "سنجاق کردن",
+        "unpin": "برداشتن سنجاق",
+        "retry": "تلاش دوباره",
+        "people": "نمایش افراد",
+        "closePeople": "بستن"
       }
     },
     "board": {

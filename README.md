@@ -20,6 +20,7 @@ A drop-in Vue 3 chat and video-call UI. You supply the backend through a few han
   - [Read receipts](#read-receipts)
   - [Calls outside the chat page](#calls-outside-the-chat-page)
   - [Joining a call in progress](#joining-a-call-in-progress)
+  - [Group calls](#group-calls)
   - [Fake backend](#fake-backend)
 - [What `createChat()` does](#what-createchat-does)
 - [Exports](#exports)
@@ -199,6 +200,24 @@ callStore.observeCall(message, conversationId);
 
 `conversationId` can be left out for messages that carry `payload.channel`. Messages from the signed-in user are ignored. A host that never calls `observeCall` keeps the start-call buttons.
 
+### Group calls
+
+A call on a group conversation can have several people in it, each connected directly to every other one. Calls are capped at **4 participants**, counting each device or tab, so mid-range phones can carry everyone's video. A host can lower the cap (never below 2):
+
+```ts
+createChat({ call: { ...handlers, maxParticipants: 3 }, /* … */ });
+```
+
+- **Joining a full call.** `callStore.ongoingCall(id)` returns `{ video, count, max, full }`. When `full`, the header's Join is disabled and reads "Call is full", and `startCall(id)` shows a toast instead of starting, whoever calls it. Two people joining at once into the last place can't see each other coming: every client orders the participants by when they joined, and whoever ranks past the cap leaves on their own with the same message. The people in the call notice nothing.
+- **The call screen.** Alone, the user sees their own camera and "Waiting for others to join…" ("Everyone else left" once others have gone; the library never hangs up on its own). With one other person, the layout is as in 5.0. With two or three others, everyone is a tile of a 2×2 grid, which fits a 360 px phone without scrolling. A screen share, or a tile the user pins, takes the stage, with everyone else in a strip along the bottom (portrait) or the inline end (landscape; the left in RTL). Tiles show the person's name, a mic-off badge, and their initial when their camera is off. The top bar holds the conversation's name, the time and a People button that opens the participant list. Joins and leaves show as a short notice, also read out to screen readers. Minimized, the window follows whoever is speaking.
+- **Bad networks.** In a group, each copy of the user's camera is capped (800 kbit/s at 3 people, 500 kbit/s at 4) and audio is sent at a higher priority, so video degrades before sound. One to one keeps the browser's defaults. A connection that drops is repaired in place (an ICE restart), and if that fails, only that one pair is rebuilt. After three failures in a row the tile says "Can't connect to …" with a **Try again** button; everyone else stays connected.
+
+What a host has to do for group calls: nothing beyond what one-to-one calls need, as long as it passes every call message to `observeCall` (above), which the Join button counts from. Deciding when a call ends is the host's: phc-frontend, for example, ends a group call by itself only if nobody ever answered.
+
+**Protocol.** Group calls add optional fields to existing messages and no new message types, so 5.0 clients and the earlier simple-peer builds still call this one: `join.joinedAt` and `join.to` (a reconnect aimed at one participant; older clients take it as aimed at them), `track_type.media` (`{ audio, video }`, sent on every mic or camera change) and `track_type.joinedAt`, and `presence.joinedAt`. Older clients ignore the fields, and a message without them is handled as before: no badges for that participant, and they order last for the cap.
+
+**Test ids** for hosts' own tests, besides the existing `call-remote-video`, `call-remote-screen` and `call-local-video`: `call-top-bar`, `call-participant-count`, `call-people-button`, `call-people-list`, `call-participant` (with `data-participant-id`), `call-tile` (with `data-participant-id` and `data-kind` `camera`, `screen` or `self`), `call-tile-muted`, `call-tile-avatar`, `call-tile-unreachable`, `call-pin`, `call-notice`, `call-waiting` and `call-strip`.
+
 ### Fake backend
 
 `vue-parley/fakes` is an in-memory implementation of every handler, for demos, playgrounds and tests. It is a separate entry, so apps that don't import it don't ship it.
@@ -248,7 +267,7 @@ Every component and directive the chat uses is imported by the component itself,
 | `useChatStore`, `useMessagesStore`, `useMediaStore`, `useProfileStore`, `useCallStore` | The Pinia stores. |
 | `messageMedia(message)` | A message's photo and video album: its `media`, or its `imageUrl` as photos. |
 | `resetChat()` | Forgets everything the chat loaded for the signed-in user (conversations, threads, drafts, shared media, the downloaded-file cache) and ends a running call. Call it on sign-out or an account switch, before the next user's chat mounts; the handlers stay. Each store also has its own `reset()` (`clearCache()` on the media store). |
-| Types | Handler interfaces, `Contact`, `Message`, `MediaItem`, `SignalData`, `ChatOptions`, `ChatUser` and the rest of `app/types`. |
+| Types | Handler interfaces, `Contact`, `Message`, `MediaItem`, `SignalData`, `ChatOptions`, `ChatUser`, the call's `ParticipantStatus`, `CallPhase` and `CallMediaState`, and the rest of `app/types`. |
 | `vue-parley/fakes` | `createFakeBackend`, `createBroadcastCallHandlers`, `demoData`, `e2eData`: see [Fake backend](#fake-backend). |
 
 Working with conversations the list page hasn't fetched (say, one opened from a link): add them with `chatStore.addContact(contact)` and change them with `chatStore.updateContact(id, changes)`. `chatStore.conversationStates` is a read-only view.
@@ -313,7 +332,9 @@ pnpm test:e2e     # Playwright suite (test:e2e:ui for the UI runner)
 
 The demo (`demo/`, a workspace package that consumes the built `dist/`) runs on the fakes with a seeded Persian dataset. Open it in two tabs with different `?user=` values and start a call in both to try video calling.
 
-`pnpm test:e2e` runs the Playwright suite in `e2e/`: every chat feature against the in-memory fakes, plus real two-tab video calls using Chromium's fake camera and mic. Tests also fail if a template uses a component or directive nobody registered.
+`pnpm test:e2e` runs the Playwright suite in `e2e/`: every chat feature against the in-memory fakes, plus real video calls between tabs using Chromium's fake camera and mic: one to one, with the previous simple-peer build, and groups of up to four with a fifth turned away (`e2e/tests/group-call.spec.ts`). Tests also fail if a template uses a component or directive nobody registered.
+
+In the w3x devzone, run it in Docker instead: `./dz install vue-parley`, then `./dz run --rm vue-parley-e2e [spec]` (Microsoft's Playwright image, whose tag matches `@playwright/test`).
 
 On NixOS, use the Nix-built browsers (the nixpkgs `playwright-driver` version must match `@playwright/test`):
 

@@ -6,5 +6,7 @@
   "toggleInfo": "Show contact info",
   "join": "Join",
   "joinVoiceCall": "Join the voice call",
-  "joinVideoCall": "Join the video call"
+  "joinVideoCall": "Join the video call",
+  "joinFull": "Call is full",
+  "joinFullHint": "Up to {max} people can be in a call"
 }

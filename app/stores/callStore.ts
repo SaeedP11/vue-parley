@@ -2,6 +2,7 @@ import { defineStore, acceptHMRUpdate } from "pinia";
 import { markRaw, ref, shallowRef } from "vue";
 import { CallMessageType, type CallHandlers, type CallMessageSchema } from "~/types";
 import type { CallSession } from "~/composables/call/session";
+import { maxParticipantsOf } from "~/composables/call/limits";
 import { useAppToast } from "~/composables/useAppToast";
 import { useStoreI18n } from "~/composables/useHostI18n";
 import { useProfileStore } from "./profileStore";
@@ -61,6 +62,12 @@ export const useCallStore = defineStore("call-modal", () => {
       );
     }
 
+    // Whatever button asked: a full call is not joined, and the people in it notice nothing.
+    if (ongoingCall(id)?.full) {
+      openToast(t("chat.call.errors.callFull", { max: maxParticipantsOf(handlers) }), "error");
+      return;
+    }
+
     const callHandlers = handlers;
     const current = ++attempt;
     startTimer();
@@ -78,8 +85,12 @@ export const useCallStore = defineStore("call-modal", () => {
           name: () => profileStore.userName ?? "",
           avatar: () => profileStore.userAvatar,
         },
-        notify: (key) => openToast(t(key), "error"),
+        notify: (key, params) => openToast(t(key, params), "error"),
         video,
+        // Turned away from a call that filled up as we joined: let go of it here too.
+        onFull: () => {
+          if (current === attempt) endCall();
+        },
       });
       // Streams and connections inside must not be made deeply reactive.
       session.value = markRaw(call);
@@ -110,7 +121,9 @@ export const useCallStore = defineStore("call-modal", () => {
    * Calls running in conversations, as heard from their signalling: channel → the signalling id
    * of each participant → when they count as gone unless heard from again.
    */
-  const ongoing = ref<Record<string, Record<string, { until: number; video?: boolean }>>>({});
+  const ongoing = ref<
+    Record<string, Record<string, { until: number; video?: boolean; joinedAt?: number }>>
+  >({});
   let sweepTimer: ReturnType<typeof setInterval> | undefined;
 
   const sweep = () => {
@@ -156,16 +169,29 @@ export const useCallStore = defineStore("call-modal", () => {
     // Three missed presence beats. A message other than presence also counts, for clients that
     // send none.
     const until = Date.now() + 45_000;
-    const video = message.type === CallMessageType.Presence ? message.payload.video : members[from]?.video;
-    members[from] = { until, video };
+    const presence = message.type === CallMessageType.Presence ? message.payload : null;
+    const video = presence ? presence.video : members[from]?.video;
+    const joinedAt = presence?.joinedAt ?? members[from]?.joinedAt;
+    members[from] = { until, video, joinedAt };
     sweepTimer ??= setInterval(sweep, 5_000);
   };
 
-  /** The call others are in on conversation `id`, if any: whether it is a video call. */
+  /**
+   * The call others are in on conversation `id`, if any: whether it is a video call, how many are
+   * in it (a host's ring sent before the caller's session is up doesn't count), and whether that
+   * is as many as it takes.
+   */
   const ongoingCall = (id: string | null | undefined) => {
     const members = id ? ongoing.value[id] : undefined;
     if (!members || !Object.keys(members).length) return null;
-    return { video: Object.values(members).some((m) => m.video) };
+    const count = Object.keys(members).filter((from) => !from.endsWith(":ring")).length;
+    const max = maxParticipantsOf(handlers);
+    return {
+      video: Object.values(members).some((m) => m.video),
+      count,
+      max,
+      full: count >= max,
+    };
   };
 
   /** Ends a running call and forgets the calls heard of elsewhere, for the next signed-in user. */

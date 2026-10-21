@@ -168,6 +168,23 @@ export interface CallHandlers {
   iceTransportPolicy?: RTCIceTransportPolicy;
   /** Logs signalling and peer events to the console. */
   debug?: boolean;
+  /** Most participants in one call, counting each device or tab. Default 4, minimum 2. */
+  maxParticipants?: number;
+}
+
+/** How a call's connection to one other participant is doing. */
+export type ParticipantStatus = "connecting" | "connected" | "recovering" | "unreachable";
+
+/**
+ * Where the user's own call is: getting media (`connecting`), alone (`waiting`), with someone
+ * (`active`), turned away because it was full (`full`), or over (`ended`).
+ */
+export type CallPhase = "connecting" | "waiting" | "active" | "full" | "ended";
+
+/** Whether a participant's microphone and camera are on, as they announced it. */
+export interface CallMediaState {
+  audio: boolean;
+  video: boolean;
 }
 
 export interface FetchContactsParams {
@@ -296,8 +313,15 @@ export type CallMessageSchema =
       payload: {
         from: string;
         name: string;
-        /** The sender dropped its connection to everyone: discard yours to it and reconnect. */
+        /** The sender dropped its connection to you: discard yours to it and reconnect. */
         restart?: boolean;
+        /**
+         * The one participant a `restart` is for. Others ignore it. Without it (older clients) the
+         * restart is for everyone.
+         */
+        to?: string;
+        /** When the sender entered the call (epoch ms); orders participants for the cap. */
+        joinedAt?: number;
       };
     }
   | {
@@ -305,6 +329,9 @@ export type CallMessageSchema =
       payload: {
         from: string;
         types: { id: string; type: TrackType }[];
+        /** Whether the sender's microphone and camera are on. Absent from older clients. */
+        media?: CallMediaState;
+        joinedAt?: number;
       };
     }
   | {
@@ -334,6 +361,7 @@ export type CallMessageSchema =
         channel: string;
         /** Whether the sender started it as a video call rather than a voice call. */
         video: boolean;
+        joinedAt?: number;
       };
     };
 

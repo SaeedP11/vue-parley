@@ -113,6 +113,19 @@
       "yourPresentation": "Your presentation",
       "presentationOf": "Presented by {name}",
       "cameraIsOff": "Camera is off",
+      "cameraOff": "Camera off",
+      "people": "People",
+      "muted": "Microphone off",
+      "micOn": "Microphone on",
+      "cameraOn": "Camera on",
+      "waiting": "Waiting for others to join…",
+      "everyoneLeft": "Everyone else left",
+      "joined": "{names} joined | {names} joined",
+      "left": "{names} left | {names} left",
+      "andJoin": "and",
+      "connecting": "Connecting…",
+      "reconnecting": "Reconnecting…",
+      "cantConnect": "Can't connect to {name}",
       "deviceDoesntSupport": "Your device does not support this feature.",
       "errors": {
         "noMicDevice": "No microphone device detected",
@@ -135,7 +148,8 @@
         "insecureContext": "Camera and microphone need a secure (https) connection. You can still see and hear the others.",
         "callServerUnavailable": "Could not get the call server credentials. Retrying…",
         "callServerUnreachable": "The call server is unreachable from this network, so the call may not connect.",
-        "connectionFailed": "The connection was lost. Reconnecting…"
+        "connectionFailed": "The connection was lost. Reconnecting…",
+        "callFull": "This call is full (up to {max} people)"
       },
       "controls": {
         "enableSound": "Tap to turn on sound",
@@ -158,7 +172,12 @@
         "nextParticipant": "Show next participant",
         "more": "More options",
         "flashlightOn": "Turn flashlight on",
-        "flashlightOff": "Turn flashlight off"
+        "flashlightOff": "Turn flashlight off",
+        "pin": "Pin",
+        "unpin": "Unpin",
+        "retry": "Try again",
+        "people": "Show everyone",
+        "closePeople": "Close"
       }
     },
     "board": {

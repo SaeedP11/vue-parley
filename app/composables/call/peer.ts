@@ -2,6 +2,24 @@ import type { SignalData } from "~/types";
 
 /** How long to wait for ICE gathering before sending a description anyway (as simple-peer). */
 const ICE_COMPLETE_TIMEOUT_MS = 5_000;
+/** A new connection that isn't up by then counts as failed (the other side may never answer). */
+const CONNECT_TIMEOUT_MS = 15_000;
+/** How long a connection may stay `disconnected` before we try to repair it. */
+const DISCONNECTED_GRACE_MS = 5_000;
+/** How long an ICE restart gets before the pair is given up and rebuilt from scratch. */
+const ICE_RESTART_TIMEOUT_MS = 10_000;
+
+/**
+ * Outgoing video limits by how many remote peers we send to (research R6). In a mesh the upload
+ * grows with every participant; capping each copy keeps the total near a one-to-one call's, and
+ * leaves audio room first. One remote: the browser's defaults, as before.
+ */
+const CAMERA_LIMITS: Record<number, { maxBitrate: number; scaleResolutionDownBy: number }> = {
+  2: { maxBitrate: 800_000, scaleResolutionDownBy: 1.5 },
+  3: { maxBitrate: 500_000, scaleResolutionDownBy: 2 },
+};
+const screenBitrate = (remotes: number) =>
+  remotes <= 1 ? 2_500_000 : remotes === 2 ? 1_500_000 : 1_200_000;
 
 export interface PeerEvents {
   /** A message for the other side, to send over signalling. */
@@ -11,6 +29,8 @@ export interface PeerEvents {
   /** The connection is gone, from either side. Fires once. */
   onClose(): void;
   onError(error: Error): void;
+  /** The connection's state changed (`connected`, `disconnected`, `failed`, …). */
+  onConnectionState?(state: RTCPeerConnectionState): void;
   /** ICE gathering finished, with the types of the local candidates found (for diagnostics). */
   onGatheringComplete?(types: RTCIceCandidateType[]): void;
   /** Diagnostics (state changes, negotiated directions); a no-op unless the host enabled `debug`. */
@@ -23,6 +43,8 @@ export interface PeerOptions extends PeerEvents {
   /** What we send; null to only receive (no camera/mic, or not allowed to use them). */
   stream: MediaStream | null;
   config: RTCConfiguration;
+  /** Whether a track we send is our screen share rather than the camera, for its send limits. */
+  isScreenTrack?(track: MediaStreamTrack): boolean;
 }
 
 // Without trickle ICE, the candidates travel inside the SDP; don't advertise trickle support.
@@ -75,9 +97,27 @@ export function createPeer(opts: PeerOptions) {
   const requestedTransceivers = new WeakSet<RTCRtpTransceiver>();
   const gathered: RTCIceCandidateType[] = [];
 
+  let everConnected = false;
+  /** An ICE restart is under way: set until the connection is back, or given up. */
+  let restartingIce = false;
+  let queuedIceRestart = false;
+  /** How many remote peers the call has, which sets our outgoing video limits. */
+  let remoteCount = 1;
+  /** Whether we ever changed the senders' parameters; until then a one-to-one call keeps the defaults. */
+  let tuned = false;
+  let connectTimer: ReturnType<typeof setTimeout> | undefined;
+  let disconnectedTimer: ReturnType<typeof setTimeout> | undefined;
+  let iceRestartTimer: ReturnType<typeof setTimeout> | undefined;
+  const clearTimers = () => {
+    clearTimeout(connectTimer);
+    clearTimeout(disconnectedTimer);
+    clearTimeout(iceRestartTimer);
+  };
+
   function destroy(error?: Error) {
     if (destroyed) return;
     destroyed = true;
+    clearTimers();
     log("destroy", error ? `error: ${(error as Error & { code?: string }).code ?? error.message}` : "closed", {
       connection: pc.connectionState,
       ice: pc.iceConnectionState,
@@ -132,10 +172,10 @@ export function createPeer(opts: PeerOptions) {
     opts.onSignal({ type: pc.localDescription.type, sdp: pc.localDescription.sdp });
   }
 
-  async function createOffer() {
+  async function createOffer(options?: RTCOfferOptions) {
     if (destroyed) return;
     try {
-      const offer = await pc.createOffer();
+      const offer = await pc.createOffer(options);
       await pc.setLocalDescription({ type: "offer", sdp: withoutTrickle(offer.sdp ?? "") });
       await sendDescription();
     } catch (err) {
@@ -197,17 +237,116 @@ export function createPeer(opts: PeerOptions) {
     if (pc.signalingState !== "stable") return;
     logTransceivers("negotiated");
     negotiating = false;
-    if (queuedNegotiation) {
+    // New senders only get encodings once negotiated: (re)apply the limits now.
+    void applySenderParams();
+    if (queuedIceRestart) {
+      queuedIceRestart = false;
+      restartIce();
+    } else if (queuedNegotiation) {
       queuedNegotiation = false;
       needsNegotiation();
     }
   };
 
+  /**
+   * A fresh offer with new ICE credentials: the pair looks for a working path again without
+   * tearing down the connection, its tracks or its data channel. Plain offer/answer, so the
+   * previous (simple-peer) build accepts it too. Initiator only.
+   */
+  function restartIce() {
+    if (destroyed || !initiator) return;
+    if (negotiating) {
+      queuedIceRestart = true;
+      return;
+    }
+    negotiating = true;
+    log("ICE restart");
+    void createOffer({ iceRestart: true });
+  }
+
+  /**
+   * The connection dropped after having worked: try an ICE restart first, and only if it is not
+   * back after a while give up, which makes the session rebuild this one pair.
+   */
+  function recover() {
+    if (destroyed || restartingIce) return;
+    restartingIce = true;
+    if (initiator) restartIce();
+    // Only the initiator makes offers: ask it for one.
+    else opts.onSignal({ type: "renegotiate", renegotiate: true });
+    iceRestartTimer = setTimeout(() => {
+      if (pc.connectionState !== "connected")
+        fail("ERR_CONNECTION_FAILURE")(new Error("Connection did not recover."));
+    }, ICE_RESTART_TIMEOUT_MS);
+  }
+
   pc.oniceconnectionstatechange = () => log("ice", pc.iceConnectionState);
   pc.onconnectionstatechange = () => {
-    log("connection", pc.connectionState);
-    if (pc.connectionState === "failed") fail("ERR_CONNECTION_FAILURE")(new Error("Connection failed."));
+    const state = pc.connectionState;
+    log("connection", state);
+    opts.onConnectionState?.(state);
+    clearTimeout(disconnectedTimer);
+    if (state === "connected") {
+      everConnected = true;
+      restartingIce = false;
+      clearTimers();
+    } else if (state === "failed") {
+      if (everConnected) recover();
+      else fail("ERR_CONNECTION_FAILURE")(new Error("Connection failed."));
+    } else if (state === "disconnected" && everConnected) {
+      // Often a blip that comes back on its own.
+      disconnectedTimer = setTimeout(recover, DISCONNECTED_GRACE_MS);
+    }
   };
+
+  // The other side may never answer (it left without a word, or can't reach us).
+  connectTimer = setTimeout(() => {
+    if (!everConnected) fail("ERR_CONNECTION_FAILURE")(new Error("Connection timed out."));
+  }, CONNECT_TIMEOUT_MS);
+
+  /**
+   * Sets each sender's encoding limits for a call with `count` remote peers (research R6): video
+   * gives way before audio, and each copy of our camera is capped so the total upload stays near
+   * a one-to-one call's. Re-applied after every negotiation, since new senders start bare.
+   */
+  async function applySenderParams(count = remoteCount) {
+    remoteCount = count;
+    if (destroyed || (count <= 1 && !tuned)) return;
+    tuned = true;
+    for (const sender of pc.getSenders()) {
+      const track = sender.track;
+      if (!track) continue;
+      const params = sender.getParameters() as RTCRtpSendParameters & {
+        degradationPreference?: string;
+      };
+      const encoding = params.encodings?.[0] as
+        | (RTCRtpEncodingParameters & { priority?: string; networkPriority?: string })
+        | undefined;
+      if (!encoding) continue;
+      if (track.kind === "audio") {
+        encoding.priority = encoding.networkPriority = "high";
+      } else if (opts.isScreenTrack?.(track)) {
+        encoding.priority = encoding.networkPriority = "medium";
+        encoding.maxBitrate = screenBitrate(count);
+        params.degradationPreference = "maintain-resolution";
+      } else {
+        encoding.priority = encoding.networkPriority = "low";
+        const limits = CAMERA_LIMITS[Math.min(count, 3)];
+        if (limits) Object.assign(encoding, limits);
+        else {
+          delete encoding.maxBitrate;
+          encoding.scaleResolutionDownBy = 1;
+        }
+        params.degradationPreference = "balanced";
+      }
+      try {
+        await sender.setParameters(params);
+      } catch (err) {
+        // Firefox rejects some of these fields; the call works without them.
+        log("setParameters", track.kind, err);
+      }
+    }
+  }
 
   // Which local candidates ICE found: with a relay-only policy, none at all means the TURN server
   // was unreachable or refused the credential, and the connection can never come up.
@@ -248,7 +387,12 @@ export function createPeer(opts: PeerOptions) {
     signal(data: SignalData) {
       if (destroyed) return;
       log("receive", data.type ?? (data.renegotiate ? "renegotiate" : data.candidate ? "candidate" : "?"));
-      if (data.renegotiate && initiator) needsNegotiation();
+      if (data.renegotiate && initiator) {
+        // The other side lost the connection: a plain renegotiation would reuse the dead path.
+        const broken = pc.connectionState === "failed" || pc.connectionState === "disconnected";
+        if (broken && everConnected) recover();
+        else needsNegotiation();
+      }
       if (data.transceiverRequest && initiator) {
         const { kind, init } = data.transceiverRequest;
         pc.addTransceiver(kind, init);
@@ -297,7 +441,23 @@ export function createPeer(opts: PeerOptions) {
       return pc.getSenders().some((s) => s.track === track);
     },
 
-    destroy: () => destroy(),
+    /** What each sender sends with, for diagnostics and tests. */
+    describeSenders: () =>
+      pc.getSenders().flatMap((sender) =>
+        sender.track
+          ? [{
+              kind: sender.track.kind,
+              screen: !!opts.isScreenTrack?.(sender.track),
+              encodings: sender.getParameters().encodings ?? [],
+            }]
+          : [],
+      ),
+
+    /** Sets the outgoing limits for a call with `count` remote peers (see `applySenderParams`). */
+    setRemoteCount: (count: number) => void applySenderParams(count),
+
+    /** Closes the connection; with an `error`, as a failure (`onError`), which rebuilds the pair. */
+    destroy: (error?: Error) => destroy(error),
   };
 }
 

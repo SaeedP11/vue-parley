@@ -1,7 +1,13 @@
 import { markRaw, ref, watch, type Ref } from "vue";
-import type { SignalData } from "~/types";
+import type { CallMediaState, ParticipantStatus, SignalData } from "~/types";
 import { createPeer, type PeerConnection } from "./peer";
 import type { Signaling, TrackTypes } from "./signaling";
+
+/**
+ * Failures in a row after which a pair is left alone as unreachable: the first one and two
+ * rebuilds (research R5).
+ */
+const MAX_FAILURES = 3;
 
 export interface RemoteStream {
   name: string;
@@ -46,12 +52,23 @@ export function usePeers(opts: PeerOptions) {
   /** Last SDP applied per peer, so a re-delivered message isn't applied twice. */
   const lastSdp: Record<string, string | undefined> = {};
 
+  // What we know of each remote participant. Unlike `peers`, an entry outlives a failed
+  // connection: the participant is still in the call while their pair is rebuilt.
+  const remoteNames = ref<Record<string, string>>({});
+  const remoteJoinedAt = ref<Record<string, number | undefined>>({});
+  /** Their mic and camera, as announced; undefined from clients too old to say. */
+  const remoteMedia = ref<Record<string, CallMediaState | undefined>>({});
+  const peerStatus = ref<Record<string, ParticipantStatus>>({});
+  /** Consecutive failures per pair, reset once it connects. */
+  const restarts: Record<string, number> = {};
+
   let relayWarned = false;
 
   const isInitiator = (remoteId: string) => selfId > remoteId;
   const has = (remoteId: string) => !!peers.value[remoteId] || !!pending.value[remoteId];
 
-  function remove(remoteId: string) {
+  /** Closes our connection to `remoteId` and drops its streams, but remembers who they are. */
+  function disconnect(remoteId: string) {
     const peer = peers.value[remoteId];
     delete peers.value[remoteId];
     peer?.destroy();
@@ -60,6 +77,33 @@ export function usePeers(opts: PeerOptions) {
     delete pending.value[remoteId];
     delete pendingSignals[remoteId];
     delete lastSdp[remoteId];
+  }
+
+  /** `remoteId` left the call: forgets them entirely. */
+  function remove(remoteId: string) {
+    disconnect(remoteId);
+    delete remoteNames.value[remoteId];
+    delete remoteJoinedAt.value[remoteId];
+    delete remoteMedia.value[remoteId];
+    delete remoteStreamTypes.value[remoteId];
+    delete peerStatus.value[remoteId];
+    delete restarts[remoteId];
+  }
+
+  function markConnected(remoteId: string) {
+    peerStatus.value[remoteId] = "connected";
+    delete restarts[remoteId];
+  }
+
+  /** How many remote peers we send to, which sets each one's outgoing video limits. */
+  const remoteCount = () => Object.keys(peers.value).length;
+
+  function setMedia(remoteId: string, media: CallMediaState | undefined) {
+    if (media) remoteMedia.value[remoteId] = media;
+  }
+
+  function setJoinedAt(remoteId: string, joinedAt: number | undefined) {
+    if (joinedAt !== undefined) remoteJoinedAt.value[remoteId] = joinedAt;
   }
 
   /** Whether `stream` is the remote's screen share, going by what they announced. */
@@ -78,6 +122,7 @@ export function usePeers(opts: PeerOptions) {
         ? remoteScreens
         : remoteVideos;
     target.value[remoteId] = { name, stream };
+    markConnected(remoteId);
 
     // A stopped screen share leaves an empty stream behind; drop its tile.
     stream.addEventListener("removetrack", () => {
@@ -88,6 +133,11 @@ export function usePeers(opts: PeerOptions) {
 
   function add(remoteId: string, name: string) {
     if (peers.value[remoteId]) return;
+    remoteNames.value[remoteId] = name;
+    // Rebuilding a failed pair keeps saying so; an unreachable one only changes once it connects
+    // or the user retries, though attempts the other side makes are still taken up.
+    const status = peerStatus.value[remoteId];
+    if (status !== "recovering" && status !== "unreachable") peerStatus.value[remoteId] = "connecting";
 
     if (!opts.mediaReady.value) {
       log("local media not ready, deferring peer", remoteId);
@@ -107,6 +157,7 @@ export function usePeers(opts: PeerOptions) {
 
     const initiator = isInitiator(remoteId);
     let peer: PeerConnection;
+    let failed = false;
     try {
       peer = createPeer({
         initiator,
@@ -115,6 +166,12 @@ export function usePeers(opts: PeerOptions) {
         log: (...args) => log("peer", remoteId, ...args),
         onSignal: (signal) => void signaling.signal(remoteId, signal),
         onStream: (stream) => onRemoteStream(remoteId, name, stream),
+        isScreenTrack: (track) => !!screenStream.value?.getTracks().includes(track),
+        // A receive-only remote sends no stream, so the connection itself says it is up.
+        onConnectionState(state) {
+          if (peers.value[remoteId] !== peer) return;
+          if (state === "connected") markConnected(remoteId);
+        },
         onGatheringComplete(types) {
           log("ICE candidates for", remoteId, types);
           if (config.iceTransportPolicy === "relay" && !types.includes("relay") && !relayWarned) {
@@ -125,15 +182,26 @@ export function usePeers(opts: PeerOptions) {
         },
         onError(err) {
           console.error("[vue-chat] Peer error for", remoteId, err);
+          if (peers.value[remoteId] !== peer) return;
+          failed = true;
           opts.onConnectionFailed(remoteId);
-          // Announce ourselves again so the pair can start over. `restart` makes the other side
-          // drop its half of this connection, which it may not have noticed is dead.
-          void signaling.join({ restart: true });
+          // Rebuilding keeps failing: say so on their tile and stop, until the user retries.
+          if (peerStatus.value[remoteId] === "unreachable" || countFailure(remoteId)) return;
+          peerStatus.value[remoteId] = "recovering";
+          // Announce ourselves again to this one participant so the pair can start over. `restart`
+          // makes them drop their half of this connection, which they may not have noticed is
+          // dead. Aimed with `to`: a restart to everyone made every other participant drop its
+          // working link to us too.
+          void signaling.join({ restart: true, to: remoteId });
         },
         onClose() {
           log("peer closed", remoteId);
           // Only if it is still the current one: a replaced peer closing must not remove its successor.
-          if (peers.value[remoteId] === peer) remove(remoteId);
+          if (peers.value[remoteId] !== peer) return;
+          if (!failed) return remove(remoteId); // they left
+          // A failed pair: the participant stays while we build our half again, unless we gave up.
+          disconnect(remoteId);
+          if (peerStatus.value[remoteId] !== "unreachable") add(remoteId, name);
         },
       });
     } catch (err) {
@@ -146,16 +214,44 @@ export function usePeers(opts: PeerOptions) {
     screen?.getVideoTracks().forEach((track) => peer.addTrack(track, screen));
 
     peers.value[remoteId] = markRaw(peer);
+    peer.setRemoteCount(remoteCount());
 
     const queued = pendingSignals[remoteId];
     delete pendingSignals[remoteId];
     queued?.forEach((data) => peer.signal(data));
   }
 
-  /** Throws away whatever we have with `remoteId` and connects again. */
+  /** Counts one more failure of the pair with `remoteId`; true once it is time to give up. */
+  function countFailure(remoteId: string) {
+    restarts[remoteId] = (restarts[remoteId] ?? 0) + 1;
+    if (restarts[remoteId] < MAX_FAILURES) return false;
+    log("giving up on", remoteId, "after", restarts[remoteId], "failures");
+    peerStatus.value[remoteId] = "unreachable";
+    return true;
+  }
+
+  /**
+   * The other side dropped its half of our connection and asks us to drop ours: throw away what
+   * we have with `remoteId` and connect again. A request that comes while the pair is still
+   * failing counts as one more failure: both sides often give up at the same moment, and each
+   * one's request would otherwise reset the other's attempt before it could count.
+   */
   function restart(remoteId: string, name: string) {
     log("restarting peer", remoteId);
-    remove(remoteId);
+    const status = peerStatus.value[remoteId];
+    if (status === "connecting" || status === "recovering") countFailure(remoteId);
+    disconnect(remoteId);
+    add(remoteId, name);
+  }
+
+  /** The user asked to try an unreachable participant again: start over, on both sides. */
+  function retry(remoteId: string) {
+    const name = remoteNames.value[remoteId];
+    if (name === undefined) return;
+    delete restarts[remoteId];
+    peerStatus.value[remoteId] = "connecting";
+    void signaling.join({ restart: true, to: remoteId });
+    disconnect(remoteId);
     add(remoteId, name);
   }
 
@@ -201,6 +297,12 @@ export function usePeers(opts: PeerOptions) {
     all.forEach((peer) => peer.destroy());
   }
 
+  // Each copy of our camera gets less upload as the call grows, and more again as it shrinks.
+  watch(
+    () => Object.keys(peers.value).length,
+    (count) => Object.values(peers.value).forEach((peer) => peer.setRemoteCount(count)),
+  );
+
   // Create the peers that were waiting for our media, with or without any.
   watch(
     opts.mediaReady,
@@ -215,10 +317,17 @@ export function usePeers(opts: PeerOptions) {
     remoteVideos,
     remoteScreens,
     remoteStreamTypes,
+    remoteNames,
+    remoteJoinedAt,
+    remoteMedia,
+    peerStatus,
+    setMedia,
+    setJoinedAt,
     isInitiator,
     has,
     add,
     restart,
+    retry,
     retryPending,
     remove,
     signal,

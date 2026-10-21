@@ -6,5 +6,7 @@
   "toggleInfo": "نمایش اطلاعات تماس",
   "join": "پیوستن",
   "joinVoiceCall": "پیوستن به تماس صوتی",
-  "joinVideoCall": "پیوستن به تماس تصویری"
+  "joinVideoCall": "پیوستن به تماس تصویری",
+  "joinFull": "تماس پر است",
+  "joinFullHint": "حداکثر {max} نفر می‌توانند در یک تماس باشند"
 }

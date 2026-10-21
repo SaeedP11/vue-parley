@@ -58,7 +58,9 @@ export function useHostLocale(): ComputedRef<string> {
  * Translations for a store: `messages` on their own, following the host's locale. A component
  * uses useLocalI18n() instead, which scopes them to the component.
  */
-export function useStoreI18n(messages: Record<string, any>): { t: (key: string) => string } {
+export function useStoreI18n(messages: Record<string, any>): {
+  t: (key: string, params?: Record<string, unknown>) => string;
+} {
   const host = injectHostI18n().global as unknown as {
     locale: string | Ref<string>;
     fallbackLocale: string | Ref<string>;
@@ -71,5 +73,5 @@ export function useStoreI18n(messages: Record<string, any>): { t: (key: string) 
     messages,
   });
   watch(locale, (value) => (global.locale.value = value));
-  return { t: (key) => global.t(key) };
+  return { t: (key, params) => (params ? global.t(key, params) : global.t(key)) };
 }

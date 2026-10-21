@@ -1,6 +1,6 @@
-import type { Page, Locator } from "@playwright/test";
+import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures";
-import { openConversation, openHarness, type HarnessWindow } from "./helpers";
+import { expectPlayingVideo, openConversation, openHarness, type HarnessWindow } from "./helpers";
 
 // Two tabs in one browser context share a BroadcastChannel, which the harness uses as the call
 // signalling bus. Media comes from Chromium's fake camera/mic, and the peers connect directly
@@ -11,26 +11,6 @@ async function startCall(page: Page) {
   await openConversation(page, "c1");
   await page.getByTestId("chat-start-call").click();
   await expect(page.getByTestId("call-view")).toBeVisible();
-}
-
-/** Resolves once the <video> is actually rendering frames from a live stream. */
-async function expectPlayingVideo(video: Locator) {
-  await expect
-    .poll(
-      () =>
-        video.evaluate((el: HTMLVideoElement) => {
-          const stream = el.srcObject as MediaStream | null;
-          const track = stream?.getVideoTracks()[0];
-          return (
-            !!track &&
-            track.readyState === "live" &&
-            el.videoWidth > 0 &&
-            el.readyState >= 2
-          );
-        }),
-      { timeout: 20_000 },
-    )
-    .toBe(true);
 }
 
 /** Joins the call someone else is already in, from the conversation's header. */

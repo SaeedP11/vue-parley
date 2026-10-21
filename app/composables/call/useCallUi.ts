@@ -8,6 +8,8 @@ export interface CallUiOptions {
   remoteScreens: Ref<Record<string, RemoteStream>>;
   /** Re-attach streams when this changes: minimizing swaps the <video> elements. */
   isMinimized: () => boolean;
+  /** Re-attach streams when this changes: tiles moving between grid, stage and strip remount. */
+  layoutKey?: () => string;
 }
 
 const CONTROLS_HIDE_AFTER_MS = 3000;
@@ -105,39 +107,29 @@ export function useCallUi(opts: CallUiOptions) {
     void play(el);
   };
 
+  /** Points every <video> at its stream: after a stream changes, or tiles moved and remounted. */
+  async function reattach() {
+    await nextTick();
+    if (localStream.value && localVideo.value && localVideo.value.srcObject !== localStream.value)
+      localVideo.value.srcObject = localStream.value;
+    if (localScreen.value && localScreen.value.srcObject !== screenStream.value)
+      localScreen.value.srcObject = screenStream.value;
+    for (const [id, { stream }] of Object.entries(remoteVideos.value))
+      attach(remoteRefs.value[id], stream);
+    for (const [id, { stream }] of Object.entries(remoteScreens.value))
+      attach(remoteScreenRefs.value[id], stream);
+  }
+
   watch(
-    [localStream, opts.isMinimized],
-    async () => {
-      await nextTick();
-      if (localStream.value && localVideo.value)
-        localVideo.value.srcObject = localStream.value;
-    },
-    { immediate: true },
-  );
-  watch(
-    [screenStream, opts.isMinimized],
-    async () => {
-      await nextTick();
-      if (localScreen.value) localScreen.value.srcObject = screenStream.value;
-    },
-    { immediate: true },
-  );
-  watch(
-    [() => ({ ...remoteVideos.value }), opts.isMinimized],
-    async () => {
-      await nextTick();
-      for (const [id, { stream }] of Object.entries(remoteVideos.value))
-        attach(remoteRefs.value[id], stream);
-    },
-    { immediate: true },
-  );
-  watch(
-    [() => ({ ...remoteScreens.value }), opts.isMinimized],
-    async () => {
-      await nextTick();
-      for (const [id, { stream }] of Object.entries(remoteScreens.value))
-        attach(remoteScreenRefs.value[id], stream);
-    },
+    [
+      localStream,
+      screenStream,
+      () => ({ ...remoteVideos.value }),
+      () => ({ ...remoteScreens.value }),
+      opts.isMinimized,
+      () => opts.layoutKey?.(),
+    ],
+    reattach,
     { immediate: true },
   );
 
@@ -168,5 +160,6 @@ export function useCallUi(opts: CallUiOptions) {
     soundBlocked,
     enableSound,
     detachAll,
+    reattach,
   };
 }

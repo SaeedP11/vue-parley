@@ -32,7 +32,8 @@ export default defineConfig({
     },
   },
   server: { port: 5179, strictPort: true },
-  // legacy.html (the previous, simple-peer based release) needs it. Pre-bundled at startup: found
-  // lazily, Vite would re-optimise and reload the page in the middle of the first interop test.
-  optimizeDeps: { include: ["simple-peer"] },
+  // Pre-bundled at startup: found lazily, Vite would re-optimise and reload the page in the middle
+  // of the first test that needs one. legacy.html (the previous, simple-peer based release) needs
+  // simple-peer; the call view, loaded only once a call starts, needs the drawer.
+  optimizeDeps: { include: ["simple-peer", "primevue/drawer"] },
 });

@@ -6,15 +6,20 @@ import useLocalI18n, { useDirection } from "~/composables/useLocalI18n";
 import { chat } from "@i18n/locales";
 import useCall from "~/composables/useCall";
 import { useSpeaking } from "~/composables/call/useSpeaking";
-import { useDraggable, useEventListener, useWindowSize } from "@vueuse/core";
-import { ref, computed, watch, onMounted, nextTick } from "vue";
-import Avatar from "primevue/avatar";
+import { useCallLayout, type CallTileInfo } from "~/composables/call/useCallLayout";
+import { useCallNotices } from "~/composables/call/useCallNotices";
+import type { Participant } from "~/composables/call/session";
+import { useDraggable, useElementSize, useEventListener, useWindowSize } from "@vueuse/core";
+import { ref, computed, watch, onMounted, nextTick, onBeforeUnmount } from "vue";
 import Button from "primevue/button";
 import Menu from "primevue/menu";
 import Tooltip from "primevue/tooltip";
 import type { MenuItem } from "primevue/menuitem";
 import CallButton from "./CallButton.vue";
 import CallIcon from "./CallIcon.vue";
+import CallTile from "./CallTile.vue";
+import CallParticipants from "./CallParticipants.vue";
+import { callButtonDt, callMenuDt, focusRing, tip } from "./tokens";
 
 const vTooltip = Tooltip;
 
@@ -22,10 +27,10 @@ const callStore = useCallStore();
 const minimizedRef = ref<HTMLElement | null>(null);
 const bodyRef = ref<HTMLElement | null>(null);
 
-const { t } = useLocalI18n(chat);
+const { t, locale } = useLocalI18n(chat);
 const { dir } = useDirection();
 
-// Named after whoever is on the other end of the conversation the call belongs to.
+// Named after the conversation the call belongs to: the other person, or the group.
 const chatStore = useChatStore();
 const callTitle = computed(() => {
   const contact = callStore.channelId ? chatStore.getContactById(callStore.channelId) : null;
@@ -33,10 +38,17 @@ const callTitle = computed(() => {
   return name || t("chat.call.title");
 });
 
+// Tiles move between the grid, the stage and the strip, remounting their <video>: the streams
+// are attached again whenever the arrangement changes.
+const layoutKey = ref("");
+
 const {
   toggleVideoPause,
   toggleRemote,
   participantCount,
+  participants,
+  phase,
+  hadOthers,
   endCall,
   toggleFullscreen,
   toggleFlashlight,
@@ -45,7 +57,6 @@ const {
   toggleVideo,
   switchCamera,
   isFlashlightSupported,
-  tileCount,
   isAudioOn,
   isVideoOn,
   isFlashlightOn,
@@ -58,68 +69,76 @@ const {
   localStream,
   localVideo,
   localScreen,
-  remoteParents,
   remoteRefs,
-  remoteScreens,
   remoteScreenRefs,
   remoteVideos,
   soundBlocked,
   enableSound,
-} = useCall();
+  reattach,
+  retryPeer,
+} = useCall({ layoutKey: () => layoutKey.value });
+
+// --- Layout ---
+
+const stageRef = ref<HTMLElement | null>(null);
+const { width: stageWidth, height: stageHeight } = useElementSize(stageRef);
+const layout = useCallLayout({ participants, width: stageWidth, height: stageHeight });
+watch(layout.key, (key) => (layoutKey.value = key), { immediate: true });
+const portrait = computed(() => layout.orientation.value === "portrait");
+
+const participantById = computed(
+  () => new Map(participants.value.map((p) => [p.id, p] as const)),
+);
+const participantOf = (tile: CallTileInfo) => participantById.value.get(tile.participantId)!;
+const streamOf = (tile: CallTileInfo) => {
+  const p = participantOf(tile);
+  return (tile.kind === "screen" ? p?.screen : p?.camera) ?? null;
+};
+const speakingOf = (tile: CallTileInfo) =>
+  tile.kind === "self" ? !!speaking.self : tile.kind === "camera" && !!speaking[tile.participantId];
+
+// The tile on the other end in a one-to-one call, and the user's own.
+const pairRemote = computed(() => layout.tiles.value.find((t) => t.kind === "camera") ?? null);
+const selfTile = computed(() => layout.tiles.value.find((t) => t.kind === "self")!);
+const canPin = computed(() => participants.value.length > 1 || isScreenSharing.value);
+
+/** Keeps the view's <video> refs pointing at whichever tile currently shows each stream. */
+function bindVideo(tile: CallTileInfo, el: HTMLVideoElement | null, previous: HTMLVideoElement | null) {
+  const pid = tile.participantId;
+  // A tile going away only clears the ref if no newer tile has taken it over already.
+  const next = <T,>(current: T) => (el ?? (current === previous ? null : current)) as T;
+  if (tile.kind === "self") localVideo.value = next(localVideo.value);
+  else if (tile.id === "self_screen") localScreen.value = next(localScreen.value);
+  else if (tile.kind === "camera") remoteRefs.value[pid] = next(remoteRefs.value[pid] ?? null);
+  else remoteScreenRefs.value[pid] = next(remoteScreenRefs.value[pid] ?? null) ?? undefined;
+  if (el) void reattach();
+}
+
+const togglePause = (tile: CallTileInfo, el: HTMLVideoElement | null) => toggleVideoPause(tile.id, el);
+const toggleTileFullscreen = (tile: CallTileInfo, el: HTMLElement | null) => {
+  if (el) toggleRemote(tile.id, el);
+};
+
+// --- Waiting, notices, people ---
+
+const waitingText = computed(() =>
+  hadOthers.value ? t("chat.call.everyoneLeft") : t("chat.call.waiting"),
+);
+const showWaiting = computed(() => layout.mode.value === "solo" && phase.value === "waiting");
+
+const notices = useCallNotices(
+  participants,
+  (key, params, plural) => t(key, params, plural),
+  () => t("chat.call.andJoin"),
+  () => String(locale.value),
+);
+
+const peopleOpen = ref(false);
+const peopleLabel = computed(
+  () => `${t("chat.call.controls.people")} (${t("chat.call.participants", participantCount.value)})`,
+);
 
 // --- Controls ---
-
-// The call screen is dark whatever the host's colour scheme, so its controls use fixed tokens
-// instead of the theme's: translucent white at rest, white when a feature is on (Meet's "lit"),
-// red when the microphone or camera is off.
-const translucent = {
-  background: "rgb(255 255 255 / 0.12)",
-  hoverBackground: "rgb(255 255 255 / 0.2)",
-  activeBackground: "rgb(255 255 255 / 0.28)",
-  borderColor: "transparent",
-  hoverBorderColor: "transparent",
-  activeBorderColor: "transparent",
-  color: "#ffffff",
-  hoverColor: "#ffffff",
-  activeColor: "#ffffff",
-};
-const lit = {
-  background: "#ffffff",
-  hoverBackground: "rgb(255 255 255 / 0.9)",
-  activeBackground: "rgb(255 255 255 / 0.8)",
-  borderColor: "#ffffff",
-  hoverBorderColor: "#ffffff",
-  activeBorderColor: "#ffffff",
-  color: "#171717",
-  hoverColor: "#171717",
-  activeColor: "#171717",
-};
-// Tailwind's red-500 to red-700.
-const off = {
-  background: "#ef4444",
-  hoverBackground: "#dc2626",
-  activeBackground: "#b91c1c",
-  borderColor: "transparent",
-  hoverBorderColor: "transparent",
-  activeBorderColor: "transparent",
-  color: "#ffffff",
-  hoverColor: "#ffffff",
-  activeColor: "#ffffff",
-};
-const callScheme = { root: { secondary: translucent, contrast: lit, danger: off } };
-const callButtonDt = { colorScheme: { light: callScheme, dark: callScheme } };
-
-// Its menus are dark too, Tailwind's neutral-800 under white text, in either host scheme.
-const callMenuDt = {
-  root: { background: "#262626", borderColor: "rgb(255 255 255 / 0.1)", color: "#f5f5f5" },
-  item: {
-    focusBackground: "rgb(255 255 255 / 0.1)",
-    color: "#f5f5f5",
-    focusColor: "#ffffff",
-    icon: { color: "#a3a3a3", focusColor: "#ffffff" },
-  },
-  submenuLabel: { background: "transparent", color: "#a3a3a3" },
-};
 
 // Pills, as in Google Meet: wider than tall, so the bar reads as one row of controls.
 const barButton = {
@@ -127,29 +146,13 @@ const barButton = {
   text: false,
   size: "large",
   iconClass: "size-6",
-  class: "h-12! w-12! sm:w-14!",
+  class: `h-12! w-12! sm:w-14! ${focusRing}`,
 } as const;
-
-// Tile actions sit on the video: small round buttons, shown on hover or focus where there is a
-// pointer that hovers, always on touch screens.
-const tileButton = {
-  dt: callButtonDt,
-  text: false,
-  size: "small",
-  iconClass: "size-4.5",
-  class: "size-9!",
-} as const;
-const tileActions =
-  "absolute end-2 bottom-2 z-20 flex items-center gap-x-1.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 motion-reduce:transition-none [@media(hover:none)]:opacity-100";
-const nameChip =
-  "max-w-[60%] truncate rounded-md bg-black/55 px-2 py-0.5 text-label-sm text-white backdrop-blur-sm select-none";
 
 // Meet's shortcuts, on the tooltip and in the keyboard: Ctrl+D the microphone, Ctrl+E the camera.
 const isMac = typeof navigator !== "undefined" && /Mac|iPhone|iPad/.test(navigator.platform);
 const keys = (key: string) => (isMac ? `⌘ ${key}` : `Ctrl + ${key}`);
 const withKeys = (label: string, key: string) => `${label} (${keys(key)})`;
-// Tooltips are appended to <body>, outside the chat, so they take its font and reset with them.
-const tip = (value: string) => ({ value, class: "vue-chat font-chat-family" });
 
 const audioLabel = computed(() =>
   isAudioOn.value ? t("chat.call.controls.mute") : t("chat.call.controls.unmute"),
@@ -232,13 +235,11 @@ const speaking = useSpeaking(() => ({
     Object.entries(remoteVideos.value).map(([id, remote]) => [id, remote.stream]),
   ),
 }));
-const speakingRing = (on: boolean | undefined) =>
-  on ? "ring-sky-400" : "ring-transparent";
 
 // --- Picture-in-picture ---
 
-// Minimized, the call plays live behind its controls: the remote participant on show, or the
-// user's own camera when nobody else is there.
+// Minimized, the call plays live behind its controls: whoever is speaking (or the one picked with
+// the count button), or the user's own camera when nobody else is there.
 const pipVideoRef = ref<HTMLVideoElement | null>(null);
 const activeRemoteIndex = ref(0);
 
@@ -247,7 +248,7 @@ const hasRemoteVideos = computed(() => remoteVideoEntries.value.length > 0);
 const activeRemoteUserId = computed<string | null>(() => {
   const entries = remoteVideoEntries.value;
   if (entries.length === 0) return null;
-  return entries[activeRemoteIndex.value % entries.length][0];
+  return entries[activeRemoteIndex.value % entries.length]![0];
 });
 
 const pipStream = computed<MediaStream | null>(() => {
@@ -263,6 +264,18 @@ function cycleRemote() {
   if (count === 0) return;
   activeRemoteIndex.value = (activeRemoteIndex.value + 1) % count;
 }
+
+// Follows whoever speaks, after a moment, so a cough doesn't flip the picture back and forth.
+const speakerIndex = computed(() =>
+  remoteVideoEntries.value.findIndex(([id]) => speaking[id]),
+);
+let speakerTimer: ReturnType<typeof setTimeout> | undefined;
+watch(speakerIndex, (index) => {
+  clearTimeout(speakerTimer);
+  if (index < 0 || index === activeRemoteIndex.value % remoteVideoEntries.value.length) return;
+  speakerTimer = setTimeout(() => (activeRemoteIndex.value = index), 1_500);
+});
+onBeforeUnmount(() => clearTimeout(speakerTimer));
 
 watch(
   [pipStream, () => callStore.isMinimized],
@@ -338,6 +351,19 @@ const clampedStyle = computed(() => {
     left: `${Math.max(PADDING, Math.min(x.value, maxX))}px`,
     top: `${Math.max(PADDING, Math.min(y.value, maxY))}px`,
   };
+});
+
+/** What every CallTile on the stage gets, apart from its layout classes. */
+const tileProps = (tile: CallTileInfo, compact = false) => ({
+  tile,
+  participant: participantOf(tile) as Participant,
+  stream: streamOf(tile),
+  speaking: speakingOf(tile),
+  pinned: layout.pinnedId.value === tile.id,
+  canPin: canPin.value,
+  compact,
+  paused: !!videoPaused.value[tile.id],
+  isFullscreen: isFullscreen.value,
 });
 </script>
 
@@ -442,9 +468,58 @@ const clampedStyle = computed(() => {
     :dir="dir"
     class="vue-chat font-chat-family fixed inset-0 z-60 flex size-full flex-col bg-neutral-900 text-white"
   >
+    <!-- Top bar: what the call is, how long it has run, and who is in it. -->
+    <div
+      data-testid="call-top-bar"
+      class="flex h-14 shrink-0 items-center gap-x-3 px-3 transition-opacity duration-300 motion-reduce:transition-none md:h-16 md:px-6"
+      :class="showControls ? 'opacity-100' : 'opacity-0'"
+      @mouseenter="resetControlsTimeout"
+    >
+      <div class="flex min-w-0 flex-1 items-center gap-x-3 select-none">
+        <h1 class="truncate text-title-sm text-white">{{ callTitle }}</h1>
+        <span aria-hidden="true" class="h-4 w-px shrink-0 bg-white/30" />
+        <span dir="ltr" class="shrink-0 text-body-md text-neutral-300 tabular-nums">
+          {{ formatDuration(callStore.elapsedTime) }}
+        </span>
+      </div>
+
+      <div data-testid="call-participants" class="flex shrink-0 items-center gap-x-2">
+        <Button
+          v-tooltip.bottom="tip(peopleLabel)"
+          :aria-label="peopleLabel"
+          aria-haspopup="dialog"
+          :aria-expanded="peopleOpen"
+          :dt="callButtonDt"
+          severity="secondary"
+          rounded
+          data-testid="call-people-button"
+          :class="['h-11! gap-x-1.5! px-3.5!', focusRing]"
+          @click="peopleOpen = true"
+        >
+          <CallIcon name="group" class="size-5" />
+          <span data-testid="call-participant-count" aria-hidden="true" class="text-label-md tabular-nums">
+            {{ participantCount }}
+          </span>
+        </Button>
+        <CallButton
+          v-tooltip.bottom="tip(t('chat.call.controls.minimize'))"
+          icon="pictureInPicture"
+          :label="t('chat.call.controls.minimize')"
+          :dt="callButtonDt"
+          :text="false"
+          icon-class="size-5"
+          :class="['size-11!', focusRing]"
+          data-testid="call-minimize"
+          @click="callStore.minimize"
+        />
+      </div>
+    </div>
+
     <!-- Stage -->
     <div
-      class="relative min-h-0 flex-1 px-3 pt-16 pb-2 md:p-4"
+      ref="stageRef"
+      class="relative min-h-0 flex-1 px-2 pb-2 md:px-4 md:pb-4"
+      style="--call-gap: 0.5rem"
       @mousemove="resetControlsTimeout"
     >
       <!-- The browser blocked the others' sound until a tap: they play muted until then. -->
@@ -455,7 +530,7 @@ const clampedStyle = computed(() => {
         severity="contrast"
         rounded
         data-testid="call-enable-sound"
-        class="absolute! top-6 left-1/2 z-30 -translate-x-1/2 shadow-lg"
+        class="absolute! top-4 left-1/2 z-40 -translate-x-1/2 shadow-lg"
         @click="enableSound"
       >
         <template #icon>
@@ -463,191 +538,135 @@ const clampedStyle = computed(() => {
         </template>
       </Button>
 
-      <div
-        v-show="tileCount"
-        class="grid size-full min-h-0 min-w-0 grid-cols-1 gap-3 md:grid-cols-[repeat(auto-fit,minmax(300px,1fr))] md:gap-4"
+      <!-- Someone joined or left. Read out too, without moving focus. -->
+      <Transition
+        enter-active-class="transition duration-200 motion-reduce:transition-none"
+        enter-from-class="opacity-0 -translate-y-2"
+        leave-active-class="transition duration-200 motion-reduce:transition-none"
+        leave-to-class="opacity-0"
       >
-        <!-- Own screen share -->
         <div
-          v-show="isScreenSharing"
-          :ref="(el) => (remoteParents['self_screen'] = el as any)"
-          class="group relative flex min-h-0 overflow-hidden rounded-2xl bg-neutral-800"
+          v-if="notices.current.value && !soundBlocked"
+          :key="notices.current.value.id"
+          data-testid="call-notice"
+          class="pointer-events-none absolute inset-x-0 top-3 z-40 flex justify-center px-4"
         >
-          <video
-            ref="localScreen"
-            autoplay
-            muted
-            playsinline
-            class="absolute inset-0 size-full object-contain"
-          />
-          <div class="absolute start-2 bottom-2 z-20 flex max-w-[60%] items-center gap-x-1.5">
-            <span class="flex size-7 shrink-0 items-center justify-center rounded-full bg-black/55 backdrop-blur-sm">
-              <CallIcon name="presentToAll" class="size-4" />
-            </span>
-            <span :class="nameChip">{{ t("chat.call.yourPresentation") }}</span>
-          </div>
-          <div :class="tileActions">
-            <CallButton
-              :icon="videoPaused['self_screen'] ? 'play' : 'pause'"
-              :label="videoPaused['self_screen'] ? t('chat.call.controls.playVideo') : t('chat.call.controls.pauseVideo')"
-              v-bind="tileButton"
-              @click="toggleVideoPause('self_screen', localScreen as any)"
-            />
-            <CallButton
-              :icon="isFullscreen ? 'fullscreenExit' : 'fullscreen'"
-              :label="fullscreenLabel"
-              v-bind="tileButton"
-              @click="toggleRemote('self_screen')"
-            />
-          </div>
-        </div>
-
-        <!-- Remote cameras -->
-        <div
-          v-for="(remote, remoteUserId) in remoteVideos"
-          :key="`remote-${remoteUserId}`"
-          data-testid="call-remote-video"
-          :ref="(el) => (remoteParents[`remote_video_${remoteUserId}`] = el as any)"
-          class="group relative flex min-h-0 overflow-hidden rounded-2xl bg-neutral-800 ring-3 ring-inset transition-shadow motion-reduce:transition-none"
-          :class="speakingRing(speaking[remoteUserId])"
-        >
-          <video
-            :ref="(el) => { if (el) remoteRefs[remoteUserId] = el as any; }"
-            autoplay
-            playsinline
-            class="absolute inset-0 size-full object-cover"
-          />
-          <span :class="[nameChip, 'absolute start-2 bottom-2 z-20']">
-            <bdi>{{ remote.name }}</bdi>
+          <span class="max-w-full truncate rounded-full bg-black/70 px-4 py-1.5 text-label-md text-white shadow-lg backdrop-blur-sm">
+            <bdi>{{ notices.current.value.text }}</bdi>
           </span>
-          <div :class="tileActions">
-            <CallButton
-              :icon="videoPaused[`remote_video_${remoteUserId}`] ? 'play' : 'pause'"
-              :label="videoPaused[`remote_video_${remoteUserId}`] ? t('chat.call.controls.playVideo') : t('chat.call.controls.pauseVideo')"
-              v-bind="tileButton"
-              @click="toggleVideoPause(`remote_video_${remoteUserId}`, remoteRefs[remoteUserId] as any)"
-            />
-            <CallButton
-              :icon="isFullscreen ? 'fullscreenExit' : 'fullscreen'"
-              :label="fullscreenLabel"
-              v-bind="tileButton"
-              @click="toggleRemote(`remote_video_${remoteUserId}`)"
-            />
-          </div>
         </div>
+      </Transition>
+      <span class="sr-only" aria-live="polite">{{ notices.liveText.value }}</span>
 
-        <!-- Remote screen shares -->
+      <!-- Alone: the user's own camera, with what the call is waiting for. -->
+      <template v-if="layout.mode.value === 'solo'">
+        <CallTile
+          :key="selfTile.id"
+          v-bind="tileProps(selfTile)"
+          :hint="t('chat.call.cameraIsOff')"
+          class="size-full"
+          @video="(el, prev) => bindVideo(selfTile, el, prev)"
+          @pause="(el) => togglePause(selfTile, el)"
+          @fullscreen="(el) => toggleTileFullscreen(selfTile, el)"
+        />
         <div
-          v-for="(remote, remoteUserId) in remoteScreens"
-          :key="`remote-screen-${remoteUserId}`"
-          data-testid="call-remote-screen"
-          :ref="(el) => (remoteParents[`remote_screen_${remoteUserId}`] = el as any)"
-          class="group relative flex min-h-0 overflow-hidden rounded-2xl bg-neutral-800"
+          v-if="showWaiting"
+          data-testid="call-waiting"
+          role="status"
+          class="pointer-events-none absolute inset-x-0 top-8 z-30 flex justify-center px-4"
         >
-          <video
-            :ref="(el) => { if (el) remoteScreenRefs[remoteUserId] = el as any; }"
-            autoplay
-            muted
-            playsinline
-            class="absolute inset-0 size-full object-contain"
-          />
-          <div class="absolute start-2 bottom-2 z-20 flex max-w-[60%] items-center gap-x-1.5">
-            <span class="flex size-7 shrink-0 items-center justify-center rounded-full bg-black/55 backdrop-blur-sm">
-              <CallIcon name="presentToAll" class="size-4" />
-            </span>
-            <span :class="nameChip">
-              {{ t("chat.call.presentationOf", { name: remote.name }) }}
-            </span>
-          </div>
-          <div :class="tileActions">
-            <CallButton
-              :icon="videoPaused[`remote_screen_${remoteUserId}`] ? 'play' : 'pause'"
-              :label="videoPaused[`remote_screen_${remoteUserId}`] ? t('chat.call.controls.playVideo') : t('chat.call.controls.pauseVideo')"
-              v-bind="tileButton"
-              @click="toggleVideoPause(`remote_screen_${remoteUserId}`, remoteScreenRefs[remoteUserId] || null)"
-            />
-            <CallButton
-              :icon="isFullscreen ? 'fullscreenExit' : 'fullscreen'"
-              :label="fullscreenLabel"
-              v-bind="tileButton"
-              @click="toggleRemote(`remote_screen_${remoteUserId}`)"
-            />
+          <div class="max-w-full rounded-2xl bg-black/65 px-5 py-3 text-center shadow-lg backdrop-blur-sm">
+            <p class="truncate text-title-sm text-white">{{ callTitle }}</p>
+            <p class="mt-0.5 text-label-md text-neutral-200">{{ waitingText }}</p>
           </div>
         </div>
+      </template>
+
+      <!-- One other person: they fill the stage, the user's own camera floats in a corner. -->
+      <!-- Handlers take the tile from the loop, not the computed: a tile's last events come as it
+           unmounts, after the computed has moved on. -->
+      <template v-else-if="layout.mode.value === 'pair' && pairRemote">
+        <CallTile
+          v-for="tile in [pairRemote]"
+          :key="tile.id"
+          v-bind="tileProps(tile)"
+          class="size-full"
+          @pin="layout.togglePin(tile.id)"
+          @retry="retryPeer(tile.participantId)"
+          @video="(el, prev) => bindVideo(tile, el, prev)"
+          @pause="(el) => togglePause(tile, el)"
+          @fullscreen="(el) => toggleTileFullscreen(tile, el)"
+        />
+        <CallTile
+          :key="selfTile.id"
+          v-bind="tileProps(selfTile, true)"
+          :can-pin="false"
+          class="absolute! end-5 bottom-4 z-10 aspect-video w-36 shadow-xl outline outline-white/25 sm:w-56 md:end-6 md:bottom-6 md:w-64"
+          @video="(el, prev) => bindVideo(selfTile, el, prev)"
+        />
+      </template>
+
+      <!-- Two or three others: everyone a tile of a 2×2 grid. -->
+      <div v-else-if="layout.mode.value === 'grid'" :class="layout.gridClass">
+        <CallTile
+          v-for="(tile, index) in layout.gridTiles.value"
+          :key="tile.id"
+          v-bind="tileProps(tile)"
+          :class="['size-full', layout.cellClass(index)]"
+          @pin="layout.togglePin(tile.id)"
+          @retry="retryPeer(tile.participantId)"
+          @video="(el, prev) => bindVideo(tile, el, prev)"
+          @pause="(el) => togglePause(tile, el)"
+          @fullscreen="(el) => toggleTileFullscreen(tile, el)"
+        />
       </div>
 
-      <!-- Own camera: the whole stage when alone, a small floating tile once others show. -->
+      <!-- A screen share or a pinned tile on the stage, everyone else in a strip: along the
+           bottom on a tall screen, along the inline end on a wide one. -->
       <div
-        :ref="(el) => (remoteParents['self_cam'] = el as any)"
-        class="group overflow-hidden rounded-2xl bg-neutral-800 ring-3 ring-inset transition-shadow [clip-path:inset(0_round_var(--radius-2xl))] motion-reduce:transition-none"
-        :class="[
-          tileCount
-            ? 'absolute end-5 bottom-4 z-10 aspect-video w-36 sm:w-56 md:end-6 md:bottom-6 md:w-64'
-            : 'relative size-full',
-          speakingRing(speaking.self),
-        ]"
+        v-else-if="layout.stageTile.value"
+        class="flex size-full gap-(--call-gap)"
+        :class="portrait ? 'flex-col' : 'flex-row'"
       >
-        <video
-          ref="localVideo"
-          data-testid="call-local-video"
-          autoplay
-          muted
-          playsinline
-          class="pointer-events-none absolute inset-0 size-full -scale-x-100 rounded-[inherit] object-cover"
+        <CallTile
+          v-for="tile in [layout.stageTile.value]"
+          :key="tile.id"
+          v-bind="tileProps(tile)"
+          data-stage="true"
+          class="min-h-0 min-w-0 flex-1"
+          @pin="layout.togglePin(tile.id)"
+          @retry="retryPeer(tile.participantId)"
+          @video="(el, prev) => bindVideo(tile, el, prev)"
+          @pause="(el) => togglePause(tile, el)"
+          @fullscreen="(el) => toggleTileFullscreen(tile, el)"
         />
-
         <div
-          v-if="!isVideoOn"
-          class="absolute inset-0 flex flex-col items-center justify-center gap-y-2 bg-neutral-800"
+          v-if="layout.stripTiles.value.length"
+          data-testid="call-strip"
+          class="hide-scrollbar flex shrink-0 gap-(--call-gap)"
+          :class="portrait ? 'h-24 flex-row overflow-x-auto sm:h-28' : 'w-40 flex-col overflow-y-auto lg:w-56'"
         >
-          <Avatar
-            :label="t('chat.call.you').slice(0, 1)"
-            shape="circle"
-            :size="tileCount ? 'large' : 'xlarge'"
-            class="bg-sky-600! text-white! select-none"
-          />
-          <p v-if="!tileCount" class="text-label-md text-neutral-300 select-none">
-            {{ t("chat.call.cameraIsOff") }}
-          </p>
-        </div>
-
-        <span
-          v-if="!isAudioOn"
-          class="absolute end-2 top-2 z-20 flex size-7 items-center justify-center rounded-full bg-red-500 text-white"
-          :title="t('chat.call.controls.unmute')"
-        >
-          <CallIcon name="micOff" class="size-4" />
-        </span>
-
-        <span :class="[nameChip, 'absolute start-2 bottom-2 z-20']">{{ t("chat.call.you") }}</span>
-
-        <div v-if="!tileCount" :class="tileActions">
-          <CallButton
-            :icon="videoPaused['self_cam'] ? 'play' : 'pause'"
-            :label="videoPaused['self_cam'] ? t('chat.call.controls.playVideo') : t('chat.call.controls.pauseVideo')"
-            v-bind="tileButton"
-            @click="toggleVideoPause('self_cam', localVideo as any)"
+          <CallTile
+            v-for="tile in layout.stripTiles.value"
+            :key="tile.id"
+            v-bind="tileProps(tile, true)"
+            class="aspect-video shrink-0"
+            :class="portrait ? 'h-full' : 'w-full'"
+            @pin="layout.togglePin(tile.id)"
+            @retry="retryPeer(tile.participantId)"
+            @video="(el, prev) => bindVideo(tile, el, prev)"
           />
         </div>
       </div>
     </div>
 
-    <!-- Control bar: time and title, the controls, then the people and minimize. On phones the
-         two sides move to the top of the screen, leaving the controls a row of their own. -->
+    <!-- Control bar -->
     <div
-      class="grid h-20 shrink-0 grid-cols-1 items-center px-3 transition-opacity duration-300 motion-reduce:transition-none md:relative md:grid-cols-[1fr_auto_1fr] md:px-6"
+      class="flex h-20 shrink-0 items-center justify-center px-3 transition-opacity duration-300 motion-reduce:transition-none md:px-6"
       :class="showControls ? 'opacity-100' : 'opacity-0'"
       @mouseenter="resetControlsTimeout"
       @mousemove="resetControlsTimeout"
     >
-      <div
-        class="absolute start-4 top-4 flex min-w-0 items-center gap-x-3 text-body-md select-none md:static"
-      >
-        <span dir="ltr" class="tabular-nums">{{ formatDuration(callStore.elapsedTime) }}</span>
-        <span class="hidden h-4 w-px bg-white/30 md:block" />
-        <span class="hidden truncate md:block">{{ callTitle }}</span>
-      </div>
-
       <div class="flex items-center justify-center gap-x-2 sm:gap-x-3">
         <CallButton
           v-tooltip.top="tip(withKeys(audioLabel, 'D'))"
@@ -672,7 +691,7 @@ const clampedStyle = computed(() => {
             text
             severity="secondary"
             icon-class="size-6"
-            class="h-12! w-8! rounded-e-none! ps-1!"
+            :class="['h-12! w-8! rounded-e-none! ps-1!', focusRing]"
             aria-haspopup="true"
             @click="cameraMenu?.toggle($event)"
           />
@@ -720,35 +739,14 @@ const clampedStyle = computed(() => {
           :text="false"
           size="large"
           icon-class="size-6"
-          class="h-12! w-16! sm:w-18!"
+          :class="['h-12! w-16! sm:w-18!', focusRing]"
           data-testid="call-end"
           @click="endCall"
         />
       </div>
-
-      <div class="absolute end-3 top-2.5 flex items-center justify-end gap-x-2 md:static">
-        <div
-          data-testid="call-participants"
-          class="flex h-10 items-center gap-x-1.5 rounded-full bg-white/12 px-3 text-label-md select-none"
-          :title="t('chat.call.participants', participantCount)"
-        >
-          <CallIcon name="group" class="size-5" />
-          <span aria-hidden="true">{{ participantCount }}</span>
-          <span class="sr-only">{{ t("chat.call.participants", participantCount) }}</span>
-        </div>
-        <CallButton
-          v-tooltip.top="tip(t('chat.call.controls.minimize'))"
-          icon="pictureInPicture"
-          :label="t('chat.call.controls.minimize')"
-          :dt="callButtonDt"
-          :text="false"
-          icon-class="size-5"
-          class="size-10!"
-          data-testid="call-minimize"
-          @click="callStore.minimize"
-        />
-      </div>
     </div>
+
+    <CallParticipants v-model:visible="peopleOpen" :participants="participants" />
 
     <Menu ref="cameraMenu" :model="cameraItems" popup :dir="dir" :dt="callMenuDt" class="vue-chat">
       <template #itemicon="{ item }">

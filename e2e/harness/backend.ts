@@ -43,3 +43,21 @@ if (messageDelay > 0) {
     return fetchMessages(request);
   };
 }
+
+// `max=<n>` caps calls at n participants, for the capacity tests.
+const max = Number(params.get("max") ?? 0);
+if (max > 0) call.maxParticipants = max;
+
+/**
+ * Signalling ids whose offers, answers and candidates this tab no longer hears, as if the media
+ * path between the two had broken while signalling still works: a pair with one of them can't
+ * be rebuilt (see `__harness.blockPeer`).
+ */
+export const blocked = new Set<string>();
+const subscribe = call.subscriber;
+call.subscriber = (callback) =>
+  subscribe((message) =>
+    message.type === "signal" && blocked.has(message.payload.from)
+      ? Promise.resolve()
+      : callback(message),
+  );
