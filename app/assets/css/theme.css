@@ -401,3 +401,107 @@
   );
   pointer-events: none;
 }
+
+/*
+ * Avatar palette: the background and initials colour of an avatar without a picture
+ * (utils/avatar.ts picks the tone from the name). Ten hues, each a tonal pair: a 200 background
+ * with 900 initials in light mode, 800 with 100 in dark; every pair is at least 6.3:1. The same
+ * values as the phc-frontend app's --avatar-tone-*, so a person has one colour in and out of the
+ * chat. `-none` is for an avatar with no name. Plain properties rather than @theme, which would drop
+ * them as no utility reads them. Hosts can override --color-chat-avatar-* on .vue-chat.
+ */
+@layer base {
+  :root {
+    --chat-avatar-light-1: #99f6e4; /* teal */
+    --chat-avatar-light-1-fg: #134e4a;
+    --chat-avatar-dark-1: #115e59;
+    --chat-avatar-dark-1-fg: #ccfbf1;
+    --chat-avatar-light-2: #bae6fd; /* sky */
+    --chat-avatar-light-2-fg: #0c4a6e;
+    --chat-avatar-dark-2: #075985;
+    --chat-avatar-dark-2-fg: #e0f2fe;
+    --chat-avatar-light-3: #c7d2fe; /* indigo */
+    --chat-avatar-light-3-fg: #312e81;
+    --chat-avatar-dark-3: #3730a3;
+    --chat-avatar-dark-3-fg: #e0e7ff;
+    --chat-avatar-light-4: #ddd6fe; /* violet */
+    --chat-avatar-light-4-fg: #4c1d95;
+    --chat-avatar-dark-4: #5b21b6;
+    --chat-avatar-dark-4-fg: #ede9fe;
+    --chat-avatar-light-5: #fbcfe8; /* pink */
+    --chat-avatar-light-5-fg: #831843;
+    --chat-avatar-dark-5: #9d174d;
+    --chat-avatar-dark-5-fg: #fce7f3;
+    --chat-avatar-light-6: #fed7aa; /* orange */
+    --chat-avatar-light-6-fg: #7c2d12;
+    --chat-avatar-dark-6: #9a3412;
+    --chat-avatar-dark-6-fg: #ffedd5;
+    --chat-avatar-light-7: #fde68a; /* amber */
+    --chat-avatar-light-7-fg: #78350f;
+    --chat-avatar-dark-7: #92400e;
+    --chat-avatar-dark-7-fg: #fef3c7;
+    --chat-avatar-light-8: #bbf7d0; /* green */
+    --chat-avatar-light-8-fg: #14532d;
+    --chat-avatar-dark-8: #166534;
+    --chat-avatar-dark-8-fg: #dcfce7;
+    --chat-avatar-light-9: #a5f3fc; /* cyan */
+    --chat-avatar-light-9-fg: #164e63;
+    --chat-avatar-dark-9: #155e75;
+    --chat-avatar-dark-9-fg: #cffafe;
+    --chat-avatar-light-10: #e7e5e4; /* stone */
+    --chat-avatar-light-10-fg: #44403c;
+    --chat-avatar-dark-10: #44403c;
+    --chat-avatar-dark-10-fg: #f5f5f4;
+    --chat-avatar-light-none: #e2e8f0; /* none */
+    --chat-avatar-light-none-fg: #475569;
+    --chat-avatar-dark-none: #334155;
+    --chat-avatar-dark-none-fg: #cbd5e1;
+    --color-chat-avatar-1: var(--chat-avatar-light-1);
+    --color-chat-avatar-1-fg: var(--chat-avatar-light-1-fg);
+    --color-chat-avatar-2: var(--chat-avatar-light-2);
+    --color-chat-avatar-2-fg: var(--chat-avatar-light-2-fg);
+    --color-chat-avatar-3: var(--chat-avatar-light-3);
+    --color-chat-avatar-3-fg: var(--chat-avatar-light-3-fg);
+    --color-chat-avatar-4: var(--chat-avatar-light-4);
+    --color-chat-avatar-4-fg: var(--chat-avatar-light-4-fg);
+    --color-chat-avatar-5: var(--chat-avatar-light-5);
+    --color-chat-avatar-5-fg: var(--chat-avatar-light-5-fg);
+    --color-chat-avatar-6: var(--chat-avatar-light-6);
+    --color-chat-avatar-6-fg: var(--chat-avatar-light-6-fg);
+    --color-chat-avatar-7: var(--chat-avatar-light-7);
+    --color-chat-avatar-7-fg: var(--chat-avatar-light-7-fg);
+    --color-chat-avatar-8: var(--chat-avatar-light-8);
+    --color-chat-avatar-8-fg: var(--chat-avatar-light-8-fg);
+    --color-chat-avatar-9: var(--chat-avatar-light-9);
+    --color-chat-avatar-9-fg: var(--chat-avatar-light-9-fg);
+    --color-chat-avatar-10: var(--chat-avatar-light-10);
+    --color-chat-avatar-10-fg: var(--chat-avatar-light-10-fg);
+    --color-chat-avatar-none: var(--chat-avatar-light-none);
+    --color-chat-avatar-none-fg: var(--chat-avatar-light-none-fg);
+  }
+
+  .dark {
+    --color-chat-avatar-1: var(--chat-avatar-dark-1);
+    --color-chat-avatar-1-fg: var(--chat-avatar-dark-1-fg);
+    --color-chat-avatar-2: var(--chat-avatar-dark-2);
+    --color-chat-avatar-2-fg: var(--chat-avatar-dark-2-fg);
+    --color-chat-avatar-3: var(--chat-avatar-dark-3);
+    --color-chat-avatar-3-fg: var(--chat-avatar-dark-3-fg);
+    --color-chat-avatar-4: var(--chat-avatar-dark-4);
+    --color-chat-avatar-4-fg: var(--chat-avatar-dark-4-fg);
+    --color-chat-avatar-5: var(--chat-avatar-dark-5);
+    --color-chat-avatar-5-fg: var(--chat-avatar-dark-5-fg);
+    --color-chat-avatar-6: var(--chat-avatar-dark-6);
+    --color-chat-avatar-6-fg: var(--chat-avatar-dark-6-fg);
+    --color-chat-avatar-7: var(--chat-avatar-dark-7);
+    --color-chat-avatar-7-fg: var(--chat-avatar-dark-7-fg);
+    --color-chat-avatar-8: var(--chat-avatar-dark-8);
+    --color-chat-avatar-8-fg: var(--chat-avatar-dark-8-fg);
+    --color-chat-avatar-9: var(--chat-avatar-dark-9);
+    --color-chat-avatar-9-fg: var(--chat-avatar-dark-9-fg);
+    --color-chat-avatar-10: var(--chat-avatar-dark-10);
+    --color-chat-avatar-10-fg: var(--chat-avatar-dark-10-fg);
+    --color-chat-avatar-none: var(--chat-avatar-dark-none);
+    --color-chat-avatar-none-fg: var(--chat-avatar-dark-none-fg);
+  }
+}

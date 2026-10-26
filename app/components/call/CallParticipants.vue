@@ -5,6 +5,7 @@
  */
 import { computed } from "vue";
 import Avatar from "primevue/avatar";
+import BIcon from "~/components/global/BIcon.vue";
 import Drawer from "primevue/drawer";
 import useLocalI18n, { useDirection } from "~/composables/useLocalI18n";
 import { chat } from "@i18n/locales";
@@ -12,6 +13,7 @@ import type { Participant } from "~/composables/call/session";
 import CallButton from "./CallButton.vue";
 import CallIcon from "./CallIcon.vue";
 import { callButtonDt, callDrawerDt, focusRing } from "./tokens";
+import { avatarToneStyle, nameInitials } from "~/utils/avatar";
 
 defineProps<{ participants: Participant[] }>();
 const visible = defineModel<boolean>("visible", { default: false });
@@ -21,7 +23,8 @@ const { dir } = useDirection();
 const position = computed(() => (dir.value === "rtl" ? "left" : "right"));
 
 const nameOf = (p: Participant) => p.name || (p.isSelf ? t("chat.call.you") : "");
-const initialOf = (p: Participant) => (nameOf(p) || "?").trim().slice(0, 1).toUpperCase();
+// No name (yourself, before your profile loads): no initials, the person icon.
+const initialsOf = (p: Participant) => nameInitials(p.name);
 const statusOf = (p: Participant) =>
   p.isSelf
     ? ""
@@ -72,10 +75,13 @@ const statusOf = (p: Participant) =>
         class="flex min-h-14 items-center gap-x-3 rounded-xl px-2 py-2"
       >
         <Avatar
-          :label="initialOf(p)"
+          :label="initialsOf(p) || undefined"
           shape="circle"
-          class="shrink-0 bg-sky-600! text-white! select-none"
-        />
+          class="shrink-0 font-semibold select-none"
+          :style="avatarToneStyle(p.name, null, 'dark')"
+        >
+          <template v-if="!initialsOf(p)" #icon><BIcon icon="PhUser" class="size-1/2" /></template>
+        </Avatar>
         <div class="min-w-0 flex-1">
           <p class="truncate text-body-md text-neutral-100">
             <bdi>{{ nameOf(p) }}</bdi>

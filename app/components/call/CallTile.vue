@@ -7,6 +7,7 @@
  */
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import Avatar from "primevue/avatar";
+import BIcon from "~/components/global/BIcon.vue";
 import Button from "primevue/button";
 import Tooltip from "primevue/tooltip";
 import useLocalI18n from "~/composables/useLocalI18n";
@@ -16,6 +17,7 @@ import type { CallTileInfo } from "~/composables/call/useCallLayout";
 import CallButton from "./CallButton.vue";
 import CallIcon from "./CallIcon.vue";
 import { callButtonDt, focusRing, nameChip, tileActions, tileButton, tip } from "./tokens";
+import { avatarToneStyle, nameInitials } from "~/utils/avatar";
 
 const vTooltip = Tooltip;
 
@@ -65,7 +67,9 @@ const label = computed(() => {
     return isSelf.value ? t("chat.call.yourPresentation") : t("chat.call.presentationOf", { name: name.value });
   return isSelf.value ? t("chat.call.you") : name.value;
 });
-const initial = computed(() => (name.value || "?").trim().slice(0, 1).toUpperCase());
+// The call screen is always dark, so its avatars take the dark tones.
+const initials = computed(() => nameInitials(props.participant.name));
+const toneStyle = computed(() => avatarToneStyle(props.participant.name, null, "dark"));
 
 const hasVideo = computed(() => !!props.stream?.getVideoTracks().length);
 /** Camera off, or none sent at all: the person's initial instead of a black frame. */
@@ -129,11 +133,14 @@ const fullscreenLabel = computed(() =>
         class="absolute inset-0 flex flex-col items-center justify-center gap-y-2 bg-neutral-800 px-2 text-center"
       >
         <Avatar
-          :label="initial"
+          :label="initials || undefined"
           shape="circle"
           :size="compact ? 'large' : 'xlarge'"
-          class="bg-sky-600! text-white! select-none"
-        />
+          class="font-semibold select-none"
+          :style="toneStyle"
+        >
+          <template v-if="!initials" #icon><BIcon icon="PhUser" class="size-1/2" /></template>
+        </Avatar>
         <p v-if="statusText && !compact" class="text-label-md text-neutral-300 select-none">
           {{ statusText }}
         </p>

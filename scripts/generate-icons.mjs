@@ -28,7 +28,7 @@ const ICONS = [
   "Pause", "PauseCircle", "PawPrint", "PencilLine", "PencilSimpleLine", "Phone", "PhoneCall",
   "PhoneX", "Play", "PlayCircle", "Plus", "Resize", "SidebarSimple", "Smiley", "SmileyMeh",
   "SoccerBall", "SpeakerHigh", "SpeakerSlash", "Subtitles", "SunDim", "Trash", "TrayArrowDown",
-  "UploadSimple", "Users", "Video", "VideoCamera", "VideoCameraSlash", "Warning",
+  "UploadSimple", "User", "Users", "Video", "VideoCamera", "VideoCameraSlash", "Warning",
   "WarningCircle", "WarningOctagon", "Waveform", "X", "XCircle", "XSquare",
 ];
 
