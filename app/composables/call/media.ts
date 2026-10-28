@@ -50,6 +50,20 @@ export function useCallMedia({ notify, isMobile }: MediaOptions) {
   });
 
   /**
+   * Which way the camera faces. Phones open the front one unless told otherwise, so a phone that
+   * doesn't say is taken to be on it.
+   */
+  const facingMode = computed<"user" | "environment" | null>(() => {
+    const track = videoTrack.value;
+    if (!track) return null;
+    const facing = track.getSettings().facingMode;
+    if (facing === "user" || facing === "environment") return facing;
+    return isMobile() ? "user" : null;
+  });
+  /** A phone with a camera on each side: offer a flip instead of a list. */
+  const canFlipCamera = computed(() => isMobile() && cameras.value.length > 1);
+
+  /**
    * Set once `start()` has finished, whether or not it got any media. Peers wait for this rather
    * than for a stream: a participant without a camera or mic still has to receive the others.
    */
@@ -95,6 +109,7 @@ export function useCallMedia({ notify, isMobile }: MediaOptions) {
     try {
       await acquire();
       videoTrack.value = localStream.value?.getVideoTracks()[0] ?? null;
+      if (videoTrack.value) await listCameras();
     } finally {
       ready.value = true;
     }
@@ -177,26 +192,67 @@ export function useCallMedia({ notify, isMobile }: MediaOptions) {
     if (track) track.enabled = isVideoOn.value;
   }
 
-  /** Swaps in another camera; returns the new track so peers can be updated. */
-  async function switchCamera(deviceId: string) {
+  /**
+   * Lists the cameras. Before access is granted, browsers hide their ids and labels (and phones
+   * list a single camera), so this runs again once we hold the camera.
+   */
+  async function listCameras() {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { deviceId: { exact: deviceId } },
-        audio: isAudioOn.value,
-      });
-      const track = stream.getVideoTracks()[0];
-      if (!track || !localStream.value) return null;
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      cameras.value = devices.filter((d) => d.kind === "videoinput" && d.deviceId);
+    } catch (err) {
+      console.error("[vue-chat] Error listing cameras:", err);
+    }
+  }
 
-      const old = localStream.value.getVideoTracks()[0];
-      if (old) {
-        localStream.value.removeTrack(old);
-        old.stop();
-      }
-      localStream.value.addTrack(track);
+  /** Swaps in another camera; returns the new track so peers can be updated. */
+  function switchCamera(deviceId: string) {
+    if (videoTrack.value?.getSettings().deviceId === deviceId) return Promise.resolve(null);
+    return replaceCamera({ deviceId: { exact: deviceId } });
+  }
+
+  /** Turns to the other side of the phone: front to back, or back to front. */
+  function flipCamera() {
+    const next = facingMode.value === "environment" ? "user" : "environment";
+    return replaceCamera({ facingMode: { exact: next } });
+  }
+
+  async function replaceCamera(video: MediaTrackConstraints) {
+    const stream = localStream.value;
+    if (!stream) return null;
+    const old = stream.getVideoTracks()[0];
+    const oldId = old?.getSettings().deviceId;
+
+    // Phones can't hold two cameras at once: the current one goes first.
+    if (old) {
+      stream.removeTrack(old);
+      old.stop();
+    }
+    isFlashlightOn.value = false;
+
+    const open = async (constraints: MediaTrackConstraints) => {
+      const next = await navigator.mediaDevices.getUserMedia({ video: constraints });
+      const track = next.getVideoTracks()[0]!;
+      track.enabled = isVideoOn.value;
+      stream.addTrack(track);
       videoTrack.value = track;
       return track;
+    };
+
+    try {
+      return await open(video);
     } catch (err) {
       console.error("[vue-chat] Error switching camera:", err);
+      error(deviceError(err, "camera", isMobile()));
+      // Back to the camera we had, so the call doesn't lose its video.
+      if (oldId) {
+        try {
+          return await open({ deviceId: { exact: oldId } });
+        } catch (err2) {
+          console.error("[vue-chat] Error restoring camera:", err2);
+        }
+      }
+      videoTrack.value = null;
       return null;
     }
   }
@@ -293,6 +349,8 @@ export function useCallMedia({ notify, isMobile }: MediaOptions) {
     trackTypes,
     videoTrack,
     cameras,
+    facingMode,
+    canFlipCamera,
     isAudioOn,
     isVideoOn,
     isScreenSharing,
@@ -303,6 +361,7 @@ export function useCallMedia({ notify, isMobile }: MediaOptions) {
     toggleAudio,
     toggleVideo,
     switchCamera,
+    flipCamera,
     startScreenShare,
     stopScreenShare,
     toggleFlashlight,

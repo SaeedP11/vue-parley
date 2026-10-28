@@ -167,6 +167,8 @@
         "flashlight": "Flashlight",
         "cameras": "Available cameras",
         "chooseCamera": "Choose camera",
+        "frontCamera": "Switch to front camera",
+        "backCamera": "Switch to back camera",
         "pauseVideo": "Pause video",
         "playVideo": "Play video",
         "nextParticipant": "Show next participant",

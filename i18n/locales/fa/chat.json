@@ -167,6 +167,8 @@
         "flashlight": "چراغ‌قوه",
         "cameras": "دوربین‌های موجود",
         "chooseCamera": "انتخاب دوربین",
+        "frontCamera": "تغییر به دوربین جلو",
+        "backCamera": "تغییر به دوربین پشت",
         "pauseVideo": "توقف ویدیو",
         "playVideo": "پخش ویدیو",
         "nextParticipant": "نمایش شرکت‌کننده بعدی",

@@ -27,6 +27,7 @@ createApp(App)
       media: backend.media,
       profile: backend.profile,
       call,
+      screenShare: true,
       user: { id: ME, name: MY_NAME },
     }),
   )

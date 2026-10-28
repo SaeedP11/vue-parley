@@ -29,6 +29,8 @@ export interface ChatOptions {
   profile?: ProfileHandlers;
   /** Omit to leave calling out; `provideCallHandlers()` can still supply them later. */
   call?: CallHandlers;
+  /** Shows the call's screen-share button. Off by default; others' shares still show. */
+  screenShare?: boolean;
   /** The signed-in user. Can also be set later through `useProfileStore()`. */
   user?: ChatUser;
 }
@@ -81,6 +83,7 @@ export function createChat(options: ChatOptions): Plugin {
             break;
           case useCallStore.$id:
             if (options.call) store.setHandlers(options.call);
+            store.canShareScreen = options.screenShare ?? false;
             break;
           case useProfileStore.$id:
             if (options.profile) store.setHandlers(options.profile);

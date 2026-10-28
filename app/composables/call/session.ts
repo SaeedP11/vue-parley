@@ -410,12 +410,21 @@ export function createCallSession(opts: CallSessionOptions) {
     stream.getVideoTracks().forEach((track) => peers.addTrackToAll(track, stream));
   }
 
-  /** Swaps cameras; returns the local stream so a view can refresh its preview. */
-  async function switchCamera(deviceId: string) {
-    const track = await media.switchCamera(deviceId);
+  /** Sends a camera the media layer swapped in; returns the local stream for the preview. */
+  function sendCamera(track: MediaStreamTrack | null) {
     const stream = media.localStream.value;
     if (track && stream) peers.replaceVideoTrack(track, stream);
     return stream;
+  }
+
+  /** Swaps cameras; returns the local stream so a view can refresh its preview. */
+  async function switchCamera(deviceId: string) {
+    return sendCamera(await media.switchCamera(deviceId));
+  }
+
+  /** Turns to the phone's other camera; returns the local stream like `switchCamera`. */
+  async function flipCamera() {
+    return sendCamera(await media.flipCamera());
   }
 
   /** Leaves the call: tells the others, releases camera and mic, closes every connection. */
@@ -446,6 +455,7 @@ export function createCallSession(opts: CallSessionOptions) {
     end,
     toggleScreenShare,
     switchCamera,
+    flipCamera,
     /** Tries an unreachable participant again. */
     retryPeer: (id: string) => peers.retry(id),
   };

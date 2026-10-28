@@ -56,6 +56,9 @@ const {
   toggleAudio,
   toggleVideo,
   switchCamera,
+  flipCamera,
+  canFlipCamera,
+  facingMode,
   isFlashlightSupported,
   isAudioOn,
   isVideoOn,
@@ -165,6 +168,26 @@ const shareLabel = computed(() =>
     ? t("chat.call.controls.stopSharing")
     : t("chat.call.controls.shareScreen"),
 );
+// Names where the flip goes, so a screen reader hears more than "switch".
+const flipLabel = computed(() =>
+  facingMode.value === "environment"
+    ? t("chat.call.controls.frontCamera")
+    : t("chat.call.controls.backCamera"),
+);
+const showCameraPicker = computed(() => cameras.value.length > 1 && !canFlipCamera.value);
+
+// One flip at a time: a second tap mid-flip would race the first for the camera.
+const isFlipping = ref(false);
+const flip = async () => {
+  if (isFlipping.value) return;
+  isFlipping.value = true;
+  try {
+    await flipCamera();
+  } finally {
+    isFlipping.value = false;
+  }
+};
+
 const fullscreenLabel = computed(() =>
   isFullscreen.value
     ? t("chat.call.controls.exitFullscreen")
@@ -199,9 +222,12 @@ const cameraItems = computed<MenuItem[]>(() => [
     items: cameras.value.map((camera, index) => ({
       label: camera.label || `${t("chat.call.controls.chooseCamera")} ${index + 1}`,
       callIcon: camera.deviceId === currentCameraId.value ? "check" : undefined,
-      command: () => {
+      command: async () => {
         currentCameraId.value = camera.deviceId;
-        void switchCamera(camera.deviceId);
+        await switchCamera(camera.deviceId);
+        // A failed switch falls back to the previous camera.
+        currentCameraId.value =
+          localStream.value?.getVideoTracks()[0]?.getSettings().deviceId ?? null;
       },
     })),
   },
@@ -364,6 +390,8 @@ const tileProps = (tile: CallTileInfo, compact = false) => ({
   compact,
   paused: !!videoPaused.value[tile.id],
   isFullscreen: isFullscreen.value,
+  // The user's own camera shows as a mirror, as people expect; the back one shows the world as is.
+  mirrored: tile.kind === "self" && facingMode.value !== "environment",
 });
 </script>
 
@@ -680,10 +708,11 @@ const tileProps = (tile: CallTileInfo, compact = false) => ({
           @click="toggleAudio"
         />
 
-        <!-- The camera, with Meet's caret for picking which one when there are several. -->
-        <div class="flex items-center rounded-full" :class="cameras.length > 1 && 'bg-white/12'">
+        <!-- The camera, with Meet's caret for picking which one when there are several (a phone
+             flips between its two sides instead, with the button after this one). -->
+        <div class="flex items-center rounded-full" :class="showCameraPicker && 'bg-white/12'">
           <CallButton
-            v-if="cameras.length > 1"
+            v-if="showCameraPicker"
             v-tooltip.top="tip(t('chat.call.controls.chooseCamera'))"
             icon="arrowDropUp"
             :label="t('chat.call.controls.chooseCamera')"
@@ -709,6 +738,19 @@ const tileProps = (tile: CallTileInfo, compact = false) => ({
         </div>
 
         <CallButton
+          v-if="canFlipCamera"
+          v-tooltip.top="tip(flipLabel)"
+          icon="cameraSwitch"
+          :label="flipLabel"
+          :disabled="!isVideoOn || isFlipping"
+          v-bind="barButton"
+          data-testid="call-flip-camera"
+          :data-facing="facingMode ?? undefined"
+          @click="flip"
+        />
+
+        <CallButton
+          v-if="callStore.canShareScreen"
           v-tooltip.top="tip(shareLabel)"
           :icon="isScreenSharing ? 'cancelPresentation' : 'presentToAll'"
           :label="shareLabel"

@@ -24,9 +24,22 @@ export default function useCall({ layoutKey }: { layoutKey?: () => string } = {}
   });
 
   async function switchCamera(deviceId: string) {
-    const stream = await session!.switchCamera(deviceId);
-    // Same stream object with a new track: the preview has to be told.
-    if (stream && ui.localVideo.value) ui.localVideo.value.srcObject = stream;
+    refreshPreview(await session!.switchCamera(deviceId));
+  }
+
+  async function flipCamera() {
+    refreshPreview(await session!.flipCamera());
+  }
+
+  function refreshPreview(stream: MediaStream | null) {
+    // Same stream object with a new track: the preview has to be told, and Safari only listens
+    // when srcObject actually changes.
+    const el = ui.localVideo.value;
+    if (stream && el) {
+      el.srcObject = null;
+      el.srcObject = stream;
+      el.play().catch(() => {});
+    }
   }
 
   return {
@@ -45,6 +58,8 @@ export default function useCall({ layoutKey }: { layoutKey?: () => string } = {}
     remoteScreens: peers.remoteScreens,
     // Local media
     cameras: media.cameras,
+    facingMode: media.facingMode,
+    canFlipCamera: media.canFlipCamera,
     isAudioOn: media.isAudioOn,
     isVideoOn: media.isVideoOn,
     isScreenSharing: media.isScreenSharing,
@@ -55,6 +70,7 @@ export default function useCall({ layoutKey }: { layoutKey?: () => string } = {}
     toggleFlashlight: media.toggleFlashlight,
     toggleScreenShare: session.toggleScreenShare,
     switchCamera,
+    flipCamera,
     endCall: callStore.endCall,
     // View
     showCameraModal: ref(false),

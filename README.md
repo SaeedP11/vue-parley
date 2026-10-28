@@ -69,6 +69,7 @@ createApp(App)
       media: mediaHandlers,       // MediaHandlers: download files, file sizes
       profile: profileHandlers,   // optional: profile panel's media and files tabs
       call: callHandlers,         // optional: enables voice/video calls
+      screenShare: true,          // optional: shows the call's screen-share button (off by default)
       user: { id: me.id, name: me.fullName },
     }),
   )
@@ -216,7 +217,7 @@ What a host has to do for group calls: nothing beyond what one-to-one calls need
 
 **Protocol.** Group calls add optional fields to existing messages and no new message types, so 5.0 clients and the earlier simple-peer builds still call this one: `join.joinedAt` and `join.to` (a reconnect aimed at one participant; older clients take it as aimed at them), `track_type.media` (`{ audio, video }`, sent on every mic or camera change) and `track_type.joinedAt`, and `presence.joinedAt`. Older clients ignore the fields, and a message without them is handled as before: no badges for that participant, and they order last for the cap.
 
-**Test ids** for hosts' own tests, besides the existing `call-remote-video`, `call-remote-screen` and `call-local-video`: `call-top-bar`, `call-participant-count`, `call-people-button`, `call-people-list`, `call-participant` (with `data-participant-id`), `call-tile` (with `data-participant-id` and `data-kind` `camera`, `screen` or `self`), `call-tile-muted`, `call-tile-avatar`, `call-tile-unreachable`, `call-pin`, `call-notice`, `call-waiting` and `call-strip`.
+**Test ids** for hosts' own tests, besides the existing `call-remote-video`, `call-remote-screen` and `call-local-video`: `call-top-bar`, `call-participant-count`, `call-people-button`, `call-people-list`, `call-participant` (with `data-participant-id`), `call-tile` (with `data-participant-id` and `data-kind` `camera`, `screen` or `self`), `call-tile-muted`, `call-tile-avatar`, `call-tile-unreachable`, `call-pin`, `call-notice`, `call-waiting`, `call-strip` and `call-flip-camera` (with `data-facing` `user` or `environment`; phones only).
 
 ### Fake backend
 

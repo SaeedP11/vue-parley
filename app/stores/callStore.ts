@@ -31,6 +31,8 @@ export const useCallStore = defineStore("call-modal", () => {
   const startTime = ref<number | null>(null);
   const isMinimized = ref(false);
   const isActive = ref(false);
+  /** Whether the call bar offers screen sharing, from `createChat({ screenShare })`. */
+  const canShareScreen = ref(false);
   const elapsedTime = ref(0);
 
   const stopTimer = () => {
@@ -206,6 +208,7 @@ export const useCallStore = defineStore("call-modal", () => {
     session,
     isActive,
     isMinimized,
+    canShareScreen,
     elapsedTime,
     channelId,
     setHandlers,

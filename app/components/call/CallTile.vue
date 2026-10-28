@@ -34,10 +34,12 @@ const props = withDefaults(
     compact?: boolean;
     paused?: boolean;
     isFullscreen?: boolean;
+    /** Flips the video left to right, for the user's own front camera. */
+    mirrored?: boolean;
     /** A line under the avatar when the camera is off, such as "Camera is off". */
     hint?: string;
   }>(),
-  { stream: null, speaking: false, pinned: false, canPin: false, compact: false, paused: false, isFullscreen: false },
+  { stream: null, speaking: false, pinned: false, canPin: false, compact: false, paused: false, isFullscreen: false, mirrored: false },
 );
 
 const emit = defineEmits<{
@@ -122,7 +124,8 @@ const fullscreenLabel = computed(() =>
         class="absolute inset-0 size-full rounded-[inherit]"
         :class="[
           isScreen ? 'object-contain' : 'object-cover',
-          tile.kind === 'self' && 'pointer-events-none -scale-x-100',
+          tile.kind === 'self' && 'pointer-events-none',
+          mirrored && '-scale-x-100',
         ]"
       />
 
