@@ -32,7 +32,10 @@ const lastActivityOf = (contact: Contact) => {
   return date ? new Date(date).getTime() : 0;
 };
 
-const byLastMessage = (a: Contact, b: Contact) => lastActivityOf(b) - lastActivityOf(a);
+/** Active conversations stay above ended ones; each group is newest-first. */
+const byLastMessage = (a: Contact, b: Contact) =>
+  Number(b.isActive !== false) - Number(a.isActive !== false) ||
+  lastActivityOf(b) - lastActivityOf(a);
 
 export const useChatStore = defineStore("chat", () => {
   const { height: windowHeight } = useWindowSize();
@@ -106,7 +109,7 @@ export const useChatStore = defineStore("chat", () => {
       ) as Record<StateKeys, ConversationListView>,
   );
 
-  /** Each list sorted newest-first, recomputed only when its contacts change. */
+  /** Each list sorted active-first, then newest-first, recomputed only when its contacts change. */
   const displayedContacts = computed(
     () =>
       Object.fromEntries(

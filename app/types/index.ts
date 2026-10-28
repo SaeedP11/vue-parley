@@ -341,6 +341,8 @@ export type CallMessageSchema =
         name: string;
         channel: string;
         avatar: string;
+        /** Whether the caller started a video call rather than a voice call. Absent from older clients. */
+        video?: boolean;
       };
     }
   | {
@@ -365,4 +367,4 @@ export type CallMessageSchema =
       };
     };
 
-export type { MenuOption } from "./components/menu-options";
+export type { MenuOption, MessageOptions } from "./components/menu-options";

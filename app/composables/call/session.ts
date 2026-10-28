@@ -270,7 +270,7 @@ export function createCallSession(opts: CallSessionOptions) {
       const bytes = new Uint8Array(await blob.arrayBuffer());
       avatar = `data:${blob.type};base64,${btoa(String.fromCharCode(...bytes))}`;
     }
-    await signaling.ring(channel, avatar);
+    await signaling.ring(channel, avatar, opts.video !== false);
   }
 
   const heard = (from: string) => (lastHeard[from] = Date.now());

@@ -123,10 +123,10 @@ export function createSignaling(
         },
       }),
     /** Rings the other side of `channel`. */
-    ring: (channel: string, avatar?: string) =>
+    ring: (channel: string, avatar: string | undefined, video: boolean) =>
       publish({
         type: CallMessageType.Call,
-        payload: { from: self.id, name: self.name(), channel, avatar: avatar ?? "" },
+        payload: { from: self.id, name: self.name(), channel, avatar: avatar ?? "", video },
       }),
     /** Tells members outside the call that we are in it. */
     presence: (channel: string, video: boolean) =>

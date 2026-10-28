@@ -7,12 +7,13 @@ import ChatList from "./chat/contact/ChatList.vue";
 import { useCallStore } from "~/stores/callStore";
 import ChatView from "./chat/ChatView.vue";
 import { chatPage } from "@i18n/locales";
-import { computed, defineAsyncComponent, useSlots } from "vue";
+import { computed, defineAsyncComponent, provide, useSlots } from "vue";
 
 // Loaded with the first call, not with the chat.
 const Call = defineAsyncComponent(() => import("./call/Call.vue"));
 import type { Contact } from "~/types";
-import type { MenuOption } from "~/types/components/menu-options";
+import { messageOptionsKey } from "~/types/components/menu-options";
+import type { MenuOption, MessageOptions } from "~/types/components/menu-options";
 
 const props = withDefaults(
   defineProps<{
@@ -26,6 +27,8 @@ const props = withDefaults(
      * header is too narrow for `header-actions` (that slot's `compact`).
      */
     headerOptions?: MenuOption[];
+    /** Host actions for a message, listed in its menu between the quick actions and delete. */
+    messageOptions?: MessageOptions;
   }>(),
   { renderCall: true, headerOptions: () => [] },
 );
@@ -51,6 +54,10 @@ defineSlots<{
 }>();
 
 const slots = useSlots();
+
+// Every bubble has its own menu, deep under the message list, so they read it from here rather
+// than through each component on the way.
+provide(messageOptionsKey, () => props.messageOptions);
 
 const chatStore = useChatStore();
 const callStore = useCallStore();

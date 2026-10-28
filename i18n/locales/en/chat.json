@@ -107,6 +107,8 @@
     },
     "call": {
       "title": "Call",
+      "videoCall": "Video call",
+      "voiceCall": "Voice call",
       "you": "You",
       "active": "Call active",
       "participants": "{count} participant | {count} participants",
