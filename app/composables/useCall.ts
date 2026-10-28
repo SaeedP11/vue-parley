@@ -77,6 +77,7 @@ export default function useCall({ layoutKey }: { layoutKey?: () => string } = {}
     showControls: ui.showControls,
     resetControlsTimeout: ui.resetControlsTimeout,
     isFullscreen: ui.isFullscreen,
+    canFullscreen: ui.canFullscreen,
     toggleFullscreen: ui.toggleFullscreen,
     toggleRemote: ui.toggleRemote,
     videoPaused: ui.videoPaused,

@@ -115,7 +115,7 @@ test.describe("video call", () => {
     expect(await localTrack("video")).toBe(true);
   });
 
-  test("Meet's shortcuts toggle the microphone and camera, and the more menu holds the rest", async () => {
+  test("Meet's shortcuts toggle the microphone and camera, and full screen sits in the top bar", async () => {
     await startCall(alice);
     await expectPlayingVideo(alice.getByTestId("call-local-video"));
     const audio = alice.getByTestId("call-toggle-audio");
@@ -134,8 +134,12 @@ test.describe("video call", () => {
     await alice.getByTestId("call-maximize").click();
     await expect(audio).toHaveAttribute("data-active", "true");
 
-    await alice.getByTestId("call-more").click();
-    await expect(alice.getByRole("menuitem", { name: "Full screen" })).toBeVisible();
+    // Headless Chromium refuses the request itself, so this checks where the button is, not the
+    // switch. The fake camera has no flashlight, which leaves the more menu with nothing to show.
+    const fullscreen = alice.getByTestId("call-top-bar").getByTestId("call-fullscreen");
+    await expect(fullscreen).toHaveAccessibleName("Full screen");
+    await expect(fullscreen).toHaveAttribute("data-active", "false");
+    await expect(alice.getByTestId("call-more")).toHaveCount(0);
   });
 
   test("the remote side keeps receiving video across camera toggles", async () => {

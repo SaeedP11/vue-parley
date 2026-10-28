@@ -50,15 +50,19 @@ export function useCallUi(opts: CallUiOptions) {
 
   // --- Fullscreen: the whole call, or a single tile ---
   const isFullscreen = ref(false);
+  // Browsers without the Fullscreen API on elements (iPhone Safari) get no button for it.
+  const canFullscreen = typeof document !== "undefined" && !!document.fullscreenEnabled;
+  // Read back from the document, not assumed: a request can be refused, and Esc or the browser's
+  // own controls leave fullscreen without going through the toggle.
+  const syncFullscreen = () => (isFullscreen.value = !!document.fullscreenElement);
   function toggleFullscreen(target: HTMLElement = document.documentElement) {
-    if (!document.fullscreenElement) {
-      void target.requestFullscreen?.();
-      isFullscreen.value = true;
-    } else {
-      void document.exitFullscreen();
-      isFullscreen.value = false;
-    }
+    const change = document.fullscreenElement
+      ? document.exitFullscreen()
+      : target.requestFullscreen?.();
+    void change?.then(syncFullscreen, syncFullscreen);
   }
+  onMounted(() => document.addEventListener("fullscreenchange", syncFullscreen));
+  onUnmounted(() => document.removeEventListener("fullscreenchange", syncFullscreen));
   const toggleRemote = (tileId: string, el?: HTMLElement) => {
     const container = el ?? remoteParents.value[tileId];
     if (container) toggleFullscreen(container);
@@ -153,6 +157,7 @@ export function useCallUi(opts: CallUiOptions) {
     showControls,
     resetControlsTimeout,
     isFullscreen,
+    canFullscreen,
     toggleFullscreen: () => toggleFullscreen(),
     toggleRemote,
     videoPaused,

@@ -64,6 +64,7 @@ const {
   isVideoOn,
   isFlashlightOn,
   isFullscreen,
+  canFullscreen,
   isScreenSharing,
   showControls,
   resetControlsTimeout,
@@ -235,11 +236,6 @@ const cameraItems = computed<MenuItem[]>(() => [
 
 const moreMenu = ref<InstanceType<typeof Menu> | null>(null);
 const moreItems = computed<MenuItem[]>(() => [
-  {
-    label: fullscreenLabel.value,
-    callIcon: isFullscreen.value ? "fullscreenExit" : "fullscreen",
-    command: () => toggleFullscreen(),
-  },
   ...(isFlashlightSupported.value
     ? [
         {
@@ -530,6 +526,19 @@ const tileProps = (tile: CallTileInfo, compact = false) => ({
           </span>
         </Button>
         <CallButton
+          v-if="canFullscreen"
+          v-tooltip.bottom="tip(fullscreenLabel)"
+          :icon="isFullscreen ? 'fullscreenExit' : 'fullscreen'"
+          :label="fullscreenLabel"
+          :dt="callButtonDt"
+          :text="false"
+          icon-class="size-5"
+          :class="['size-11!', focusRing]"
+          data-testid="call-fullscreen"
+          :data-active="isFullscreen"
+          @click="toggleFullscreen()"
+        />
+        <CallButton
           v-tooltip.bottom="tip(t('chat.call.controls.minimize'))"
           icon="pictureInPicture"
           :label="t('chat.call.controls.minimize')"
@@ -761,7 +770,9 @@ const tileProps = (tile: CallTileInfo, compact = false) => ({
           @click="toggleScreenShare"
         />
 
+        <!-- Only the flashlight is left in it: no menu where the device has none. -->
         <CallButton
+          v-if="moreItems.length"
           v-tooltip.top="tip(t('chat.call.controls.more'))"
           icon="moreVert"
           :label="t('chat.call.controls.more')"
