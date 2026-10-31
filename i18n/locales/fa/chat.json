@@ -107,6 +107,8 @@
     },
     "call": {
       "title": "تماس",
+      "videoCall": "تماس تصویری",
+      "voiceCall": "تماس صوتی",
       "you": "شما",
       "active": "تماس برقرار است",
       "participants": "{count} شرکت‌کننده",

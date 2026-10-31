@@ -38,6 +38,13 @@ const callTitle = computed(() => {
   return name || t("chat.call.title");
 });
 
+// What kind of call this was started as. Either side can still turn its camera on or off.
+const callKind = computed(() =>
+  callStore.isVideoCall
+    ? { icon: "videocam" as const, label: t("chat.call.videoCall") }
+    : { icon: "call" as const, label: t("chat.call.voiceCall") },
+);
+
 // Tiles move between the grid, the stage and the strip, remounting their <video>: the streams
 // are attached again whenever the arrangement changes.
 const layoutKey = ref("");
@@ -421,6 +428,8 @@ const tileProps = (tile: CallTileInfo, compact = false) => ({
           <span class="absolute inline-flex size-full animate-ping rounded-full bg-red-500/60 motion-reduce:animate-none" />
           <span class="relative inline-flex size-2.5 rounded-full bg-red-500" />
         </span>
+        <CallIcon :name="callKind.icon" class="size-4" />
+        <span class="sr-only">{{ callKind.label }}</span>
         <span dir="ltr" class="tabular-nums">{{ formatDuration(callStore.elapsedTime) }}</span>
       </div>
 
@@ -500,11 +509,22 @@ const tileProps = (tile: CallTileInfo, compact = false) => ({
       @mouseenter="resetControlsTimeout"
     >
       <div class="flex min-w-0 flex-1 items-center gap-x-3 select-none">
-        <h1 class="truncate text-title-sm text-white">{{ callTitle }}</h1>
-        <span aria-hidden="true" class="h-4 w-px shrink-0 bg-white/30" />
-        <span dir="ltr" class="shrink-0 text-body-md text-neutral-300 tabular-nums">
-          {{ formatDuration(callStore.elapsedTime) }}
+        <span
+          data-testid="call-kind"
+          :data-video="callStore.isVideoCall"
+          aria-hidden="true"
+          class="flex size-10 shrink-0 items-center justify-center rounded-full bg-white/10 text-white"
+        >
+          <CallIcon :name="callKind.icon" class="size-5" />
         </span>
+        <div class="min-w-0">
+          <h1 class="truncate text-title-sm text-white">{{ callTitle }}</h1>
+          <p class="flex items-center gap-x-1.5 text-label-sm text-neutral-300">
+            <span class="truncate">{{ callKind.label }}</span>
+            <span aria-hidden="true">·</span>
+            <span dir="ltr" class="shrink-0 tabular-nums">{{ formatDuration(callStore.elapsedTime) }}</span>
+          </p>
+        </div>
       </div>
 
       <div data-testid="call-participants" class="flex shrink-0 items-center gap-x-2">
@@ -614,7 +634,11 @@ const tileProps = (tile: CallTileInfo, compact = false) => ({
         >
           <div class="max-w-full rounded-2xl bg-black/65 px-5 py-3 text-center shadow-lg backdrop-blur-sm">
             <p class="truncate text-title-sm text-white">{{ callTitle }}</p>
-            <p class="mt-0.5 text-label-md text-neutral-200">{{ waitingText }}</p>
+            <p class="mt-0.5 flex items-center justify-center gap-x-1.5 text-label-sm text-neutral-300">
+              <CallIcon :name="callKind.icon" class="size-4" />
+              {{ callKind.label }}
+            </p>
+            <p class="mt-1 text-label-md text-neutral-200">{{ waitingText }}</p>
           </div>
         </div>
       </template>

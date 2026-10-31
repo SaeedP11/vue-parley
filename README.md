@@ -126,6 +126,12 @@ The header folds by its own width (under 640px), not the screen's, since the lis
 </ChatPage>
 ```
 
+A message's menu (right click or long press) can carry the host's own actions too: `messageOptions` is a function from the message to `MenuOption[]`, called each time the menu renders, so the items can follow the message's state. They are listed as rows between the quick actions and delete, and are not offered on a message still being sent or while several are selected.
+
+```vue
+<ChatPage :message-options="(message) => [{ key: 'pin', label: 'Pin', icon: 'PhPushPin', command: () => pin(message.id) }]" />
+```
+
 To build a different layout, use the exported building blocks instead: `ChatList`, `ChatConversation`, `ChatHeader`, `ChatMessages`, `ChatInput` and `ChatBubble`. They read the same stores, so they work together once `createChat()` is installed.
 
 ### Photos and videos

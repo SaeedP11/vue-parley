@@ -1,4 +1,5 @@
-import type { Component } from "vue";
+import type { Component, InjectionKey } from "vue";
+import type { ExtendedMessage } from "~/types";
 
 export interface MenuOption {
   key: string;
@@ -11,3 +12,12 @@ export interface MenuOption {
   /** Runs on select. Without it the header emits `select` with the key. */
   command?: () => void;
 }
+
+/**
+ * Host actions for one message, listed in its menu between the quick actions and delete. Asked
+ * afresh each time the menu renders, so the items can follow the message's state (pin or unpin).
+ */
+export type MessageOptions = (message: ExtendedMessage) => MenuOption[];
+
+/** How `<ChatPage>` hands `messageOptions` down to every bubble's menu. */
+export const messageOptionsKey: InjectionKey<() => MessageOptions | undefined> = Symbol("messageOptions");

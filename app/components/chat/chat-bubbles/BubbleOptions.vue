@@ -2,16 +2,18 @@
 /**
  * The message's action menu, opened at the pointer by a right click or long press. It is one
  * PrimeVue ContextMenu laid out as a card: a header with when the message was sent (and, on your
- * own, whether it was seen), a row of quick-action tiles, then the destructive action set apart.
+ * own, whether it was seen), a row of quick-action tiles, the host's own actions as rows, then the
+ * destructive action set apart.
  * The header is a disabled item, so arrow keys and typeahead skip it; the tiles and the delete row
  * are ordinary items in one wrapping list, so keyboard navigation still walks them in order.
  */
-import { computed, ref } from "vue";
+import { computed, inject, ref } from "vue";
 import ContextMenu from "primevue/contextmenu";
 import Skeleton from "primevue/skeleton";
 import type { MenuItem } from "primevue/menuitem";
 import { useMessagesStore } from "~/stores/messageStores";
 import type { ExtendedMessage, MessageReader } from "~/types";
+import { messageOptionsKey } from "~/types/components/menu-options";
 import ContactAvatar from "~/components/chat/contact/ContactAvatar.vue";
 import useLocalI18n, { useDirection } from "~/composables/useLocalI18n";
 import { useDate } from "~/composables/useDate.js";
@@ -112,6 +114,28 @@ const isSeen = computed(() => props.message.isSent && props.message.isRead);
 const TILE = "flex-1 min-w-0";
 const ROW = "basis-full";
 
+// The host's own actions (`<ChatPage :message-options>`), as rows: there may be any number of
+// them, with labels of any length, which would break the single row of tiles. Not offered on a
+// message the server has not stored yet, nor while several are selected.
+const hostOptions = inject(messageOptionsKey, () => undefined);
+
+const hostItems = computed<MenuItem[]>(() => {
+  const options = hostOptions();
+  if (!options || !props.message.isSent || props.message.id.startsWith("tmp-")) return [];
+  if (messagesStore.isSelectMode) return [];
+  return options(props.message).map((option) => ({
+    key: `host-${option.key}`,
+    host: true,
+    phIcon: option.icon,
+    label: option.label,
+    accent: option.color === "primary",
+    danger: option.color === "error",
+    disabled: option.disabled,
+    class: ROW,
+    command: () => option.command?.(),
+  }));
+});
+
 const items = computed<MenuItem[]>(() => [
   { key: "meta", meta: true, disabled: true, class: `${ROW} opacity-100!` },
   {
@@ -173,6 +197,13 @@ const items = computed<MenuItem[]>(() => [
       }
     },
   },
+  {
+    key: "host-separator",
+    separator: true,
+    visible: hostItems.value.length > 0,
+    class: `${ROW} mx-2! my-1! border-chat-outline-variant!`,
+  },
+  ...hostItems.value,
   {
     key: "danger-separator",
     separator: true,
@@ -294,6 +325,35 @@ const pt = {
           </span>
         </span>
       </div>
+
+      <a
+        v-else-if="item.host"
+        v-bind="itemProps.action"
+        :data-testid="`message-option-${item.key}`"
+        class="gap-x-3! px-2.5! py-2!"
+      >
+        <span
+          aria-hidden="true"
+          class="flex size-9 shrink-0 items-center justify-center rounded-full"
+          :class="
+            item.danger
+              ? 'bg-chat-error/10 text-chat-error'
+              : item.accent
+                ? 'bg-chat-primary/12 text-chat-primary'
+                : 'bg-chat-on-background/6 text-chat-on-background'
+          "
+        >
+          <BIcon v-if="typeof item.phIcon === 'string'" :icon="item.phIcon" class="size-5" />
+          <component :is="item.phIcon" v-else-if="item.phIcon" class="size-5" />
+        </span>
+        <span
+          v-bind="itemProps.label"
+          class="min-w-0 flex-1 truncate text-label-md leading-normal!"
+          :class="item.danger ? 'text-chat-error' : 'text-chat-on-background'"
+        >
+          {{ item.label }}
+        </span>
+      </a>
 
       <a
         v-else-if="!item.danger"
