@@ -52,6 +52,8 @@ export interface Message {
   videoUrl?: string;
   isEdited: boolean;
   senderId: string;
+  /** The actual sender in a group conversation, resolved by the host from persisted membership. */
+  sender?: Pick<Contact, "id" | "name" | "lastName" | "imageUrl">;
   isSent: boolean;
   /** Set when the last send attempt failed, so the bubble can offer a retry. */
   isFailed?: boolean;
@@ -78,6 +80,8 @@ export interface Contact {
    * no `lastMessage`.
    */
   lastActivity?: Date;
+  /** How many members the conversation has, for the call's "connected of total". */
+  memberCount?: number;
   /**
    * A short label on the row that tells conversations with the same person apart, such as the
    * service it is about.

@@ -19,9 +19,27 @@ import CallButton from "./CallButton.vue";
 import CallIcon from "./CallIcon.vue";
 import CallTile from "./CallTile.vue";
 import CallParticipants from "./CallParticipants.vue";
+import CallStage, { type CallStageAction } from "./CallStage.vue";
+import CallStageMini from "./CallStageMini.vue";
 import { callButtonDt, callMenuDt, focusRing, tip } from "./tokens";
 
 const vTooltip = Tooltip;
+
+/**
+ * Switches on the stage arrangement (see `CallStage`), drawn over this view while the call is not
+ * minimized. Leave it out for the usual call screen.
+ */
+const props = defineProps<{
+  stage?: {
+    title?: string;
+    subtitle?: string;
+    featuredId?: string;
+    featuredLabel?: string;
+    action?: CallStageAction | null;
+    beforeEnd?: () => unknown;
+  };
+}>();
+const emit = defineEmits<{ stageAction: [] }>();
 
 const callStore = useCallStore();
 const minimizedRef = ref<HTMLElement | null>(null);
@@ -146,7 +164,13 @@ const notices = useCallNotices(
 
 const peopleOpen = ref(false);
 const peopleLabel = computed(
-  () => `${t("chat.call.controls.people")} (${t("chat.call.participants", participantCount.value)})`,
+  () => {
+    // Connected of the conversation's members, when the host gives their count.
+    const total = callStore.channelId ? chatStore.getContactById(callStore.channelId)?.memberCount : undefined;
+    if (!total) return `${t("chat.call.controls.people")} (${t("chat.call.participants", participantCount.value)})`;
+    const format = (value: number) => new Intl.NumberFormat(String(locale.value)).format(value);
+    return `${t("chat.call.controls.people")} (${t("chat.call.connectedOf", { connected: format(participantCount.value), total: format(Math.max(total, participantCount.value)) })})`;
+  },
 );
 
 // --- Controls ---
@@ -401,7 +425,7 @@ const tileProps = (tile: CallTileInfo, compact = false) => ({
 <template>
   <!-- Picture-in-picture: the call shrunk to a draggable window over the app. -->
   <div
-    v-if="callStore.isActive && callStore.isMinimized"
+    v-if="!props.stage && callStore.isActive && callStore.isMinimized"
     ref="minimizedRef"
     data-testid="call-pip"
     :style="clampedStyle"
@@ -837,4 +861,22 @@ const tileProps = (tile: CallTileInfo, compact = false) => ({
       </template>
     </Menu>
   </div>
+
+  <CallStage
+    v-if="props.stage && callStore.isActive && !callStore.isMinimized"
+    v-bind="props.stage"
+    :title="props.stage.title ?? callTitle"
+    :sound-blocked="soundBlocked"
+    @action="emit('stageAction')"
+    @enable-sound="enableSound"
+    @people="peopleOpen = true"
+  >
+    <template v-if="$slots.stageHeaderEnd" #header-end><slot name="stageHeaderEnd" /></template>
+    <template #controls><slot name="stageControls" /></template>
+  </CallStage>
+  <CallStageMini
+    v-if="props.stage && callStore.isActive && callStore.isMinimized"
+    :title="props.stage.subtitle ?? props.stage.title ?? callTitle"
+    :before-end="props.stage.beforeEnd"
+  />
 </template>

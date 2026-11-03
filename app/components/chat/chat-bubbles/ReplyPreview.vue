@@ -21,7 +21,7 @@ const replied = computed(() => props.message.repliedTo!);
 const senderName = computed(() =>
   replied.value.senderId === props.currentUserId
     ? t("you")
-    : `${props.contact?.name ?? ""} ${props.contact?.lastName ?? ""}`.trim(),
+    : `${(replied.value.sender ?? props.contact)?.name ?? ""} ${(replied.value.sender ?? props.contact)?.lastName ?? ""}`.trim(),
 );
 
 const preview = computed(() => {

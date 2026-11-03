@@ -12,7 +12,7 @@
     "years": "{count} years"
   },
   "status": {
-    "active": "Active",
+    "active": "Open",
     "ended": "Ended"
   },
   "empty": {

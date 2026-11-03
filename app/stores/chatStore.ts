@@ -211,6 +211,9 @@ export const useChatStore = defineStore("chat", () => {
     if (!handlers.endConversation) return;
     await handlers.endConversation(id);
     updateContact(id, { isActive: false });
+    // An ended conversation leaves the active list and joins a loaded ended list.
+    lists.value.active.ids = lists.value.active.ids.filter((x) => x !== id);
+    if (lists.value.ended.page > 0 && !lists.value.ended.ids.includes(id)) lists.value.ended.ids.unshift(id);
   };
 
   const deleteConversation = async (id: string) => {

@@ -112,6 +112,7 @@
       "you": "You",
       "active": "Call active",
       "participants": "{count} participant | {count} participants",
+      "connectedOf": "{connected} of {total} connected",
       "yourPresentation": "Your presentation",
       "presentationOf": "Presented by {name}",
       "cameraIsOff": "Camera is off",
@@ -152,6 +153,24 @@
         "callServerUnreachable": "The call server is unreachable from this network, so the call may not connect.",
         "connectionFailed": "The connection was lost. Reconnecting…",
         "callFull": "This call is full (up to {max} people)"
+      },
+      "stage": {
+        "returnToCall": "Return to call",
+        "others": "Other participants",
+        "peopleCount": "{count} people",
+        "mainView": "Main view",
+        "showInMain": "Show in main view",
+        "showNameInMain": "Show {name} in the main view",
+        "pinMain": "Pin main view",
+        "unpinMain": "Unpin main view",
+        "microphone": "Microphone",
+        "camera": "Camera",
+        "switchCamera": "Switch device camera",
+        "cameraN": "Camera {index}",
+        "participant": "Participant",
+        "more": "More",
+        "minimize": "Minimize",
+        "end": "End call"
       },
       "controls": {
         "enableSound": "Tap to turn on sound",

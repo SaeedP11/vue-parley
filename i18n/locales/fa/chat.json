@@ -112,6 +112,7 @@
       "you": "شما",
       "active": "تماس برقرار است",
       "participants": "{count} شرکت‌کننده",
+      "connectedOf": "{connected} از {total} متصل",
       "yourPresentation": "ارائه شما",
       "presentationOf": "ارائه {name}",
       "cameraIsOff": "دوربین خاموش است",
@@ -152,6 +153,24 @@
         "callServerUnreachable": "سرور تماس از این شبکه در دسترس نیست و ممکن است تماس برقرار نشود.",
         "connectionFailed": "اتصال قطع شد. در حال اتصال دوباره…",
         "callFull": "این تماس پر است (حداکثر {max} نفر)"
+      },
+      "stage": {
+        "returnToCall": "بازگشت به تماس",
+        "others": "سایر شرکت‌کنندگان",
+        "peopleCount": "{count} نفر",
+        "mainView": "تصویر اصلی",
+        "showInMain": "نمایش در تصویر اصلی",
+        "showNameInMain": "نمایش {name} در تصویر اصلی",
+        "pinMain": "سنجاق کردن تصویر اصلی",
+        "unpinMain": "برداشتن سنجاق تصویر اصلی",
+        "microphone": "میکروفون",
+        "camera": "دوربین",
+        "switchCamera": "تعویض دوربین دستگاه",
+        "cameraN": "دوربین {index}",
+        "participant": "شرکت‌کننده",
+        "more": "بیشتر",
+        "minimize": "کوچک‌کردن",
+        "end": "پایان"
       },
       "controls": {
         "enableSound": "برای روشن کردن صدا ضربه بزنید",

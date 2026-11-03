@@ -67,7 +67,7 @@ const name = computed(() => props.participant.name || (isSelf.value ? t("chat.ca
 const label = computed(() => {
   if (isScreen.value)
     return isSelf.value ? t("chat.call.yourPresentation") : t("chat.call.presentationOf", { name: name.value });
-  return isSelf.value ? t("chat.call.you") : name.value;
+  return isSelf.value ? (props.participant.name ? `${props.participant.name} (${t("chat.call.you")})` : t("chat.call.you")) : name.value;
 });
 // The call screen is always dark, so its avatars take the dark tones.
 const initials = computed(() => nameInitials(props.participant.name));

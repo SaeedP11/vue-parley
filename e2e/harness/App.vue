@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref } from "vue";
 import {
+  Call,
   ChatPage,
   useCallStore,
   useChatStore,
@@ -10,6 +11,23 @@ import {
 import { backend, blocked, call } from "./backend";
 
 const renderCall = ref(true);
+
+// `stage=1` mounts the call's stage arrangement, with a demo host action, instead of the usual view.
+const stage = new URLSearchParams(location.search).has("stage");
+const lit = ref(false);
+const stageOptions = {
+  subtitle: "Video visit",
+  featuredLabel: "Main view",
+  get action() {
+    return {
+      label: "Light",
+      icon: lit.value ? ("flashlightOn" as const) : ("flashlightOff" as const),
+      active: lit.value,
+      note: lit.value ? "Light is on" : "Light is off",
+      command: () => (lit.value = !lit.value),
+    };
+  },
+};
 
 // `open=<id>` selects a conversation before the chat mounts, as a host routing straight to one does.
 const open = new URLSearchParams(location.search).get("open");
@@ -82,6 +100,7 @@ Object.assign(window, {
 
 <template>
   <div style="height: 100vh">
-    <ChatPage :render-call="renderCall" />
+    <ChatPage :render-call="renderCall && !stage" />
+    <Call v-if="stage && callStore.session && renderCall" :stage="stageOptions" />
   </div>
 </template>

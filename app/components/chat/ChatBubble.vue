@@ -202,6 +202,13 @@ const longPress = useLongPress(handleRightClick);
               :class="{ 'flex-row-reverse rtl:flex-row': !isMine }"
             >
               <div class="flex-1 min-w-0">
+                <div
+                  v-if="!isMine && !groupedWithPrev && message.sender"
+                  class="px-2 pb-1 text-xs text-chat-on-background/70"
+                  data-testid="message-sender"
+                >
+                  {{ `${message.sender.name} ${message.sender.lastName}`.trim() }}
+                </div>
                 <!-- Text / File / Voice Bubble Wrapper -->
                 <div
                   v-if="isTextBased"
@@ -286,7 +293,7 @@ const longPress = useLongPress(handleRightClick);
               <div v-if="!isMine" class="size-8 shrink-0">
                 <ContactAvatar
                   v-if="!groupedWithNext"
-                  :contact="contact"
+                  :contact="message.sender ?? contact"
                   :show-online="false"
                 />
               </div>
@@ -299,7 +306,7 @@ const longPress = useLongPress(handleRightClick);
           v-if="viewerMounted && media.length > 0"
           ref="mediaViewer"
           :items="media"
-          :sender="isMine ? t('you') : `${contact.name} ${contact.lastName}`.trim()"
+          :sender="isMine ? t('you') : `${(message.sender ?? contact).name} ${(message.sender ?? contact).lastName}`.trim()"
           :date="message.date"
         />
         <BubbleOptions

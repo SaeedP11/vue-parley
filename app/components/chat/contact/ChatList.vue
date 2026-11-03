@@ -51,11 +51,8 @@ watch(activeFilter, (newFilter) => {
   const scrollEl = listRef.value;
   if (scrollEl) scrollEl.scrollTop = 0;
 
-  // 2. Fetch if the tab is empty or was loaded for another search
-  const state = chatStore.conversationStates[newFilter];
-  if (state.data.length === 0 || state.search !== query.value) {
-    chatStore.fetchConversations(newFilter, 1, query.value);
-  }
+  // 2. A conversation changes state while another tab is shown, so a tab is read again each time it opens.
+  chatStore.fetchConversations(newFilter, 1, query.value);
 });
 
 // Handle Search with Debounce
@@ -71,9 +68,8 @@ watch(query, (newQuery) => {
 });
 
 onMounted(() => {
-  if (chatStore.conversationStates[activeFilter.value].data.length === 0) {
-    chatStore.fetchConversations(activeFilter.value, 1);
-  }
+  // Back on the list after another page, its conversations may have changed state.
+  chatStore.fetchConversations(activeFilter.value, 1);
 });
 
 // Cleanup timeout to prevent memory leaks or state updates on unmounted components
