@@ -151,8 +151,8 @@ const accessibleName = computed(() =>
     :data-contact-id="contact.id"
     :aria-current="isActive ? 'true' : undefined"
     :aria-label="accessibleName"
-    :class="[isActive ? 'bg-chat-surface' : 'bg-chat-surface/0 hover:bg-chat-surface/50']"
-    class="flex h-19 w-full cursor-pointer items-center gap-x-3 rounded-xl p-2.5 text-start transition-colors duration-200 ease-in-out focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-chat-primary motion-reduce:transition-none"
+    :class="[isActive ? 'bg-chat-primary/9 ring-1 ring-inset ring-chat-primary/16' : 'bg-transparent hover:bg-chat-surface']"
+    class="flex min-h-19 w-full cursor-pointer items-center gap-x-3 rounded-2xl p-3 text-start transition-all duration-200 ease-out focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-chat-primary motion-reduce:transition-none"
     @click="openChat"
   >
     <span v-loading="isLoading" class="relative block size-12 shrink-0">

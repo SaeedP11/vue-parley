@@ -50,6 +50,17 @@
   background-clip: padding-box, border-box !important;
 }
 
+.chat-canvas {
+  background-color: var(--color-chat-surface);
+  background-image: var(--background-image-chat-canvas);
+}
+
+.chat-panel {
+  border: 1px solid color-mix(in oklab, var(--color-chat-outline) 72%, transparent);
+  background: color-mix(in oklab, var(--color-chat-background) 94%, transparent);
+  box-shadow: var(--shadow-medium);
+}
+
 
 /* PrimeVue teleports overlays (dialogs, menus, popovers, toasts, the image viewer) to <body>,
    outside the chat root that sets the font; give them the chat's font too. */

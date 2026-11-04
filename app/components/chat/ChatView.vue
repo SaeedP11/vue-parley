@@ -9,7 +9,7 @@
         class="h-full flex-1 flex-col items-center justify-between"
         :class="isProfile ? 'hidden md:flex' : 'flex'"
       >
-        <div class="h-16 w-full bg-chat-background md:h-20">
+        <div class="h-16 w-full bg-chat-background/95 md:h-18">
           <ChatPageBar
             :contact="selectedChat"
             :options="medicOptions"

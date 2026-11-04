@@ -81,12 +81,12 @@ onBeforeUnmount(() => {
 <template>
   <div
     :dir="dir"
-    class="vue-chat flex h-full w-full flex-col overflow-hidden border border-chat-outline-variant bg-chat-background"
+    class="vue-chat flex h-full w-full flex-col overflow-hidden bg-chat-background"
   >
     <ChatListSearch v-model="searchText" class="shrink-0" />
 
     <div class="flex w-full flex-1 flex-col overflow-hidden">
-      <div class="flex w-full shrink-0 items-center px-4 pt-3 pb-1">
+      <div class="flex w-full shrink-0 items-center px-4 pt-4 pb-1">
         <SelectButton
           :model-value="activeFilter || null"
           :options="filters"
@@ -94,14 +94,14 @@ onBeforeUnmount(() => {
           option-value="key"
           :aria-label="t('filters.label')"
           class="w-full"
-          :pt="{ pcToggleButton: { root: { class: 'flex-1 h-9!' } } }"
+          :pt="{ root: { class: 'rounded-xl! bg-chat-surface! p-1!' }, pcToggleButton: { root: { class: 'flex-1 h-9! rounded-lg! border-0!' } } }"
           @update:model-value="(key) => setFilter(key ?? '')"
         />
       </div>
 
       <div
         v-if="currentState.loading || chats.length > 0"
-        class="relative w-full flex-1 overflow-hidden px-2.5 pt-2.5"
+        class="relative w-full flex-1 overflow-hidden px-3 pt-3"
       >
         <BVirtualVerticalList
           ref="listRef"

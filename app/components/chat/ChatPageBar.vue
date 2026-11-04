@@ -5,7 +5,7 @@
     <header
       v-if="selectedChat"
       ref="header"
-      class="@container/chat-header relative z-50 flex h-16 w-full items-center gap-x-2 border-b border-b-chat-outline-variant bg-chat-background px-3 md:h-20 md:gap-x-3 md:px-5"
+      class="@container/chat-header relative z-50 flex h-16 w-full items-center gap-x-2 border-b border-b-chat-outline-variant/70 bg-chat-background/92 px-3 shadow-[0_1px_0_rgb(15_23_42/0.02)] backdrop-blur-xl md:h-18 md:gap-x-3 md:px-5"
     >
       <!-- At the start and pointing back, mirrored for right-to-left. -->
       <IconButton

@@ -22,9 +22,9 @@ const clear = () => {
 </script>
 <template>
   <div
-    class="flex w-full flex-col gap-y-3 border-b border-b-chat-outline-variant px-4 pt-4 pb-3 md:pt-5"
+    class="flex w-full flex-col gap-y-3 border-b border-b-chat-outline-variant/70 bg-chat-background/95 px-4 pt-4 pb-4 md:pt-5"
   >
-    <h2 class="m-0 truncate text-label-lg text-chat-on-background select-none">
+    <h2 class="m-0 truncate text-title-md text-chat-on-background select-none">
       {{ t("title") }}
     </h2>
 
@@ -41,7 +41,7 @@ const clear = () => {
           data-testid="chat-search"
           :placeholder="t('placeholder')"
           :aria-label="t('search')"
-          class="h-11! w-full rounded-xl! pe-11! [&::-webkit-search-cancel-button]:hidden"
+          class="h-11! w-full rounded-xl! border-transparent! bg-chat-surface! pe-11! shadow-none! focus:border-chat-primary/35! focus:ring-3! focus:ring-chat-primary/10! [&::-webkit-search-cancel-button]:hidden"
         />
       </IconField>
       <IconButton

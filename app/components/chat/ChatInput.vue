@@ -16,7 +16,7 @@
     <div
       @contextmenu.prevent
       ref="rootElements"
-      class="px-4 transition-all duration-200 ease-in-out min-h-19 py-4 w-full bg-surface flex items-end border-t border-t-outline-variant gap-x-5 relative z-40 overflow-visible select-none"
+      class="relative z-40 flex min-h-19 w-full items-end gap-x-3 overflow-visible border-t border-t-chat-outline-variant/70 bg-chat-background/95 px-3 py-3.5 shadow-[0_-8px_24px_-22px_rgb(15_23_42/0.45)] backdrop-blur-xl transition-all duration-200 ease-in-out select-none md:px-5"
     >
       <RecordButton
         :is-recording="isRecording"
@@ -34,8 +34,8 @@
         @send="handleSend"
       />
 
-      <div v-show="!isRecording" class="flex-1 flex items-end gap-x-5">
-        <div class="min-h-11 flex items-center w-full">
+      <div v-show="!isRecording" class="flex flex-1 items-end gap-x-2 rounded-2xl border border-chat-outline-variant bg-chat-surface/75 px-2 py-1 transition focus-within:border-chat-primary/35 focus-within:bg-chat-background focus-within:ring-3 focus-within:ring-chat-primary/10">
+        <div class="flex min-h-11 w-full items-center ps-2">
           <div
             ref="input"
             data-testid="chat-input"

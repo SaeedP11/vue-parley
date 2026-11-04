@@ -70,7 +70,7 @@ const isInChat = computed(() => chatStore.activeConversationId !== null);
 <template>
   <div
     :dir="dir"
-    class="vue-chat flex w-full h-full max-h-full overflow-hidden font-chat-family text-chat-base text-chat-on-background bg-chat-background"
+    class="vue-chat flex h-full max-h-full w-full overflow-hidden bg-chat-surface font-chat-family text-chat-base text-chat-on-background"
   >
     <!-- On phones only one pane shows: the list, or the open conversation. -->
     <div
@@ -100,7 +100,7 @@ const isInChat = computed(() => chatStore.activeConversationId !== null);
     </div>
 
     <div
-      class="h-full w-full shrink-0 border-l border-chat-outline-variant md:w-80"
+      class="h-full w-full shrink-0 border-s border-chat-outline-variant md:w-88"
       :class="isInChat ? 'hidden md:block' : 'block'"
     >
       <ChatList />

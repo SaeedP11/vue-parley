@@ -164,7 +164,7 @@ const longPress = useLongPress(handleRightClick);
 
     <!-- Message Row -->
     <div
-      class="w-full px-5 transition-all duration-200 flex items-center ease-in-out"
+      class="w-full px-4 transition-all duration-200 flex items-center ease-in-out md:px-6"
       :class="{
         'pt-0.5': groupedWithPrev,
         'pt-3': !groupedWithPrev,
@@ -198,7 +198,7 @@ const longPress = useLongPress(handleRightClick);
           >
             <!-- Their avatar goes on the outer, left side of the bubble. -->
             <div
-              class="flex max-w-4/5 items-end gap-x-2"
+              class="flex max-w-[86%] items-end gap-x-2 md:max-w-[76%]"
               :class="{ 'flex-row-reverse rtl:flex-row': !isMine }"
             >
               <div class="flex-1 min-w-0">
@@ -212,7 +212,7 @@ const longPress = useLongPress(handleRightClick);
                 <!-- Text / File / Voice Bubble Wrapper -->
                 <div
                   v-if="isTextBased"
-                  class="relative rounded-2xl p-1 shadow-xs"
+                  class="relative rounded-2xl border border-chat-outline-variant/45 p-1 shadow-[0_3px_12px_-8px_rgb(15_23_42/0.35)]"
                   :class="[
                     roundingClasses,
                     isMine ? 'bg-chat-bubble-mine' : 'bg-chat-bubble',

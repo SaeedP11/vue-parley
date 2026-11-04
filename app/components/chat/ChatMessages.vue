@@ -9,7 +9,7 @@
     <div
       id="list"
       ref="scrollContainer"
-      class="h-full w-full max-w-dvw overflow-x-hidden overflow-y-auto pt-4 pb-4 chat-scrollbar flip-vertical bg-chat-surface/30"
+      class="chat-canvas h-full w-full max-w-dvw overflow-x-hidden overflow-y-auto pt-5 pb-5 chat-scrollbar flip-vertical"
       :class="{ 'overflow-hidden': lockScroll }"
       @scroll="scroll.handleScroll"
       @wheel.prevent="scroll.handleWheel"
