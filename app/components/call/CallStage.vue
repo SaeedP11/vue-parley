@@ -827,6 +827,7 @@ const runAction = () => {
 }
 
 .call-screen .call-control-button {
+  position: relative;
   display: grid;
   place-items: center;
   width: clamp(2.75rem, min(12.5vw, 6.5dvh), 3.5rem);
@@ -842,10 +843,15 @@ const runAction = () => {
 
 /* Keep the glyph centred independently of the host application's SVG and RTL rules. */
 .call-screen .call-control-button > svg {
+  position: absolute;
+  top: 50%;
+  left: 50%;
   display: block;
   flex: none;
   width: 1.5rem;
   height: 1.5rem;
+  margin: 0;
+  transform: translate(-50%, -50%);
 }
 
 .call-screen .call-control-button:active,
