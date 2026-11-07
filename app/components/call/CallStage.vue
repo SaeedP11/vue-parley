@@ -544,6 +544,9 @@ const runAction = () => {
   inset-inline-end: 1.0625rem;
   width: 2.375rem;
   height: 2.375rem;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
   padding: 0 !important;
   color: #fff !important;
   border: 1px solid rgb(255 255 255 / 0.28) !important;
