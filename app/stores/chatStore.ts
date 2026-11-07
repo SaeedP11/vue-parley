@@ -1,6 +1,9 @@
 import { ChatHandlers, Contact, StateKeys, UserRoleKey } from "~/types";
 import { defineStore } from "pinia";
 import { shallowReadonly } from "vue";
+import { createLogger } from "~/utils/logger";
+
+const logger = createLogger("chat");
 
 const FILTERS: StateKeys[] = ["", "online", "ended", "active"];
 
@@ -188,6 +191,9 @@ export const useChatStore = defineStore("chat", () => {
       list.page = page;
       list.hasNextPage = result.hasNextPage;
       list.search = search;
+    } catch (error) {
+      logger.error("failed to fetch conversations", { filterState, page, search }, error);
+      throw error;
     } finally {
       list.loading = false;
       list.refreshing = false;
@@ -236,6 +242,7 @@ export const useChatStore = defineStore("chat", () => {
     try {
       await handlers.deleteConversation(id);
     } catch (error) {
+      logger.error("failed to delete conversation", id, error);
       if (contact) contactsById.value[id] = contact;
       for (const [key, index] of positions) lists.value[key].ids.splice(index, 0, id);
       if (wasActive) activeConversationId.value = id;

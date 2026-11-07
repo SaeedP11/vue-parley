@@ -6,6 +6,7 @@ import type {
   TrackType,
 } from "~/types";
 import { CallMessageType } from "~/types";
+import { createLogger, readDebugFlag } from "~/utils/logger";
 
 export type TrackTypes = { id: string; type: TrackType }[];
 
@@ -42,13 +43,24 @@ export interface SignalingHandlers {
  * older clients, which ignore unknown fields, keep working.
  */
 export function createSignaling(
-  handlers: Pick<CallHandlers, "publisher" | "subscriber" | "unSubscriber">,
+  handlers: Pick<
+    CallHandlers,
+    "publisher" | "subscriber" | "unSubscriber" | "debug"
+  >,
   self: { id: string; name: () => string; joinedAt: () => number | undefined },
 ) {
   let subscription: number | undefined;
+  const logger = createLogger("signaling", !!handlers.debug || readDebugFlag());
 
-  const publish = (message: CallMessageSchema) =>
-    handlers.publisher(JSON.stringify(message));
+  const publish = async (message: CallMessageSchema) => {
+    logger.debug("send", message.type, message.payload);
+    try {
+      return await handlers.publisher(JSON.stringify(message));
+    } catch (error) {
+      logger.error("publish failed", message.type, error);
+      throw error;
+    }
+  };
 
   const joinedAt = () => {
     const at = self.joinedAt();
@@ -59,37 +71,50 @@ export function createSignaling(
     subscription = await handlers.subscriber(async (message) => {
       const from = message.payload.from;
       if (from === self.id) return;
+      logger.debug("receive", message.type, "from", from);
 
-      switch (message.type) {
-        case CallMessageType.Signal:
-          if (message.payload.to === self.id && message.payload.signal)
-            on.onSignal(from, message.payload.name, message.payload.signal);
-          break;
-        case CallMessageType.Join: {
-          const { restart, to, joinedAt } = message.payload;
-          // A restart aimed at someone else: their pair with the sender rebuilds, ours is fine.
-          if (restart && to && to !== self.id) return;
-          on.onJoin(from, message.payload.name, { restart: !!restart, to, joinedAt });
-          break;
+      try {
+        switch (message.type) {
+          case CallMessageType.Signal:
+            if (message.payload.to === self.id && message.payload.signal)
+              on.onSignal(from, message.payload.name, message.payload.signal);
+            break;
+          case CallMessageType.Join: {
+            const { restart, to, joinedAt } = message.payload;
+            // A restart aimed at someone else: their pair with the sender rebuilds, ours is fine.
+            if (restart && to && to !== self.id) return;
+            on.onJoin(from, message.payload.name, {
+              restart: !!restart,
+              to,
+              joinedAt,
+            });
+            break;
+          }
+          case CallMessageType.TrackType:
+            on.onTrackTypes(from, message.payload.types, {
+              media: message.payload.media,
+              joinedAt: message.payload.joinedAt,
+            });
+            break;
+          case CallMessageType.Hangup:
+            on.onHangup(from);
+            break;
+          case CallMessageType.Presence:
+            on.onPresence?.(from, message.payload.joinedAt);
+            break;
         }
-        case CallMessageType.TrackType:
-          on.onTrackTypes(from, message.payload.types, {
-            media: message.payload.media,
-            joinedAt: message.payload.joinedAt,
-          });
-          break;
-        case CallMessageType.Hangup:
-          on.onHangup(from);
-          break;
-        case CallMessageType.Presence:
-          on.onPresence?.(from, message.payload.joinedAt);
-          break;
+      } catch (error) {
+        logger.error("handling", message.type, "from", from, "failed", error);
       }
     });
+    logger.debug("subscribed", subscription);
   }
 
   function stop() {
-    if (subscription !== undefined) void handlers.unSubscriber(subscription);
+    if (subscription !== undefined)
+      handlers
+        .unSubscriber(subscription)
+        .catch((error) => logger.error("unsubscribe failed", error));
     subscription = undefined;
   }
 
@@ -110,7 +135,12 @@ export function createSignaling(
     trackTypes: (types: TrackTypes, media?: CallMediaState) =>
       publish({
         type: CallMessageType.TrackType,
-        payload: { from: self.id, types, ...(media && { media }), ...joinedAt() },
+        payload: {
+          from: self.id,
+          types,
+          ...(media && { media }),
+          ...joinedAt(),
+        },
       }),
     signal: (to: string, signal: SignalData) =>
       publish({
@@ -126,7 +156,13 @@ export function createSignaling(
     ring: (channel: string, avatar: string | undefined, video: boolean) =>
       publish({
         type: CallMessageType.Call,
-        payload: { from: self.id, name: self.name(), channel, avatar: avatar ?? "", video },
+        payload: {
+          from: self.id,
+          name: self.name(),
+          channel,
+          avatar: avatar ?? "",
+          video,
+        },
       }),
     /** Tells members outside the call that we are in it. */
     presence: (channel: string, video: boolean) =>

@@ -99,6 +99,7 @@
           icon="PhPhone"
           icon-class="size-5.5"
           :label="isInCall ? t('actions.returnToCall') : t('actions.call')"
+          v-tooltip.bottom="{ value: isInCall ? t('actions.returnToCall') : t('actions.call'), class: 'vue-chat font-chat-family' }"
           :data-testid="canVideoCall ? 'chat-start-voice-call' : 'chat-start-call'"
           @click="initCall(false)"
         />
@@ -108,6 +109,7 @@
           icon="PhVideoCamera"
           icon-class="size-5.5"
           :label="isInCall ? t('actions.returnToCall') : t('videoCall')"
+          v-tooltip.bottom="{ value: isInCall ? t('actions.returnToCall') : t('videoCall'), class: 'vue-chat font-chat-family' }"
           data-testid="chat-start-call"
           @click="initCall(true)"
         />
@@ -115,6 +117,7 @@
           icon="PhSidebarSimple"
           icon-class="size-5.5 ltr:-scale-x-100"
           :label="t('toggleInfo')"
+          v-tooltip.bottom="{ value: t('toggleInfo'), class: 'vue-chat font-chat-family' }"
           :aria-pressed="isProfileOpen"
           data-testid="chat-toggle-info"
           class="hidden! md:inline-flex!"
@@ -126,6 +129,7 @@
           icon="PhDotsThreeVertical"
           icon-class="size-5.5"
           :label="t('actions.moreOptions')"
+          v-tooltip.bottom="{ value: t('actions.moreOptions'), class: 'vue-chat font-chat-family' }"
           aria-haspopup="menu"
           :aria-expanded="menuOpen"
           data-testid="chat-more-options"

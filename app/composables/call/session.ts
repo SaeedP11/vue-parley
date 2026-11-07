@@ -1,6 +1,7 @@
 import { computed, effectScope, ref, watch } from "vue";
 import { nanoid } from "nanoid";
 import type { CallHandlers, CallMediaState, CallPhase, ParticipantStatus } from "~/types";
+import { createLogger, readDebugFlag } from "~/utils/logger";
 import { createSignaling } from "./signaling";
 import { usePeers } from "./peers";
 import { useCallMedia } from "./media";
@@ -65,14 +66,6 @@ function withTcpFallback(urls: string[]) {
   return [...out];
 }
 
-const readDebugFlag = () => {
-  try {
-    return localStorage.getItem("vue-parley:debug") === "1";
-  } catch {
-    return false;
-  }
-};
-
 const isMobile = () =>
   /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
   !!window.matchMedia?.("(max-width: 768px)").matches ||
@@ -91,9 +84,8 @@ export function createCallSession(opts: CallSessionOptions) {
 
   // `localStorage["vue-parley:debug"] = "1"` turns the logs on in a host that didn't set `debug`.
   const debug = handlers.debug || readDebugFlag();
-  const log = debug
-    ? (...args: unknown[]) => console.log("[vue-chat:call]", ...args)
-    : () => {};
+  const logger = createLogger("call", debug);
+  const log = logger.debug;
 
   // A fresh id per call, so rejoining never collides with our previous, stale peers.
   const selfId = `${opts.self.id}:${nanoid()}`;

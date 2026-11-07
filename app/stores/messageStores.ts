@@ -12,6 +12,9 @@ import { useChatStore } from "./chatStore";
 import { chat } from "@i18n/locales";
 import { canCompressVideo, compressVideo } from "~/utils/compressVideo";
 import { defineStore } from "pinia";
+import { createLogger } from "~/utils/logger";
+
+const logger = createLogger("messages");
 
 // Messages compress one after another, so two albums never share the encoder.
 let compressionQueue: Promise<unknown> = Promise.resolve();
@@ -393,7 +396,8 @@ export const useMessagesStore = defineStore("messages-store", () => {
         isSent: true,
         isFailed: false,
       });
-    } catch {
+    } catch (error) {
+      logger.error("failed to send message", tempMsg.id, tempMsg.type, error);
       uploadProgress.value.delete(tempMsg.id);
       applyUpdate(conversationId, tempMsg.id, { isSent: false, isFailed: true });
     }
@@ -421,7 +425,8 @@ export const useMessagesStore = defineStore("messages-store", () => {
     try {
       await handlers.editMessage(id, text);
       applyUpdate(conversationId, id, { isSent: true, isEdited: true });
-    } catch {
+    } catch (error) {
+      logger.error("failed to edit message", id, error);
       // Put the old text back: the edit never reached the server, and an unsent edit has no retry.
       applyUpdate(conversationId, id, { text: original.text, isSent: true });
       openToast(t("chat.editFailed"), "error");

@@ -1,5 +1,8 @@
 import { MediaDownloadOptions, MediaHandlers } from "~/types";
 import { defineStore } from "pinia";
+import { createLogger } from "~/utils/logger";
+
+const logger = createLogger("media");
 
 const DB_NAME = "ChatFileCache";
 // v2 stores { blob, size, usedAt } so the cache can be kept under a size limit.
@@ -74,7 +77,8 @@ export const useMediaStore = defineStore("media", () => {
       // Mark as recently used, so eviction keeps it.
       store.put({ ...entry, usedAt: Date.now() }, url);
       return entry.blob;
-    } catch {
+    } catch (error) {
+      logger.debug("cache read failed", url, error);
       return null;
     }
   };
@@ -87,8 +91,9 @@ export const useMediaStore = defineStore("media", () => {
         db.transaction(STORE_NAME, "readwrite").objectStore(STORE_NAME).put(entry, url),
       );
       await evict(db);
-    } catch {
+    } catch (error) {
       // cache is best-effort; ignore write failures
+      logger.debug("cache write failed", url, error);
     }
   };
 
@@ -105,7 +110,13 @@ export const useMediaStore = defineStore("media", () => {
       return cached;
     }
     const started = generation;
-    const blob = await handlers.download(url, opts);
+    let blob: Blob;
+    try {
+      blob = await handlers.download(url, opts);
+    } catch (error) {
+      logger.error("download failed", url, error);
+      throw error;
+    }
     if (started === generation) await putCachedBlob(url, blob);
     return blob;
   };
@@ -122,7 +133,8 @@ export const useMediaStore = defineStore("media", () => {
     try {
       const db = await getDB();
       await request(db.transaction(STORE_NAME, "readwrite").objectStore(STORE_NAME).clear());
-    } catch {
+    } catch (error) {
+      logger.debug("cache clear failed", error);
       // Nothing cached, or IndexedDB unavailable (private mode): nothing to clear.
     }
   };
