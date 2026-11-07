@@ -23,5 +23,5 @@ defineExpose({
 </script>
 
 <template>
-  <video ref="video" muted autoplay playsinline class="size-full object-cover" :class="mirrored && '-scale-x-100'" />
+  <video ref="video" muted autoplay playsinline class="size-full bg-black object-contain" :class="mirrored && '-scale-x-100'" />
 </template>

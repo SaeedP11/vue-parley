@@ -123,7 +123,7 @@ const fullscreenLabel = computed(() =>
         :muted="isSelf || isScreen"
         class="absolute inset-0 size-full rounded-[inherit]"
         :class="[
-          isScreen ? 'object-contain' : 'object-cover',
+          'object-contain',
           tile.kind === 'self' && 'pointer-events-none',
           mirrored && '-scale-x-100',
         ]"

@@ -438,7 +438,7 @@ const tileProps = (tile: CallTileInfo, compact = false) => ({
       muted
       autoplay
       playsinline
-      class="pointer-events-none absolute inset-0 size-full object-cover"
+      class="pointer-events-none absolute inset-0 size-full object-contain"
     />
     <div
       class="pointer-events-none absolute inset-0 bg-linear-to-t from-black/60 via-transparent to-black/30"
