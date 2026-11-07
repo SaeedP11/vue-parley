@@ -64,8 +64,8 @@ export const tileButton = {
   dt: callButtonDt,
   text: false,
   size: "small",
-  iconClass: "size-4.5",
-  class: "size-9! [@media(hover:none)]:size-11!",
+  iconClass: "size-4.5 shrink-0",
+  class: "size-9! p-0! [@media(hover:none)]:size-11!",
 } as const;
 export const tileActions =
   "absolute end-2 bottom-2 z-20 flex items-center gap-x-1.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 motion-reduce:transition-none [@media(hover:none)]:opacity-100";
