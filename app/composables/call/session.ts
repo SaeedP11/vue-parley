@@ -75,7 +75,9 @@ const readDebugFlag = () => {
 
 const isMobile = () =>
   /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
-  !!window.matchMedia?.("(max-width: 768px)").matches;
+  !!window.matchMedia?.("(max-width: 768px)").matches ||
+  // Tablets, iPadOS included (it reports itself as a Mac).
+  (navigator.maxTouchPoints > 1 && !!window.matchMedia?.("(pointer: coarse)").matches);
 
 /**
  * One call, from joining to hanging up: signalling, peer connections and local media. It lives in

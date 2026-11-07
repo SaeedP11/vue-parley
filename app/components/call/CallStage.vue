@@ -55,7 +55,6 @@ const selfTile = computed(() => participants.value.find((person) => person.isSel
 // --- Who is in the main view -------------------------------------------------------------------
 
 const selectedId = ref<string>();
-const pinnedId = ref<string>();
 const manuallySelected = ref(false);
 const fallbackId = () =>
   participants.value.find((person) => person.id === props.featuredId)?.id ??
@@ -66,7 +65,6 @@ watch(
   [participants, () => props.featuredId],
   () => {
     const ids = new Set(participants.value.map((person) => person.id));
-    if (pinnedId.value && !ids.has(pinnedId.value)) pinnedId.value = undefined;
     const counterpartId =
       participants.value.find((person) => person.id === props.featuredId)?.id ??
       participants.value.find((person) => !person.isSelf)?.id;
@@ -85,13 +83,25 @@ const thumbnails = computed(() => {
   const others = participants.value.filter((person) => person.id !== mainTile.value?.id);
   return [...others].sort((a, b) => Number(b.isSelf) - Number(a.isSelf));
 });
-const isPinned = computed(() => !!pinnedId.value && pinnedId.value === mainTile.value?.id);
-const togglePin = () => (pinnedId.value = isPinned.value ? undefined : selectedId.value);
+
+// One flip at a time: a second tap mid-flip would race the first for the camera.
+const isFlipping = ref(false);
+const flipLabel = computed(() =>
+  media.facingMode.value === "environment" ? t("chat.call.stage.frontCamera") : t("chat.call.stage.backCamera"),
+);
+const flip = async () => {
+  if (isFlipping.value) return;
+  isFlipping.value = true;
+  try {
+    await session.flipCamera();
+  } finally {
+    isFlipping.value = false;
+  }
+};
 
 const pickMain = (id: string) => {
   manuallySelected.value = true;
   selectedId.value = id;
-  if (pinnedId.value) pinnedId.value = id;
 };
 
 type Tile = (typeof participants.value)[number];
@@ -184,18 +194,6 @@ const runAction = () => {
 
       <button
         type="button"
-        class="call-pin"
-        :class="isPinned && 'call-pin--active'"
-        :aria-label="isPinned ? t('chat.call.stage.unpinMain') : t('chat.call.stage.pinMain')"
-        :aria-pressed="isPinned"
-        data-testid="call-stage-pin"
-        @click="togglePin"
-      >
-        <CallIcon :name="isPinned ? 'keepOff' : 'keep'" class="size-5" />
-      </button>
-
-      <button
-        type="button"
         class="call-fullscreen"
         :aria-label="isExpanded ? t('chat.call.controls.exitFullscreen') : t('chat.call.controls.fullscreen')"
         data-testid="call-stage-fullscreen"
@@ -284,6 +282,20 @@ const runAction = () => {
           <CallIcon :name="media.isVideoOn.value ? 'videocam' : 'videocamOff'" class="size-6" />
         </button>
         <span>{{ t("chat.call.stage.camera") }}</span>
+      </div>
+      <div v-if="media.canFlipCamera.value" class="call-control">
+        <button
+          type="button"
+          class="call-control-button"
+          :aria-label="flipLabel"
+          :disabled="!media.isVideoOn.value || isFlipping"
+          data-testid="call-stage-flip"
+          :data-facing="media.facingMode.value ?? undefined"
+          @click="flip"
+        >
+          <CallIcon :name="isFlipping ? 'refresh' : 'cameraSwitch'" class="size-6" :class="isFlipping && 'animate-spin motion-reduce:animate-none'" />
+        </button>
+        <span>{{ t("chat.call.stage.flipCamera") }}</span>
       </div>
       <div v-if="action" class="call-control" :class="isLit && 'call-control--lit'">
         <button
@@ -540,26 +552,6 @@ const runAction = () => {
   backdrop-filter: blur(12px);
 }
 
-.call-screen .call-pin {
-  position: absolute !important;
-  top: 1.0625rem;
-  inset-inline-end: 4rem;
-  width: 2.375rem;
-  height: 2.375rem;
-  padding: 0 !important;
-  color: #fff !important;
-  border: 1px solid rgb(255 255 255 / 0.28) !important;
-  border-radius: 12px !important;
-  background: rgb(6 20 27 / 0.57) !important;
-  backdrop-filter: blur(12px);
-}
-
-.call-screen .call-pin--active {
-  color: #15232d !important;
-  border-color: #84e1d3 !important;
-  background: #84e1d3 !important;
-}
-
 .call-screen .call-fullscreen::after {
   /* The design's 38px, with a thumb's reach. */
   content: '';
@@ -803,76 +795,6 @@ const runAction = () => {
     0 16px 32px rgb(0 0 0 / 0.27);
 }
 
-.call-control {
-  display: flex;
-  flex: 1 1 0;
-  flex-direction: column;
-  gap: clamp(0.25rem, 0.65dvh, 0.4375rem);
-  align-items: center;
-  justify-content: center;
-  min-width: 0;
-  color: #c6d4e1;
-  font-size: 0.6875rem;
-  font-weight: 600;
-  text-align: center;
-  white-space: nowrap;
-}
-
-.call-control--lit {
-  color: #ffc572;
-}
-
-.call-control--end {
-  color: #f4a9ae;
-}
-
-.call-screen .call-control-button {
-  position: relative;
-  display: grid;
-  place-items: center;
-  width: clamp(2.75rem, min(12.5vw, 6.5dvh), 3.5rem);
-  height: clamp(2.75rem, min(12.5vw, 6.5dvh), 3.5rem);
-  padding: 0 !important;
-  color: #eff6fb !important;
-  border: 1px solid rgb(255 255 255 / 0.1) !important;
-  border-radius: 19px !important;
-  background: var(--background-control) !important;
-  opacity: 1 !important;
-  transition: transform 0.12s;
-}
-
-/* Keep the glyph centred independently of the host application's SVG and RTL rules. */
-.call-screen .call-control-button > svg {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  display: block;
-  flex: none;
-  width: 1.5rem;
-  height: 1.5rem;
-  margin: 0;
-  transform: translate(-50%, -50%);
-}
-
-.call-screen .call-control-button:active,
-.call-screen .call-torch-float:active {
-  transform: scale(0.94);
-}
-
-.call-screen .call-control-button--lit {
-  color: #242c33 !important;
-  border-color: #ffdb95 !important;
-  background: var(--accent-yellow) !important;
-  box-shadow: 0 4px 18px rgb(236 173 74 / 0.18);
-}
-
-.call-screen .call-control-button--end {
-  color: #fff !important;
-  border-color: var(--accent-danger-border) !important;
-  border-radius: 20px !important;
-  background: var(--accent-danger) !important;
-  box-shadow: 0 5px 20px rgb(238 62 80 / 0.22);
-}
 
 .call-members-backdrop {
   position: fixed;
@@ -1047,6 +969,81 @@ const runAction = () => {
     grid-column: 1 / 3;
     margin: 1.25rem 0 0;
   }
+}
+
+</style>
+
+<!-- Unscoped: a host's own buttons in the `controls` slot use these classes too. -->
+<style>
+.call-control {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  gap: clamp(0.25rem, 0.65dvh, 0.4375rem);
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  color: #c6d4e1;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.call-control--lit {
+  color: #ffc572;
+}
+
+.call-control--end {
+  color: #f4a9ae;
+}
+
+.call-screen .call-control-button {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: clamp(2.75rem, min(12.5vw, 6.5dvh), 3.5rem);
+  height: clamp(2.75rem, min(12.5vw, 6.5dvh), 3.5rem);
+  padding: 0 !important;
+  color: #eff6fb !important;
+  border: 1px solid rgb(255 255 255 / 0.1) !important;
+  border-radius: 19px !important;
+  background: var(--background-control) !important;
+  opacity: 1 !important;
+  transition: transform 0.12s;
+}
+
+/* Keep the glyph centred independently of the host application's SVG and RTL rules. */
+.call-screen .call-control-button > svg {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: block;
+  flex: none;
+  width: 1.5rem;
+  height: 1.5rem;
+  margin: 0;
+  transform: translate(-50%, -50%);
+}
+
+.call-screen .call-control-button:active,
+.call-screen .call-torch-float:active {
+  transform: scale(0.94);
+}
+
+.call-screen .call-control-button--lit {
+  color: #242c33 !important;
+  border-color: #ffdb95 !important;
+  background: var(--accent-yellow) !important;
+  box-shadow: 0 4px 18px rgb(236 173 74 / 0.18);
+}
+
+.call-screen .call-control-button--end {
+  color: #fff !important;
+  border-color: var(--accent-danger-border) !important;
+  border-radius: 20px !important;
+  background: var(--accent-danger) !important;
+  box-shadow: 0 5px 20px rgb(238 62 80 / 0.22);
 }
 
 @media (prefers-reduced-motion: reduce) {
