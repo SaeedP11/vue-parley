@@ -1,6 +1,6 @@
 {
   "name": "vue-parley",
-  "version": "5.5.8",
+  "version": "5.5.9",
   "type": "module",
   "description": "Drop-in Vue 3 chat and video-call UI, driven by your own backend handlers.",
   "keywords": [
