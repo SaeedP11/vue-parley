@@ -795,11 +795,11 @@ const tileProps = (tile: CallTileInfo, compact = false) => ({
         </div>
 
         <CallButton
-          v-if="canFlipCamera"
+          v-if="canFlipCamera && isVideoOn"
           v-tooltip.top="tip(flipLabel)"
           icon="cameraSwitch"
           :label="flipLabel"
-          :disabled="!isVideoOn || isFlipping"
+          :disabled="isFlipping"
           v-bind="barButton"
           data-testid="call-flip-camera"
           :data-facing="facingMode ?? undefined"
