@@ -12,9 +12,11 @@ const ICE_RESTART_TIMEOUT_MS = 10_000;
 /**
  * Outgoing video limits by how many remote peers we send to (research R6). In a mesh the upload
  * grows with every participant; capping each copy keeps the total near a one-to-one call's, and
- * leaves audio room first. One remote: the browser's defaults, as before.
+ * leaves audio room first. One remote: 1.2 Mbps, enough for 720p talking heads (the browser would
+ * otherwise climb to ~2.5 Mbps).
  */
 const CAMERA_LIMITS: Record<number, { maxBitrate: number; scaleResolutionDownBy: number }> = {
+  1: { maxBitrate: 1_200_000, scaleResolutionDownBy: 1 },
   2: { maxBitrate: 800_000, scaleResolutionDownBy: 1.5 },
   3: { maxBitrate: 500_000, scaleResolutionDownBy: 2 },
 };
@@ -103,8 +105,6 @@ export function createPeer(opts: PeerOptions) {
   let queuedIceRestart = false;
   /** How many remote peers the call has, which sets our outgoing video limits. */
   let remoteCount = 1;
-  /** Whether we ever changed the senders' parameters; until then a one-to-one call keeps the defaults. */
-  let tuned = false;
   let connectTimer: ReturnType<typeof setTimeout> | undefined;
   let disconnectedTimer: ReturnType<typeof setTimeout> | undefined;
   let iceRestartTimer: ReturnType<typeof setTimeout> | undefined;
@@ -311,8 +311,7 @@ export function createPeer(opts: PeerOptions) {
    */
   async function applySenderParams(count = remoteCount) {
     remoteCount = count;
-    if (destroyed || (count <= 1 && !tuned)) return;
-    tuned = true;
+    if (destroyed) return;
     for (const sender of pc.getSenders()) {
       const track = sender.track;
       if (!track) continue;
@@ -331,12 +330,7 @@ export function createPeer(opts: PeerOptions) {
         params.degradationPreference = "maintain-resolution";
       } else {
         encoding.priority = encoding.networkPriority = "low";
-        const limits = CAMERA_LIMITS[Math.min(count, 3)];
-        if (limits) Object.assign(encoding, limits);
-        else {
-          delete encoding.maxBitrate;
-          encoding.scaleResolutionDownBy = 1;
-        }
+        Object.assign(encoding, CAMERA_LIMITS[Math.min(Math.max(count, 1), 3)]);
         params.degradationPreference = "balanced";
       }
       try {

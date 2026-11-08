@@ -408,13 +408,19 @@ test.describe("group call — network", () => {
       .toBe(true);
   });
 
-  test("one to one keeps the browser's own video limits", async ({ context }) => {
+  test("one to one caps video at 1.2 Mbit/s, full resolution", async ({ context }) => {
     const [alice, bob] = await openCallers(context, [ALICE, BOB]);
     await callTogether([alice!, bob!]);
-    await alice!.waitForTimeout(2_000);
-    const camera = Object.values(await sendersOf(alice!)).flat().filter((s) => s.kind === "video");
-    expect(camera).toHaveLength(1);
-    expect(camera[0]!.encodings[0]?.maxBitrate).toBeUndefined();
+    await expect
+      .poll(async () => {
+        const camera = Object.values(await sendersOf(alice!)).flat().filter((s) => s.kind === "video");
+        return (
+          camera.length === 1 &&
+          camera[0]!.encodings[0]?.maxBitrate === 1_200_000 &&
+          camera[0]!.encodings[0]?.scaleResolutionDownBy === 1
+        );
+      }, { timeout: 15_000 })
+      .toBe(true);
   });
 
   test("a pair that can't be rebuilt says so, and Retry reconnects it", async ({ context }) => {
