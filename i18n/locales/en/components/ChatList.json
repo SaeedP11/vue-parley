@@ -10,5 +10,11 @@
     "title": "No results for “{query}”",
     "hint": "Try another spelling of the name.",
     "clear": "Clear search"
+  },
+  "groups": {
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "lastWeek": "Previous 7 days",
+    "lastMonth": "Previous 30 days"
   }
 }

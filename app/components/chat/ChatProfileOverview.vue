@@ -204,7 +204,10 @@ const closeSidebar = () => {
   chatStore.closeProfile();
 };
 
+const callBlock = computed(() => (callStore.isActive ? "" : (localProfile.value?.callsUnavailable ?? "")));
+
 const startCall = (video: boolean) => {
+  if (callBlock.value) return;
   if (chatStore.activeConversationId && props.profile) {
     callStore.startCall(chatStore.activeConversationId, { video });
   }
@@ -291,6 +294,8 @@ const fetchMoreFiles = async () => {
             severity="secondary"
             variant="text"
             data-testid="chat-profile-voice-call"
+            :disabled="!!callBlock"
+            :title="callBlock || undefined"
             class="h-16 w-24 gap-y-1! rounded-xl! bg-chat-on-background/6! px-1! py-2! text-[12px]! text-chat-on-background! hover:bg-chat-on-background/10!"
             @click="startCall(false)"
           >
@@ -305,6 +310,8 @@ const fetchMoreFiles = async () => {
             severity="secondary"
             variant="text"
             data-testid="chat-profile-video-call"
+            :disabled="!!callBlock"
+            :title="callBlock || undefined"
             class="h-16 w-24 gap-y-1! rounded-xl! bg-chat-on-background/6! px-1! py-2! text-[12px]! text-chat-on-background! hover:bg-chat-on-background/10!"
             @click="startCall(true)"
           >

@@ -79,8 +79,22 @@ watch(
 );
 
 const mainTile = computed(() => participants.value.find((person) => person.id === selectedId.value) ?? selfTile.value);
+
+// --- Screen share: the shared screen takes the main view and everyone, presenter too, is a tile --
+const presenter = computed(() => participants.value.find((person) => !!person.screen?.getVideoTracks().length));
+const screenInMain = ref(true);
+watch(
+  () => presenter.value?.id,
+  (id, previous) => {
+    if (id && id !== previous) screenInMain.value = true;
+  },
+);
+const showScreen = computed(() => !!presenter.value && screenInMain.value);
+
 const thumbnails = computed(() => {
-  const others = participants.value.filter((person) => person.id !== mainTile.value?.id);
+  const others = showScreen.value
+    ? participants.value
+    : participants.value.filter((person) => person.id !== mainTile.value?.id);
   return [...others].sort((a, b) => Number(b.isSelf) - Number(a.isSelf));
 });
 
@@ -100,6 +114,7 @@ const flip = async () => {
 };
 
 const pickMain = (id: string) => {
+  screenInMain.value = false;
   manuallySelected.value = true;
   selectedId.value = id;
 };
@@ -122,6 +137,17 @@ const { isFullscreen, isSupported, toggle: toggleNative } = useFullscreen(mainCa
 const expanded = ref(false);
 const isExpanded = computed(() => isFullscreen.value || expanded.value);
 const toggleFullscreen = () => (isSupported.value ? toggleNative() : (expanded.value = !expanded.value));
+
+// Any tile can go full screen on its own, without becoming the main view.
+const tileFullscreen = (event: Event) => {
+  const tile = (event.currentTarget as HTMLElement).closest("article");
+  if (tile?.requestFullscreen) void tile.requestFullscreen();
+  else if (tile) pickMain(tile.dataset.id ?? "");
+};
+
+const shareLabel = computed(() =>
+  media.isScreenSharing.value ? t("chat.call.stage.stopSharing") : t("chat.call.stage.shareScreen"),
+);
 
 const endCall = async () => {
   await props.beforeEnd?.();
@@ -183,11 +209,16 @@ const runAction = () => {
     </header>
 
     <div ref="mainCard" class="call-main" :class="{ 'call-main--expanded': isExpanded }">
-      <CallStageVideo v-if="cameraOn(mainTile)" :stream="streamOf(mainTile)" :mirrored="isMirrored(mainTile)" />
+      <CallStageVideo v-if="showScreen" :stream="presenter?.screen" data-testid="call-stage-screen" />
+      <CallStageVideo v-else-if="cameraOn(mainTile)" :stream="streamOf(mainTile)" :mirrored="isMirrored(mainTile)" />
       <div v-else class="call-avatar call-avatar--large">{{ nameOf(mainTile).charAt(0) }}</div>
       <div class="call-shade" />
 
-      <span class="call-badge call-badge--camera">
+      <span v-if="showScreen" class="call-badge call-badge--camera" role="status">
+        <CallIcon name="presentToAll" class="size-4" />
+        {{ presenter?.isSelf ? t("chat.call.stage.youArePresenting") : t("chat.call.stage.presenting", { name: nameOf(presenter) }) }}
+      </span>
+      <span v-else class="call-badge call-badge--camera">
         <i class="call-dot" :class="!cameraOn(mainTile) && 'call-dot--off'" />
         {{ cameraOn(mainTile) ? t("chat.call.cameraOn") : t("chat.call.cameraOff") }}
       </span>
@@ -213,14 +244,14 @@ const runAction = () => {
 
       <div class="call-main-footer">
         <div class="call-identity">
-          <strong>{{ nameOf(mainTile) }}</strong>
-          <span v-if="action?.note && isFeatured(mainTile)" class="call-torch-note" :class="isLit && 'call-torch-note--on'" role="status">
+          <strong>{{ showScreen ? t("chat.call.stage.screenTile", { name: nameOf(presenter) }) : nameOf(mainTile) }}</strong>
+          <span v-if="action?.note && isFeatured(mainTile) && !showScreen" class="call-torch-note" :class="isLit && 'call-torch-note--on'" role="status">
             {{ action.note }}
           </span>
         </div>
 
         <button
-          v-if="action && isFeatured(mainTile)"
+          v-if="action && isFeatured(mainTile) && !showScreen"
           type="button"
           class="call-torch-float"
           :class="isLit && 'call-torch-float--on'"
@@ -244,8 +275,20 @@ const runAction = () => {
         <span>{{ t("chat.call.stage.peopleCount", { count: n(thumbnails.length) }) }}</span>
       </div>
 
-      <div class="call-others" :class="thumbnails.length > 2 && 'call-others--scroll'">
-        <article v-for="tile in thumbnails" :key="tile.id" class="call-tile" :class="!cameraOn(tile) && 'call-tile--off'">
+      <div class="call-others" :class="thumbnails.length + (presenter && !showScreen ? 1 : 0) > 2 && 'call-others--scroll'">
+        <article v-if="presenter && !showScreen" class="call-tile" data-testid="call-stage-screen-tile">
+          <CallStageVideo :stream="presenter.screen" />
+          <div class="call-tile-footer">
+            <span class="call-name">{{ t("chat.call.stage.screenTile", { name: nameOf(presenter) }) }}</span>
+          </div>
+          <button
+            type="button"
+            class="call-tile-pick"
+            :aria-label="t('chat.call.stage.showInMain')"
+            @click="screenInMain = true"
+          />
+        </article>
+        <article v-for="tile in thumbnails" :key="tile.id" :data-id="tile.id" class="call-tile" :class="!cameraOn(tile) && 'call-tile--off'">
           <CallStageVideo v-if="cameraOn(tile)" :stream="streamOf(tile)" :mirrored="isMirrored(tile)" />
           <template v-else>
             <div class="call-avatar">{{ nameOf(tile).charAt(0) }}</div>
@@ -266,6 +309,15 @@ const runAction = () => {
             :aria-label="t('chat.call.stage.showNameInMain', { name: nameOf(tile) })"
             @click="pickMain(tile.id)"
           />
+          <button
+            type="button"
+            class="call-tile-zoom"
+            :aria-label="t('chat.call.stage.tileFullscreen', { name: nameOf(tile) })"
+            data-testid="call-stage-tile-fullscreen"
+            @click.stop="tileFullscreen"
+          >
+            <CallIcon name="fullscreen" class="size-4" />
+          </button>
         </article>
       </div>
     </template>
@@ -297,6 +349,20 @@ const runAction = () => {
         </button>
         <span>{{ t("chat.call.stage.flipCamera") }}</span>
       </div>
+      <div v-if="callStore.canShareScreen" class="call-control" :class="media.isScreenSharing.value && 'call-control--lit'">
+        <button
+          type="button"
+          class="call-control-button"
+          :class="media.isScreenSharing.value && 'call-control-button--lit'"
+          :aria-label="shareLabel"
+          :aria-pressed="media.isScreenSharing.value"
+          data-testid="call-stage-screen-share"
+          @click="session.toggleScreenShare()"
+        >
+          <CallIcon :name="media.isScreenSharing.value ? 'cancelPresentation' : 'presentToAll'" class="size-6" />
+        </button>
+        <span>{{ shareLabel }}</span>
+      </div>
       <div v-if="action" class="call-control" :class="isLit && 'call-control--lit'">
         <button
           type="button"
@@ -327,6 +393,27 @@ const runAction = () => {
 </template>
 
 <style scoped>
+.call-screen .call-tile-zoom {
+  position: absolute;
+  inset-block-start: 0.375rem;
+  inset-inline-end: 0.375rem;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 0.55);
+  color: #fff;
+}
+.call-tile:fullscreen {
+  border-radius: 0;
+}
+.call-tile:fullscreen .call-tile-pick,
+.call-tile:fullscreen .call-tile-zoom {
+  display: none;
+}
 .call-chip--button {
   cursor: pointer;
 }

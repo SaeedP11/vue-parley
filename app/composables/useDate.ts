@@ -127,6 +127,7 @@ export const useDate = () => {
 
   return {
     formatRelativeDate,
+    getLang,
     getYearsPassed,
     formatDateShort,
     formatTime,

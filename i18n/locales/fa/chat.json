@@ -189,7 +189,13 @@
         "participant": "شرکت‌کننده",
         "more": "بیشتر",
         "minimize": "کوچک‌کردن",
-        "end": "پایان"
+        "end": "پایان",
+        "presenting": "{name} در حال اشتراک‌گذاری صفحه",
+        "screenTile": "صفحه {name}",
+        "shareScreen": "اشتراک صفحه",
+        "stopSharing": "توقف اشتراک",
+        "youArePresenting": "شما در حال اشتراک‌گذاری صفحه هستید",
+        "tileFullscreen": "تمام‌صفحه {name}"
       },
       "controls": {
         "enableSound": "برای روشن کردن صدا ضربه بزنید",

@@ -71,12 +71,12 @@
         <!-- Others are in a call here: joining it replaces starting one. A full call keeps the
              button, disabled, with the reason; the wrapper carries the tooltip, since a disabled
              button gets no pointer events. -->
-        <span v-if="canJoin" v-tooltip.bottom="isFull ? { value: fullHint, class: 'vue-chat font-chat-family' } : undefined" class="inline-flex shrink-0">
+        <span v-if="canJoin" v-tooltip.bottom="isFull || callBlock ? { value: callBlock || fullHint, class: 'vue-chat font-chat-family' } : undefined" class="inline-flex shrink-0">
           <Button
             rounded
             :severity="isFull ? 'secondary' : 'success'"
             size="small"
-            :disabled="isFull"
+            :disabled="isFull || !!callBlock"
             :aria-label="isFull ? `${t('joinFull')}. ${fullHint}` : joinVideo ? t('joinVideoCall') : t('joinVoiceCall')"
             data-testid="chat-join-call"
             class="min-h-10 shrink-0 gap-x-2! px-3.5!"
@@ -94,6 +94,15 @@
         </span>
 
         <!-- During a call either button brings the running call back into view. -->
+        <span v-else-if="canVoiceCall && callBlock" v-tooltip.bottom="{ value: callBlock, class: 'vue-chat font-chat-family' }" class="inline-flex shrink-0">
+          <IconButton
+            icon="PhPhone"
+            icon-class="size-5.5"
+            :label="`${t('actions.call')}. ${callBlock}`"
+            disabled
+            :data-testid="canVideoCall ? 'chat-start-voice-call' : 'chat-start-call'"
+          />
+        </span>
         <IconButton
           v-else-if="canVoiceCall"
           icon="PhPhone"
@@ -104,8 +113,17 @@
           @click="initCall(false)"
         />
         <!-- When narrow the voice call keeps its button and the video call moves into the menu. -->
+        <span v-if="canVideoCall && !canJoin && !compact && callBlock" v-tooltip.bottom="{ value: callBlock, class: 'vue-chat font-chat-family' }" class="inline-flex shrink-0">
+          <IconButton
+            icon="PhVideoCamera"
+            icon-class="size-5.5"
+            :label="`${t('videoCall')}. ${callBlock}`"
+            disabled
+            data-testid="chat-start-call"
+          />
+        </span>
         <IconButton
-          v-if="canVideoCall && !canJoin && !compact"
+          v-else-if="canVideoCall && !canJoin && !compact"
           icon="PhVideoCamera"
           icon-class="size-5.5"
           :label="isInCall ? t('actions.returnToCall') : t('videoCall')"
@@ -293,6 +311,7 @@ const menuItems = computed<MenuItem[]>(() => {
             label: isInCall.value ? t("actions.returnToCall") : t("videoCall"),
             icon: "PhVideoCamera",
             color: "primary",
+            disabled: !!callBlock.value,
             command: () => initCall(true),
           },
         ]
@@ -328,6 +347,9 @@ const canVideoCall = computed(
   () => canVoiceCall.value && selectedChat.value?.serviceType !== "voice-call",
 );
 
+// Outside service hours the buttons stay, disabled; a running call can still be brought back.
+const callBlock = computed(() => (isInCall.value ? "" : (selectedChat.value?.callsUnavailable ?? "")));
+
 // A call others are in on this conversation. While the user is in a call themselves the buttons
 // keep bringing that one back instead.
 const ongoingCall = computed(() => callStore.ongoingCall(currentConversationId.value));
@@ -352,6 +374,7 @@ const goBack = () => {
 };
 
 const initCall = (video: boolean) => {
+  if (callBlock.value) return;
   if (currentConversationId.value) {
     callStore.startCall(currentConversationId.value, { video });
   }

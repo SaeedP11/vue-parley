@@ -103,6 +103,11 @@ export interface Contact {
   tag?: string;
   unreadCount?: number;
   serviceType?: "video-call" | "voice-call" | "chat";
+  /**
+   * Set while calls can't be started, e.g. outside the provider's service hours: the call buttons
+   * stay visible but disabled, with this text as the reason.
+   */
+  callsUnavailable?: string;
   userType: UserRoleKey[];
 }
 

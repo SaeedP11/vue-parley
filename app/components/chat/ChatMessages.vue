@@ -193,9 +193,17 @@ watch(
   (last, prev) => {
     if (!last || !prev || last.id === prev.id) return;
     if (last.conversationId !== prev.conversationId) return;
-    if (scroll.canScroll.value && last.senderId !== currentUserId.value)
-      newWhileScrolledUp.value++;
+    if (last.senderId === currentUserId.value) return;
+    // Near the bottom the thread follows the new message; further up it stays where the user is.
+    if (scroll.isNearNewest()) {
+      nextTick(() => scroll.resetScroll());
+      return;
+    }
+    const restore = scroll.holdPosition();
+    nextTick(() => requestAnimationFrame(restore));
+    if (scroll.canScroll.value) newWhileScrolledUp.value++;
   },
+  { flush: "pre" },
 );
 watch(scroll.canScroll, (away) => {
   if (!away) newWhileScrolledUp.value = 0;

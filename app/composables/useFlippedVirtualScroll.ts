@@ -97,8 +97,8 @@ export function useFlippedVirtualScroll(options: ScrollOptions) {
     // touch/keyboard scroll the loop never saw.
     if (!animationFrame) targetScroll.value = scrollContainer.value.scrollTop;
 
-    // In a flipped list, positive deltaY raises scrollTop, towards older messages.
-    targetScroll.value += e.deltaY;
+    // The list is flipped, so wheeling down (towards newer messages) lowers scrollTop.
+    targetScroll.value -= e.deltaY;
 
     const maxScroll =
       scrollContainer.value.scrollHeight - scrollContainer.value.clientHeight;
@@ -143,6 +143,22 @@ export function useFlippedVirtualScroll(options: ScrollOptions) {
     virtualizer.value.scrollToOffset(offset);
   };
 
+  /** Keeps the viewport on the same messages while rows are added at the newest end. */
+  const holdPosition = () => {
+    const el = scrollContainer.value;
+    if (!el) return () => {};
+    const fromOldest = el.scrollHeight - el.scrollTop;
+    return () => {
+      const next = Math.max(0, el.scrollHeight - fromOldest);
+      targetScroll.value = next;
+      scrollOffset.value = next;
+      el.scrollTop = next;
+    };
+  };
+
+  /** Whether the viewport is close enough to the newest message to follow new ones. */
+  const isNearNewest = () => (scrollContainer.value?.scrollTop ?? 0) < 150;
+
   const cleanup = () => {
     if (animationFrame) cancelAnimationFrame(animationFrame);
     if (scrollTimer) clearTimeout(scrollTimer);
@@ -157,6 +173,8 @@ export function useFlippedVirtualScroll(options: ScrollOptions) {
     handleWheel,
     resetScroll,
     jumpTo,
+    holdPosition,
+    isNearNewest,
     cleanup,
     // Exposed to allow component to pass dynamic data without circular refs
     setItemCount: (count: number) => {
