@@ -21,6 +21,19 @@ export interface CompressVideoOptions {
   signal?: AbortSignal;
 }
 
+let mbPromise: Promise<typeof import("mediabunny")> | null = null;
+
+/**
+ * Pre-loads the mediabunny library in the background so it's ready when the user sends a video.
+ */
+export const preloadCompressor = () => {
+  if (canCompressVideo() && !mbPromise) {
+    mbPromise = import("mediabunny");
+  }
+};
+
+const getMediabunny = () => (mbPromise ??= import("mediabunny"));
+
 export const canCompressVideo = () =>
   typeof VideoEncoder !== "undefined" && typeof VideoDecoder !== "undefined";
 
@@ -31,7 +44,7 @@ export async function compressVideo(
   if (!canCompressVideo() || file.size < MIN_BYTES) return null;
   signal?.throwIfAborted();
 
-  const mb = await import("mediabunny");
+  const mb = await getMediabunny();
   const input = new mb.Input({ source: new mb.BlobSource(file), formats: mb.ALL_FORMATS });
 
   try {
@@ -48,15 +61,20 @@ export async function compressVideo(
     const width = even(displayWidth);
     const height = even(displayHeight);
 
-    const codec = await mb.getFirstEncodableVideoCodec(["avc", "vp9", "av1", "hevc"], {
-      width,
-      height,
-      quality: mb.QUALITY_MEDIUM,
-    });
+    // Concurrently find the best encodable codec (AVC/HEVC first for widest hardware support)
+    // and measure the frame rate (sampling 30 packets is plenty to detect 60 fps vs 30 fps).
+    const [codec, { averagePacketRate }] = await Promise.all([
+      mb.getFirstEncodableVideoCodec(["avc", "hevc", "vp9", "av1"], {
+        width,
+        height,
+        quality: mb.QUALITY_MEDIUM,
+      }),
+      track.computePacketStats(30),
+    ]);
+
     if (!codec) return null;
 
     // Phones record at 60 fps; only ever resample down, never add frames.
-    const { averagePacketRate } = await track.computePacketStats(90);
     const frameRate = averagePacketRate > MAX_FPS + 2 ? MAX_FPS : undefined;
 
     signal?.throwIfAborted();
@@ -65,6 +83,8 @@ export async function compressVideo(
       format: new mb.Mp4OutputFormat({ fastStart: "in-memory" }),
       target: new mb.BufferTarget(),
     });
+    const supportedAudioCodecs = output.format.getSupportedAudioCodecs();
+
     const conversion = await mb.Conversion.init({
       input,
       output,
@@ -77,10 +97,18 @@ export async function compressVideo(
         frameRate,
         codec,
         quality: mb.QUALITY_MEDIUM,
+        hardwareAcceleration: "prefer-hardware",
         forceTranscode: true,
       },
-      // Copied when MP4 can carry it as it is, re-encoded otherwise.
-      audio: { quality: mb.QUALITY_MEDIUM },
+      // Direct packet copy if the source audio codec can be carried by MP4 as-is (e.g. AAC),
+      // re-encoded with medium quality only if transcoding is required.
+      audio: async (audioTrack) => {
+        const audioCodec = await audioTrack.getCodec();
+        if (audioCodec && supportedAudioCodecs.includes(audioCodec)) {
+          return {};
+        }
+        return { quality: mb.QUALITY_MEDIUM };
+      },
     });
 
     // A silent or missing picture is worse than a big file.

@@ -202,7 +202,7 @@ import {
   type PickedFile,
   type PickedMedia,
 } from "~/composables/useAttachmentPicker";
-import { canCompressVideo } from "~/utils/compressVideo";
+import { canCompressVideo, preloadCompressor } from "~/utils/compressVideo";
 import { useAppToast } from "~/composables/useAppToast";
 import useLocalI18n, { useDirection } from "~/composables/useLocalI18n";
 import { inputAttachement } from "@i18n/locales";
@@ -267,6 +267,7 @@ watch(
 
 // Videos are compressed after Send, by the messages store, with the progress on the bubble.
 const canCompress = canCompressVideo();
+if (canCompress) preloadCompressor();
 const videoCount = computed(() => selectedMedia.value.filter((m) => m.kind === "video").length);
 
 /* --- Picking ----------------------------------------------------------------------------- */
