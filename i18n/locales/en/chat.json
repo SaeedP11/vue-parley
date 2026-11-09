@@ -31,6 +31,24 @@
       "video": "Video",
       "request": "Request"
     },
+    "events": {
+      "memberAdded": "{actor} added {target} to the chat.",
+      "memberJoined": "{target} joined the chat.",
+      "memberRemoved": "{actor} removed {target} from the chat.",
+      "memberLeft": "{target} left the chat.",
+      "callStarted": "{actor} started a {callType} call.",
+      "callStartedGeneric": "{callType} call started.",
+      "callEnded": "{callType} call ended.",
+      "videoCall": "video",
+      "voiceCall": "voice",
+      "pinnedMessage": "{actor} pinned a message.",
+      "messagePinned": "A message was pinned.",
+      "unpinnedMessage": "{actor} unpinned a message.",
+      "messageUnpinned": "A message was unpinned.",
+      "conversationEnded": "Conversation ended.",
+      "user": "User",
+      "notice": "System notice"
+    },
     "messageOptions": {
       "edit": "Edit message",
       "delete": "Delete message",

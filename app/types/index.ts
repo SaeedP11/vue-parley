@@ -25,7 +25,19 @@ export type status = "pending" | "approved" | "rejected" | "expired";
 export type ServicePresence = "online" | "on-site";
 export type UserRoleKey = "user" | "employee" | "business" | "support";
 export type StateKeys = "" | "online" | "ended" | "active";
-export type MessageType = "text" | "image" | "file" | "voice" | "video";
+export type MessageType = "text" | "image" | "file" | "voice" | "video" | "event";
+
+export interface ChatEvent {
+  type: string;
+  actorId?: string;
+  actorName?: string;
+  targetId?: string;
+  targetName?: string;
+  duration?: number;
+  callType?: "video" | "voice";
+  messageId?: string;
+  [key: string]: any;
+}
 
 /** One photo or video of an album. */
 export interface MediaItem {
@@ -60,6 +72,8 @@ export interface Message {
   isRead: boolean;
   repliedTo?: Message;
   request?: string;
+  /** System or chat event represented as a centered label message. */
+  event?: ChatEvent;
 }
 
 export interface Contact {

@@ -15,6 +15,7 @@ import BubbleRequest from "./chat-bubbles/BubbleRequest.vue";
 import BubbleStatus from "./chat-bubbles/BubbleStatus.vue";
 import BubbleMeta from "./chat-bubbles/BubbleMeta.vue";
 import ReplyPreview from "./chat-bubbles/ReplyPreview.vue";
+import BubbleEvent from "./chat-bubbles/BubbleEvent.vue";
 
 import { useMessagesStore } from "~/stores/messageStores.js";
 import { useLongPress } from "~/composables/useLongPress";
@@ -60,6 +61,7 @@ const isSelectMode = computed(() => messagesStore.isSelectMode);
 const media = computed(() => messageMedia(props.message));
 
 const messageType = computed(() => {
+  if (props.message.type === "event" || props.message.event) return "event";
   if (props.message.voiceUrl?.trim()) return "voice";
   if (media.value.length > 1) return "multiImage";
   if (media.value.length === 1) return "image";
@@ -79,6 +81,10 @@ const sameGroup = (a?: Message | null, b?: Message | null) =>
   !!b &&
   !a.request &&
   !b.request &&
+  a.type !== "event" &&
+  !a.event &&
+  b.type !== "event" &&
+  !b.event &&
   a.senderId === b.senderId &&
   new Date(a.date).toDateString() === new Date(b.date).toDateString();
 
@@ -124,7 +130,7 @@ const previewImage = async (index: number) => {
 const optionsMounted = ref(false);
 
 const handleRightClick = async (event: MouseEvent | PointerEvent) => {
-  if (props.message.request || !props.message.isSent) return;
+  if (props.message.request || props.message.type === "event" || props.message.event || !props.message.isSent) return;
   if (!messagesStore.isSelectMode) {
     messagesStore.selectedMessages.clear();
     messagesStore.toggleSelection(props.message);
@@ -174,13 +180,21 @@ const longPress = useLongPress(handleRightClick);
       }"
     >
       <BubbleSelectionMark
-        v-if="!message.request"
+        v-if="!message.request && messageType !== 'event'"
         :selected="isSelectMode && isSelected"
       />
 
       <!-- Request Card Fallback -->
       <div v-if="message.request" class="py-3 w-full flex justify-center">
         <BubbleRequest :message="message" :contact="contact" />
+      </div>
+
+      <!-- Event / Label Message -->
+      <div
+        v-else-if="messageType === 'event'"
+        class="py-2.5 w-full flex justify-center"
+      >
+        <BubbleEvent :message="message" />
       </div>
 
       <!-- Standard Message Bubble -->

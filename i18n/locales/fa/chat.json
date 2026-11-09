@@ -31,6 +31,24 @@
       "video": "ویدیو",
       "request": "درخواست"
     },
+    "events": {
+      "memberAdded": "{actor}، {target} را به گفتگو اضافه کرد.",
+      "memberJoined": "{target} به گفتگو پیوست.",
+      "memberRemoved": "{actor}، {target} را از گفتگو حذف کرد.",
+      "memberLeft": "{target} از گفتگو خارج شد.",
+      "callStarted": "{actor} تماس {callType} را شروع کرد.",
+      "callStartedGeneric": "تماس {callType} شروع شد.",
+      "callEnded": "تماس {callType} پایان یافت.",
+      "videoCall": "تصویری",
+      "voiceCall": "صوتی",
+      "pinnedMessage": "{actor} یک پیام را سنجاق کرد.",
+      "messagePinned": "یک پیام سنجاق شد.",
+      "unpinnedMessage": "{actor} سنجاق پیام را برداشت.",
+      "messageUnpinned": "سنجاق پیام برداشته شد.",
+      "conversationEnded": "گفتگو پایان یافت.",
+      "user": "کاربر",
+      "notice": "اعلان سیستم"
+    },
     "messageOptions": {
       "edit": "ویرایش پیام",
       "delete": "حذف پیام",
