@@ -121,9 +121,11 @@ test.describe("video call — flipping the camera", () => {
     await expectPlayingVideo(alice.getByTestId("call-local-video"));
   });
 
-  test("the flip waits for the camera to be on", async () => {
+  test("the flip is hidden while the camera is off", async () => {
     await startCall(alice);
     await alice.getByTestId("call-toggle-video").click();
-    await expect(alice.getByTestId("call-flip-camera")).toBeDisabled();
+    await expect(alice.getByTestId("call-flip-camera")).toHaveCount(0);
+    await alice.getByTestId("call-toggle-video").click();
+    await expect(alice.getByTestId("call-flip-camera")).toBeVisible();
   });
 });

@@ -283,12 +283,12 @@ const runAction = () => {
         </button>
         <span>{{ t("chat.call.stage.camera") }}</span>
       </div>
-      <div v-if="media.canFlipCamera.value" class="call-control">
+      <div v-if="media.canFlipCamera.value && media.isVideoOn.value" class="call-control">
         <button
           type="button"
           class="call-control-button"
           :aria-label="flipLabel"
-          :disabled="!media.isVideoOn.value || isFlipping"
+          :disabled="isFlipping"
           data-testid="call-stage-flip"
           :data-facing="media.facingMode.value ?? undefined"
           @click="flip"
