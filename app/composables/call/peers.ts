@@ -14,6 +14,10 @@ export interface RemoteStream {
   stream: MediaStream;
 }
 
+interface ReceivedStream extends RemoteStream {
+  screen: boolean;
+}
+
 export interface PeerOptions {
   selfId: string;
   signaling: Signaling;
@@ -45,6 +49,8 @@ export function usePeers(opts: PeerOptions) {
   const remoteVideos = ref<Record<string, RemoteStream>>({});
   const remoteScreens = ref<Record<string, RemoteStream>>({});
   const remoteStreamTypes = ref<Record<string, TrackTypes>>({});
+  /** Every stream each remote sent us, so it can be sorted again once its type is announced. */
+  const received: Record<string, ReceivedStream[]> = {};
   /** Peers asked for before our media was ready, or while there were no ICE servers. */
   const pending = ref<Record<string, { name: string }>>({});
   /** Signals that arrived for a peer that doesn't exist yet, in order. */
@@ -74,6 +80,7 @@ export function usePeers(opts: PeerOptions) {
     peer?.destroy();
     delete remoteVideos.value[remoteId];
     delete remoteScreens.value[remoteId];
+    delete received[remoteId];
     delete pending.value[remoteId];
     delete pendingSignals[remoteId];
     delete lastSdp[remoteId];
@@ -115,20 +122,49 @@ export function usePeers(opts: PeerOptions) {
     return announced.some((t) => t.type === "screen");
   }
 
+  function put(target: Ref<Record<string, RemoteStream>>, remoteId: string, entry?: ReceivedStream) {
+    if (!entry) delete target.value[remoteId];
+    else if (target.value[remoteId]?.stream !== entry.stream)
+      target.value[remoteId] = { name: entry.name, stream: entry.stream };
+  }
+
+  /** Shows each remote's newest live camera and screen stream. */
+  function place(remoteId: string) {
+    const live = (received[remoteId] ?? []).filter((r) => r.stream.getTracks().length > 0);
+    received[remoteId] = live;
+    let camera: ReceivedStream | undefined;
+    let screen: ReceivedStream | undefined;
+    for (const r of live) {
+      if (r.screen && r.stream.getVideoTracks().length > 0) screen = r;
+      else camera = r;
+    }
+    put(remoteVideos, remoteId, camera);
+    put(remoteScreens, remoteId, screen);
+  }
+
   function onRemoteStream(remoteId: string, name: string, stream: MediaStream) {
     log("stream from", remoteId, stream.getTracks().map((t) => t.kind));
-    const target =
-      isScreen(remoteId, stream) && stream.getVideoTracks().length > 0
-        ? remoteScreens
-        : remoteVideos;
-    target.value[remoteId] = { name, stream };
+    (received[remoteId] ??= []).push({ name, stream, screen: isScreen(remoteId, stream) });
+    place(remoteId);
     markConnected(remoteId);
 
     // A stopped screen share leaves an empty stream behind; drop its tile.
     stream.addEventListener("removetrack", () => {
-      if (stream.getTracks().length > 0) return;
-      if (target.value[remoteId]?.stream === stream) delete target.value[remoteId];
+      if (stream.getTracks().length === 0) place(remoteId);
     });
+  }
+
+  /**
+   * What `remoteId`'s streams are. A share already running when we join reaches us before this
+   * does, and was taken for a camera: sort it again.
+   */
+  function setStreamTypes(remoteId: string, types: TrackTypes) {
+    remoteStreamTypes.value[remoteId] = types;
+    for (const r of received[remoteId] ?? []) {
+      const match = types.find((t) => t.id === r.stream.id);
+      if (match) r.screen = match.type === "screen";
+    }
+    place(remoteId);
   }
 
   function add(remoteId: string, name: string) {
@@ -323,6 +359,7 @@ export function usePeers(opts: PeerOptions) {
     peerStatus,
     setMedia,
     setJoinedAt,
+    setStreamTypes,
     isInitiator,
     has,
     add,

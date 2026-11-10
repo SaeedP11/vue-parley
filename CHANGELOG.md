@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [5.5.17] - 2026-11-10
+
+### Fixed
+
+- Every call participant gets the share-screen button when the host enables `screenShare`; a device that can't share says so when tapped instead of hiding the button.
+- Someone who joins while a screen share is running now sees it as a screen tile, next to the sharer's camera, instead of in place of the camera.
+
 ## [5.5.15] - 2026-11-10
 
 ### Added

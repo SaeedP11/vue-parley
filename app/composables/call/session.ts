@@ -345,7 +345,7 @@ export function createCallSession(opts: CallSessionOptions) {
       },
       onTrackTypes(from, types, { media: remoteMedia, joinedAt: at }) {
         heard(from);
-        peers.remoteStreamTypes.value[from] = types;
+        peers.setStreamTypes(from, types);
         peers.setMedia(from, remoteMedia);
         peers.setJoinedAt(from, at);
         if (at !== undefined) checkCapacity();
