@@ -189,7 +189,13 @@
         "participant": "Participant",
         "more": "More",
         "minimize": "Minimize",
-        "end": "End call"
+        "end": "End call",
+        "presenting": "{name} is presenting",
+        "screenTile": "{name}'s screen",
+        "shareScreen": "Share",
+        "stopSharing": "Stop sharing",
+        "youArePresenting": "You are sharing your screen",
+        "tileFullscreen": "Show {name} full screen"
       },
       "controls": {
         "enableSound": "Tap to turn on sound",

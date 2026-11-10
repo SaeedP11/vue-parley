@@ -11,6 +11,8 @@ import { useChatStore } from "~/stores/chatStore.js";
 import ChatListSearch from "./ChatListSearch.vue";
 import useLocalI18n, { useDirection } from "~/composables/useLocalI18n";
 import { chatList } from "@i18n/locales";
+import { useDate } from "~/composables/useDate";
+import { groupContacts } from "~/utils/chatGroups";
 const { t } = useLocalI18n(chatList);
 const { dir } = useDirection();
 const chatStore = useChatStore();
@@ -27,6 +29,11 @@ const currentState = computed(
 
 const chats = computed(() =>
   chatStore.getDisplayedContacts(activeFilter.value),
+);
+
+const { getLang } = useDate();
+const rows = computed(() =>
+  groupContacts(chats.value, getLang(), (key) => t(`groups.${key}`)),
 );
 
 const query = computed(() => searchText.value.trim());
@@ -105,7 +112,7 @@ onBeforeUnmount(() => {
       >
         <BVirtualVerticalList
           ref="listRef"
-          :items="chats"
+          :items="rows"
           :loading="currentState.loading"
           :has-next-page="currentState.hasNextPage"
           scrollbar
@@ -116,8 +123,16 @@ onBeforeUnmount(() => {
             <ContactSkeleton v-for="n in 2" :key="n" />
           </template>
           <template #item="{ item }">
+            <h3
+              v-if="item.kind === 'header'"
+              data-testid="chat-group-header"
+              class="m-0 px-2 pt-3 pb-1 text-label-sm text-chat-muted"
+            >
+              {{ item.label }}
+            </h3>
             <ChatContactDisplay
-              :contact="item"
+              v-else
+              :contact="item.contact"
               :loading="currentState.loading && (currentState.page === 0 || !!currentState.refreshing)"
             />
           </template>

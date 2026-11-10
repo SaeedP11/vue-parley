@@ -1,0 +1,16 @@
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+## [Unreleased]
+
+## [5.5.10] - 2026-11-09
+
+### Added
+
+- Calls can share a screen, move the shared screen between the main stage and a tile, and open participant tiles full-screen.
+- Conversations are grouped by recent date, and call controls can remain visible but disabled with an availability reason.
+
+### Fixed
+
+- New messages preserve the reader's position while scrolled up and follow messages when already near the newest item.
