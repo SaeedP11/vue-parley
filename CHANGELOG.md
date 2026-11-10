@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [5.5.11] - 2026-11-10
+
+### Fixed
+
+- A touch phone held in landscape keeps the mobile chat layout instead of the cramped desktop split view.
+
 ## [5.5.10] - 2026-11-09
 
 ### Added
