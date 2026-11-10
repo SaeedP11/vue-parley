@@ -4,7 +4,7 @@ import { formatDuration } from "~/utils/format";
 import useLocalI18n, { useDirection } from "~/composables/useLocalI18n";
 import { chat } from "@i18n/locales";
 import { computed, ref, watch } from "vue";
-import { useFullscreen } from "@vueuse/core";
+import { onClickOutside, onKeyStroke, useFullscreen } from "@vueuse/core";
 import CallIcon from "./CallIcon.vue";
 import CallStageVideo from "./CallStageVideo.vue";
 
@@ -161,6 +161,17 @@ const runAction = () => {
   if (action.value?.disabled || isBusy.value) return;
   if (action.value?.command) void action.value.command();
   else emit("action");
+};
+
+const moreOpen = ref(false);
+const moreButton = ref<HTMLElement>();
+const extraPanel = ref<HTMLElement>();
+const extraLit = computed(() => media.isScreenSharing.value || isLit.value);
+onClickOutside(extraPanel, () => (moreOpen.value = false), { ignore: [moreButton] });
+onKeyStroke("Escape", () => (moreOpen.value = false));
+// Only the stage's own items close the menu; a host control may anchor a popover to its button.
+const onExtraClick = (event: MouseEvent) => {
+  if ((event.target as HTMLElement).closest("[data-testid^='call-stage-']")) moreOpen.value = false;
 };
 </script>
 
@@ -335,53 +346,73 @@ const runAction = () => {
         </button>
         <span>{{ t("chat.call.stage.camera") }}</span>
       </div>
-      <div v-if="media.canFlipCamera.value && media.isVideoOn.value" class="call-control">
+      <!-- Phones only: the secondary controls fold into this menu. -->
+      <div class="call-control call-control--more" :class="extraLit && 'call-control--lit'">
         <button
+          ref="moreButton"
           type="button"
           class="call-control-button"
-          :aria-label="flipLabel"
-          :disabled="isFlipping"
-          data-testid="call-stage-flip"
-          :data-facing="media.facingMode.value ?? undefined"
-          @click="flip"
+          :class="moreOpen && 'call-control-button--open'"
+          :aria-label="t('chat.call.stage.more')"
+          :aria-expanded="moreOpen"
+          aria-controls="call-controls-extra"
+          data-testid="call-stage-more"
+          @click="moreOpen = !moreOpen"
         >
-          <CallIcon :name="isFlipping ? 'refresh' : 'cameraSwitch'" class="size-6" :class="isFlipping && 'animate-spin motion-reduce:animate-none'" />
+          <CallIcon name="moreVert" class="size-6" />
+          <span v-if="extraLit && !moreOpen" class="call-control-dot" aria-hidden="true" />
         </button>
-        <span>{{ t("chat.call.stage.flipCamera") }}</span>
+        <span>{{ t("chat.call.stage.more") }}</span>
       </div>
-      <div v-if="callStore.canShareScreen" class="call-control" :class="media.isScreenSharing.value && 'call-control--lit'">
-        <button
-          type="button"
-          class="call-control-button"
-          :class="media.isScreenSharing.value && 'call-control-button--lit'"
-          :aria-label="shareLabel"
-          :aria-pressed="media.isScreenSharing.value"
-          :disabled="media.isScreenShareStarting.value"
-          data-testid="call-stage-screen-share"
-          @click="session.toggleScreenShare()"
-        >
-          <CallIcon :name="media.isScreenSharing.value ? 'cancelPresentation' : 'presentToAll'" class="size-6" />
-        </button>
-        <span>{{ shareLabel }}</span>
+      <div id="call-controls-extra" ref="extraPanel" class="call-controls-extra" :class="moreOpen && 'call-controls-extra--open'" @click="onExtraClick">
+        <div v-if="media.canFlipCamera.value && media.isVideoOn.value" class="call-control">
+          <button
+            type="button"
+            class="call-control-button"
+            :aria-label="flipLabel"
+            :disabled="isFlipping"
+            data-testid="call-stage-flip"
+            :data-facing="media.facingMode.value ?? undefined"
+            @click="flip"
+          >
+            <CallIcon :name="isFlipping ? 'refresh' : 'cameraSwitch'" class="size-6" :class="isFlipping && 'animate-spin motion-reduce:animate-none'" />
+          </button>
+          <span>{{ t("chat.call.stage.flipCamera") }}</span>
+        </div>
+        <div v-if="callStore.canShareScreen" class="call-control" :class="media.isScreenSharing.value && 'call-control--lit'">
+          <button
+            type="button"
+            class="call-control-button"
+            :class="media.isScreenSharing.value && 'call-control-button--lit'"
+            :aria-label="shareLabel"
+            :aria-pressed="media.isScreenSharing.value"
+            :disabled="media.isScreenShareStarting.value"
+            data-testid="call-stage-screen-share"
+            @click="session.toggleScreenShare()"
+          >
+            <CallIcon :name="media.isScreenSharing.value ? 'cancelPresentation' : 'presentToAll'" class="size-6" />
+          </button>
+          <span>{{ shareLabel }}</span>
+        </div>
+        <div v-if="action" class="call-control" :class="isLit && 'call-control--lit'">
+          <button
+            type="button"
+            class="call-control-button"
+            :class="isLit && 'call-control-button--lit'"
+            :aria-label="action.label"
+            :aria-pressed="isLit"
+            :aria-busy="isBusy"
+            :disabled="action.disabled || isBusy"
+            data-testid="call-stage-action"
+            @click="runAction"
+          >
+            <CallIcon v-if="isBusy" name="refresh" class="size-6 animate-spin motion-reduce:animate-none" />
+            <CallIcon v-else :name="action.icon" class="size-6" />
+          </button>
+          <span>{{ action.label }}</span>
+        </div>
+        <slot name="controls" />
       </div>
-      <div v-if="action" class="call-control" :class="isLit && 'call-control--lit'">
-        <button
-          type="button"
-          class="call-control-button"
-          :class="isLit && 'call-control-button--lit'"
-          :aria-label="action.label"
-          :aria-pressed="isLit"
-          :aria-busy="isBusy"
-          :disabled="action.disabled || isBusy"
-          data-testid="call-stage-action"
-          @click="runAction"
-        >
-          <CallIcon v-if="isBusy" name="refresh" class="size-6 animate-spin motion-reduce:animate-none" />
-          <CallIcon v-else :name="action.icon" class="size-6" />
-        </button>
-        <span>{{ action.label }}</span>
-      </div>
-      <slot name="controls" />
       <div class="call-control call-control--end">
         <button type="button" class="call-control-button call-control-button--end" :aria-label="t('chat.call.controls.endCall')" data-testid="call-stage-end" @click="endCall">
           <CallIcon name="callEnd" class="size-6" />
@@ -1150,6 +1181,57 @@ const runAction = () => {
 @media (prefers-reduced-motion: reduce) {
   .call-screen .call-control-button {
     transition: none;
+  }
+}
+
+.call-screen .call-control-button--open {
+  border-color: rgb(255 255 255 / 0.28) !important;
+  background: rgb(255 255 255 / 0.16) !important;
+}
+
+.call-screen .call-control-dot {
+  position: absolute;
+  inset-block-start: 0.375rem;
+  inset-inline-end: 0.375rem;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 999px;
+  background: var(--accent-yellow);
+}
+
+@media (min-width: 768px) {
+  .call-screen .call-control--more {
+    display: none;
+  }
+
+  .call-screen .call-controls-extra {
+    display: contents;
+  }
+}
+
+@media (max-width: 767.98px) {
+  .call-screen .call-controls {
+    position: relative;
+  }
+
+  .call-screen .call-controls:not(:has(.call-controls-extra > *)) .call-control--more,
+  .call-screen .call-controls-extra:not(.call-controls-extra--open) {
+    display: none;
+  }
+
+  .call-screen .call-controls-extra--open {
+    position: absolute;
+    inset-inline: 0;
+    bottom: calc(100% + 0.5rem);
+    z-index: 5;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(4.5rem, 1fr));
+    gap: 0.75rem 0.25rem;
+    padding: 0.875rem 0.625rem 0.5rem;
+    border: 1px solid rgb(255 255 255 / 0.086);
+    border-radius: 22px;
+    background: var(--background-panel);
+    box-shadow: 0 -12px 32px rgb(0 0 0 / 0.32);
   }
 }
 </style>

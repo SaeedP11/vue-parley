@@ -32,7 +32,7 @@ test("the stage shows names, a host action and the other participants", async ({
 
   const stage = alice!.getByTestId("call-stage");
   await expect(stage).toContainText(/Bob|Carol/);
-  await expect(stage.getByTestId("call-stage-more")).toHaveCount(0);
+  await expect(stage.getByTestId("call-stage-more")).toBeHidden();
   await expect(stage.getByTestId("call-stage-members")).toHaveCount(0);
 
   const action = stage.getByTestId("call-stage-action");
@@ -45,6 +45,16 @@ test("the stage shows names, a host action and the other participants", async ({
   await expect(alice!.getByRole("dialog")).toContainText(/Bob|Carol/);
   await alice!.keyboard.press("Escape");
   await expect(alice!.getByRole("dialog")).toHaveCount(0);
+
+  // Phones keep mic, camera and end in the bar; the rest opens from "more".
+  const more = stage.getByTestId("call-stage-more");
+  await expect(more).toBeVisible();
+  await expect(action).toBeHidden();
+  await more.click();
+  await expect(more).toHaveAttribute("aria-expanded", "true");
+  await action.click();
+  await expect(action).toHaveAttribute("aria-pressed", "false");
+  await expect(action).toBeHidden();
 
   await stage.getByTestId("call-stage-minimize").click();
   await expect(stage).toHaveCount(0);

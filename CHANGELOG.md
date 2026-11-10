@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [5.5.18] - 2026-11-10
+
+### Changed
+
+- On phones the call bar keeps only microphone, camera and end call; flip camera, screen share, the host action and host controls open from a new "More" button.
+
 ## [5.5.17] - 2026-11-10
 
 ### Fixed
