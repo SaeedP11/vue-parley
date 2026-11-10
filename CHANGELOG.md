@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [5.5.12] - 2026-11-10
+
+### Added
+
+- Call tiles zoom with the mouse wheel or a pinch, pan by dragging, and reset with a double click or the reset button.
+
 ## [5.5.11] - 2026-11-10
 
 ### Fixed
