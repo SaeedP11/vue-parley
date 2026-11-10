@@ -105,11 +105,47 @@ export const useProfileStore = defineStore("profile-store", () => {
     delete filesHasNextPage.value[conversationId];
   };
 
+  /** Prepend new media items for a conversation, avoiding duplicates. */
+  const addMedia = (conversationId: string, ...urls: (string | undefined)[]) => {
+    const valid = urls.filter((u): u is string => Boolean(u));
+    if (!valid.length) return;
+    const existing = mediaMap.value[conversationId] ?? [];
+    const incoming = valid.filter((url) => !existing.includes(url));
+    if (!incoming.length) return;
+    mediaMap.value[conversationId] = [...incoming, ...existing];
+  };
+
+  /** Prepend new document/file items for a conversation, avoiding duplicates. */
+  const addFiles = (conversationId: string, ...urls: (string | undefined)[]) => {
+    const valid = urls.filter((u): u is string => Boolean(u));
+    if (!valid.length) return;
+    const existing = filesMap.value[conversationId] ?? [];
+    const incoming = valid.filter((url) => !existing.includes(url));
+    if (!incoming.length) return;
+    filesMap.value[conversationId] = [...incoming, ...existing];
+  };
+
+  const removeMedia = (conversationId: string, ...urls: (string | undefined)[]) => {
+    if (!urls.length || !mediaMap.value[conversationId]) return;
+    const set = new Set(urls.filter(Boolean));
+    mediaMap.value[conversationId] = mediaMap.value[conversationId].filter((u) => !set.has(u));
+  };
+
+  const removeFiles = (conversationId: string, ...urls: (string | undefined)[]) => {
+    if (!urls.length || !filesMap.value[conversationId]) return;
+    const set = new Set(urls.filter(Boolean));
+    filesMap.value[conversationId] = filesMap.value[conversationId].filter((u) => !set.has(u));
+  };
+
   return {
     reset,
     setHandlers,
     fetchMedia,
     fetchFiles,
+    addMedia,
+    addFiles,
+    removeMedia,
+    removeFiles,
     clear,
     mediaMap,
     filesMap,

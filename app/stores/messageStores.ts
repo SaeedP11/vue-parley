@@ -396,6 +396,24 @@ export const useMessagesStore = defineStore("messages-store", () => {
         isSent: true,
         isFailed: false,
       });
+      if (canonical.imageUrl?.length) {
+        profileStore.addMedia(conversationId, ...canonical.imageUrl);
+      }
+      if (canonical.media?.length) {
+        canonical.media.forEach((item) => {
+          if (item.kind === "image") profileStore.addMedia(conversationId, item.url);
+          else profileStore.addFiles(conversationId, item.url);
+        });
+      }
+      if (canonical.fileUrl) {
+        profileStore.addFiles(conversationId, canonical.fileUrl);
+      }
+      if (canonical.videoUrl) {
+        profileStore.addFiles(conversationId, canonical.videoUrl);
+      }
+      if (canonical.voiceUrl) {
+        profileStore.addFiles(conversationId, canonical.voiceUrl);
+      }
     } catch (error) {
       logger.error("failed to send message", tempMsg.id, tempMsg.type, error);
       uploadProgress.value.delete(tempMsg.id);
