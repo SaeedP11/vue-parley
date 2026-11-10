@@ -1,14 +1,13 @@
 <script setup lang="ts">
 /**
- * Full-screen viewer for a message's photos and videos, on PrimeVue's Galleria. A top bar carries
- * who sent it and when, the position in the album, download and close; round arrows (on wider
- * screens), swipes and the arrow keys move through the album; thumbnails run along the bottom.
+ * Full-screen viewer for photos and videos, on PrimeVue's Galleria. A top bar carries who sent the
+ * current item and when, the position, zoom, download and close; round arrows (on wider screens),
+ * swipes and the arrow keys move through the items; thumbnails run along the bottom when they fit.
  * Photos zoom and pan (ViewerImage); videos play with their own controls (ViewerVideo).
  */
 import { computed, onUnmounted, ref, useTemplateRef, watch } from "vue";
 import Galleria from "primevue/galleria";
 import { useEventListener } from "@vueuse/core";
-import type { MediaItem } from "~/types";
 import IconButton from "~/components/general/IconButton.vue";
 import MediaThumb from "~/components/general/MediaThumb.vue";
 import ViewerImage from "./viewer/ViewerImage.vue";
@@ -18,12 +17,16 @@ import { useDate } from "~/composables/useDate.js";
 import { useHostLocale } from "~/composables/useHostI18n";
 import { useMediaStore } from "~/stores/mediaStore";
 import { mediaViewer } from "@i18n/locales";
+import { ZOOM_MAX, ZOOM_MIN, type ViewerItem } from "~/utils/media";
 
 const props = defineProps<{
-  items: MediaItem[];
+  items: ViewerItem[];
   sender: string;
   date: Date;
 }>();
+
+// Galleria's strip never scrolls here, so past this many it is left out.
+const MAX_THUMBNAILS = 10;
 
 const mediaStore = useMediaStore();
 const { t } = useLocalI18n(mediaViewer);
@@ -34,14 +37,18 @@ const isOpen = ref(false);
 const activeIndex = ref(0);
 const hasMany = computed(() => props.items.length > 1);
 const active = computed(() => props.items[activeIndex.value]);
-const sentOn = computed(() =>
-  t("sentOn", { day: formatDateShort(props.date), time: formatTime(props.date) }),
-);
+const showThumbnails = computed(() => hasMany.value && props.items.length <= MAX_THUMBNAILS);
+const activeSender = computed(() => active.value?.sender ?? props.sender);
+const sentOn = computed(() => {
+  const date = active.value?.date ?? props.date;
+  return t("sentOn", { day: formatDateShort(date), time: formatTime(date) });
+});
 const locale = useHostLocale();
 const num = (n: number) => n.toLocaleString(locale.value);
 
 const imageStage = useTemplateRef<InstanceType<typeof ViewerImage>>("imageStage");
-const zoomed = ref(false);
+const scale = ref(1);
+const zoomed = computed(() => scale.value > 1.01);
 
 watch(
   () => props.items,
@@ -49,7 +56,7 @@ watch(
     if (activeIndex.value >= items.length) activeIndex.value = 0;
   },
 );
-watch(activeIndex, () => (zoomed.value = false));
+watch(activeIndex, () => (scale.value = 1));
 
 const go = (step: number) => {
   const next = activeIndex.value + step;
@@ -67,6 +74,8 @@ useEventListener(window, "keydown", (event: KeyboardEvent) => {
   if ((event.target as HTMLElement | null)?.closest("[role='slider']")) return;
   if (event.key === "ArrowLeft") goToward("right");
   else if (event.key === "ArrowRight") goToward("left");
+  else if (event.key === "+" || event.key === "=") imageStage.value?.zoomStep(1);
+  else if (event.key === "-") imageStage.value?.zoomStep(-1);
   else return;
   event.preventDefault();
 });
@@ -127,6 +136,8 @@ const NAV =
 const pt = computed(() => ({
   mask: {
     class: "vue-chat bg-black/95! backdrop-blur-sm",
+    // Teleported to <body>, so it does not inherit the chat's direction.
+    dir: dir.value,
     "data-testid": "image-viewer",
     "data-open": String(isOpen.value),
   },
@@ -159,9 +170,9 @@ const pt = computed(() => ({
     :value="items"
     full-screen
     :dir="dir"
-    :show-thumbnails="hasMany"
+    :show-thumbnails="showThumbnails"
     :show-item-navigators="hasMany"
-    :num-visible="items.length"
+    :num-visible="Math.min(items.length, MAX_THUMBNAILS)"
     :pt="pt"
   >
     <template #header>
@@ -169,7 +180,7 @@ const pt = computed(() => ({
         class="flex items-start justify-between gap-x-4 bg-linear-to-b from-black/70 to-transparent px-3 pt-[max(0.75rem,env(safe-area-inset-top))] pb-10 text-white md:px-5"
       >
         <div class="min-w-0 ps-1">
-          <div class="truncate text-label-md">{{ sender }}</div>
+          <div class="truncate text-label-md" data-testid="viewer-sender">{{ activeSender }}</div>
           <div class="truncate text-body-sm text-white/70">{{ sentOn }}</div>
         </div>
         <div class="flex shrink-0 items-center gap-x-1">
@@ -180,6 +191,22 @@ const pt = computed(() => ({
           >
             {{ t("counter", { current: num(activeIndex + 1), total: num(items.length) }) }}
           </span>
+          <template v-if="active?.kind === 'image'">
+            <IconButton
+              icon="PhMagnifyingGlassMinus"
+              :label="t('actions.zoomOut')"
+              :disabled="scale <= ZOOM_MIN + 0.01"
+              class="text-white! hover:bg-white/10! disabled:opacity-40!"
+              @click="imageStage?.zoomStep(-1)"
+            />
+            <IconButton
+              icon="PhMagnifyingGlassPlus"
+              :label="t('actions.zoomIn')"
+              :disabled="scale >= ZOOM_MAX - 0.01"
+              class="text-white! hover:bg-white/10! disabled:opacity-40!"
+              @click="imageStage?.zoomStep(1)"
+            />
+          </template>
           <IconButton
             v-if="zoomed"
             icon="PhCornersIn"
@@ -205,14 +232,18 @@ const pt = computed(() => ({
     </template>
 
     <template #item="{ item }">
-      <div class="flex size-full items-center justify-center pt-16 pb-[env(safe-area-inset-bottom)] md:px-18 md:pb-0">
+      <div
+        class="flex size-full items-center justify-center pt-16 pb-[env(safe-area-inset-bottom)] md:px-18 md:pb-0"
+        @click.self="isOpen = false"
+      >
         <ViewerImage
           v-if="item.kind === 'image'"
           ref="imageStage"
           :key="item.url"
           :src="item.url"
           @swipe="goToward"
-          @zoomed="zoomed = $event"
+          @zoomed="scale = $event"
+          @dismiss="isOpen = false"
         />
         <ViewerVideo v-else :key="item.url" :src="item.url" @swipe="goToward" />
       </div>

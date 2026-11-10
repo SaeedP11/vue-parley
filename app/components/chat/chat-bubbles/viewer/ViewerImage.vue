@@ -3,28 +3,49 @@
  * A photo in the media viewer, fitted to the stage, with zoom and pan: double-click or double-tap
  * zooms in on that point (and back out), the wheel or a pinch zooms around the pointer, and a drag
  * pans while zoomed in. At fit size a horizontal swipe asks for the neighbouring item instead.
+ * A photo smaller than the stage is scaled up to fit it; a tap beside the photo asks to close.
  */
 import { computed, reactive, ref } from "vue";
+import { useElementSize } from "@vueuse/core";
 import ProgressSpinner from "primevue/progressspinner";
+import { ZOOM_MAX as MAX, ZOOM_MIN as MIN } from "~/utils/media";
 
 defineProps<{ src: string }>();
 
 const emit = defineEmits<{
   swipe: [direction: "left" | "right"];
-  zoomed: [zoomed: boolean];
+  /** The new scale, 1 at fit size. */
+  zoomed: [scale: number];
+  dismiss: [];
 }>();
 
-const MIN = 1;
-const MAX = 5;
 const DOUBLE_TAP_ZOOM = 2.5;
 const DOUBLE_TAP_MS = 300;
 const SWIPE_PX = 60;
+const BUTTON_STEP = 1.5;
 
+const stageEl = ref<HTMLElement | null>(null);
 const imageEl = ref<HTMLElement | null>(null);
 const view = reactive({ scale: 1, x: 0, y: 0 });
 const isZoomed = computed(() => view.scale > 1.01);
 const animate = ref(false);
 const loaded = ref(false);
+
+// Sized from the photo's own pixels, not CSS max sizes: those never grow a small photo.
+const { width: stageW, height: stageH } = useElementSize(stageEl);
+const natural = ref<{ w: number; h: number } | null>(null);
+const fitted = computed(() => {
+  const n = natural.value;
+  if (!n || !stageW.value || !stageH.value) return null;
+  const k = Math.min(stageW.value / n.w, stageH.value / n.h);
+  return { width: `${n.w * k}px`, height: `${n.h * k}px` };
+});
+
+const onLoad = (event: Event) => {
+  const img = event.target as HTMLImageElement;
+  if (img.naturalWidth && img.naturalHeight) natural.value = { w: img.naturalWidth, h: img.naturalHeight };
+  loaded.value = true;
+};
 
 const clamp = (v: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, v));
 
@@ -55,7 +76,7 @@ const zoomTo = (next: number, clientX: number, clientY: number) => {
     view.y = 0;
   }
   clampPan();
-  emit("zoomed", isZoomed.value);
+  emit("zoomed", view.scale);
 };
 
 const reset = () => {
@@ -63,10 +84,18 @@ const reset = () => {
   view.scale = 1;
   view.x = 0;
   view.y = 0;
-  emit("zoomed", false);
+  emit("zoomed", 1);
 };
 
-defineExpose({ reset, isZoomed });
+/** The zoom buttons and keys: a step in or out around the stage's centre. */
+const zoomStep = (direction: 1 | -1) => {
+  const rect = stageEl.value?.getBoundingClientRect();
+  if (!rect) return;
+  animate.value = true;
+  zoomTo(view.scale * BUTTON_STEP ** direction, rect.left + rect.width / 2, rect.top + rect.height / 2);
+};
+
+defineExpose({ reset, isZoomed, zoomStep });
 
 const onWheel = (event: WheelEvent) => {
   animate.value = false;
@@ -75,7 +104,7 @@ const onWheel = (event: WheelEvent) => {
 
 // --- Pointers: pan, pinch, double tap and swipe share one set of listeners. ---
 const pointers = new Map<number, { x: number; y: number }>();
-let gesture: { x: number; y: number; moved: boolean } | null = null;
+let gesture: { x: number; y: number; moved: boolean; beside: boolean } | null = null;
 let pinch: { distance: number; scale: number } | null = null;
 let lastTap = { time: 0, x: 0, y: 0 };
 
@@ -89,7 +118,8 @@ const onPointerDown = (event: PointerEvent) => {
   pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
   animate.value = false;
   if (pointers.size === 1) {
-    gesture = { x: event.clientX, y: event.clientY, moved: false };
+    // On the stage itself, not the photo: the empty space around it.
+    gesture = { x: event.clientX, y: event.clientY, moved: false, beside: event.target === event.currentTarget };
   } else if (pointers.size === 2) {
     pinch = { distance: distance(), scale: view.scale };
     gesture = null;
@@ -121,9 +151,13 @@ const onPointerUp = (event: PointerEvent) => {
   pointers.delete(event.pointerId);
   if (pointers.size < 2) pinch = null;
   if (!gesture || pointers.size > 0) return;
-  const { x, y, moved } = gesture;
+  const { x, y, moved, beside } = gesture;
   gesture = null;
 
+  if (!moved && beside) {
+    emit("dismiss");
+    return;
+  }
   if (!moved) {
     const now = event.timeStamp;
     const isDouble =
@@ -148,6 +182,7 @@ const onPointerUp = (event: PointerEvent) => {
 
 <template>
   <div
+    ref="stageEl"
     class="relative flex size-full touch-none items-center justify-center overflow-hidden select-none"
     :class="isZoomed ? 'cursor-grab active:cursor-grabbing' : 'cursor-zoom-in'"
     data-testid="viewer-image"
@@ -168,9 +203,13 @@ const onPointerUp = (event: PointerEvent) => {
         :src="src"
         alt=""
         draggable="false"
-        class="block max-h-[calc(100dvh-10rem)] max-w-dvw object-contain transition-opacity duration-300 md:max-w-[calc(100dvw-9rem)]"
-        :class="loaded ? 'opacity-100' : 'opacity-0'"
-        @load="loaded = true"
+        class="block object-contain transition-opacity duration-300"
+        :class="[
+          loaded ? 'opacity-100' : 'opacity-0',
+          !fitted && 'max-h-[calc(100dvh-10rem)] max-w-dvw md:max-w-[calc(100dvw-9rem)]',
+        ]"
+        :style="fitted ?? undefined"
+        @load="onLoad"
         @error="loaded = true"
       />
     </div>

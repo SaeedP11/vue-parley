@@ -504,23 +504,59 @@ test.describe("images", () => {
     await openConversation(page, "c2");
     await page.getByTestId("bubble-media-item").nth(1).click();
 
+    // The conversation's earlier photo comes first, then the album's three items.
     const counter = page.getByTestId("viewer-counter");
-    await expect(counter).toHaveText("2 of 3");
+    await expect(counter).toHaveText("3 of 4");
     await expect(page.getByTestId("viewer-video")).toBeVisible();
 
     await page.keyboard.press("ArrowRight");
-    await expect(counter).toHaveText("3 of 3");
+    await expect(counter).toHaveText("4 of 4");
     await expect(page.getByTestId("viewer-image")).toBeVisible();
 
     await page.getByRole("button", { name: "Previous" }).click();
     await page.getByRole("button", { name: "Previous" }).click();
-    await expect(counter).toHaveText("1 of 3");
+    await page.getByRole("button", { name: "Previous" }).click();
+    await expect(counter).toHaveText("1 of 4");
     // At the start there is nowhere further back to go, so the arrow is hidden.
     await expect(
       page.getByRole("button", { name: "Previous", exact: true, includeHidden: true }),
     ).toBeHidden();
 
     await page.getByTestId("viewer-close").click();
+    await expect(page.locator('[data-testid="image-viewer"][data-open="true"]')).toHaveCount(0);
+  });
+
+  test("a small photo is scaled up to fill the viewer", async ({ page }) => {
+    // 1x1 PNG standing in for a photo smaller than its bubble.
+    const tiny = Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==",
+      "base64",
+    );
+    await page.route("https://example.com/photo.png", (route) =>
+      route.fulfill({ body: tiny, contentType: "image/png" }),
+    );
+    await openConversation(page, "c2");
+    await page.getByTestId("bubble-image").click();
+
+    const img = page.getByTestId("viewer-image").locator("img");
+    await expect.poll(async () => (await img.boundingBox())?.width ?? 0).toBeGreaterThan(300);
+  });
+
+  test("zoom buttons, a tap beside the photo closes, and the next message's photos follow", async ({ page }) => {
+    await openConversation(page, "c2");
+    await page.getByTestId("bubble-image").click();
+    const stage = page.getByTestId("viewer-image");
+
+    await expect(page.getByRole("button", { name: "Zoom out" })).toBeDisabled();
+    await page.getByRole("button", { name: "Zoom in" }).click();
+    await expect(stage).toHaveAttribute("data-zoomed", "true");
+    await page.getByRole("button", { name: "Zoom out" }).click();
+    await expect(stage).toHaveAttribute("data-zoomed", "false");
+
+    await page.keyboard.press("ArrowRight");
+    await expect(page.getByTestId("viewer-counter")).toHaveText("2 of 4");
+
+    await page.mouse.click(40, 400);
     await expect(page.locator('[data-testid="image-viewer"][data-open="true"]')).toHaveCount(0);
   });
 

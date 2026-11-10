@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [5.5.20] - 2026-11-10
+
+### Added
+
+- Media viewer: zoom in/out buttons (and `+`/`-` keys) for photos, and a tap or click beside the photo closes it.
+- The viewer steps through every photo and video loaded in the conversation, not only the opened message's album; the top bar shows each item's own sender and date.
+
+### Fixed
+
+- A photo smaller than the screen opened at its own pixel size in the viewer, smaller than its chat bubble; it is now scaled up to fit.
+- The viewer is teleported to `<body>`, so it now carries the chat's direction itself (RTL arrows and header).
+
 ## [5.5.19] - 2026-11-10
 
 ### Added

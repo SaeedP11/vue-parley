@@ -23,7 +23,7 @@ const ICONS = [
   "Checks", "CircleNotch", "Clock", "Copy", "CornersIn", "DotsThreeVertical", "DownloadSimple",
   "Eraser", "File", "FileText", "Files", "FilmStrip", "Flag", "FrameCorners", "Hamburger",
   "HandWaving", "Heart", "IdentificationCard", "Image", "Images", "Info", "Lightbulb",
-  "Lightning", "LightningSlash", "LockKey", "MagnifyingGlass", "Microphone", "MicrophoneSlash",
+  "Lightning", "LightningSlash", "LockKey", "MagnifyingGlass", "MagnifyingGlassMinus", "MagnifyingGlassPlus", "Microphone", "MicrophoneSlash",
   "Monitor", "MonitorArrowUp", "Moon", "MusicNotes", "Palette", "PaperPlaneTilt", "Paperclip",
   "Pause", "PauseCircle", "PawPrint", "PencilLine", "PencilSimpleLine", "Phone", "PhoneCall",
   "PhoneX", "Play", "PlayCircle", "Plus", "Resize", "SidebarSimple", "Smiley", "SmileyMeh",

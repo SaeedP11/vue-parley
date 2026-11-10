@@ -22,7 +22,7 @@ import { useLongPress } from "~/composables/useLongPress";
 import useLocalI18n from "~/composables/useLocalI18n";
 import { useDate } from "~/composables/useDate.js";
 import { chatBubble } from "@i18n/locales";
-import { messageMedia } from "~/utils/media";
+import { messageMedia, type ViewerItem } from "~/utils/media";
 import { useProfileStore } from "~/stores/profileStore.js";
 
 const props = withDefaults(
@@ -59,6 +59,27 @@ const isSelected = computed(() =>
 const isSelectMode = computed(() => messagesStore.isSelectMode);
 
 const media = computed(() => messageMedia(props.message));
+
+const senderLabel = (message: Message) => {
+  if (message.senderId === currentUserId.value) return t("you");
+  const who = message.sender ?? props.contact;
+  return `${who.name} ${who.lastName}`.trim();
+};
+
+// Every photo and video loaded in this conversation, oldest first, so the viewer steps on past
+// this message's own album. Only read once the viewer is open.
+const conversationMedia = computed(() => {
+  const loaded = messagesStore.messagesMap[props.message.conversationId] ?? [];
+  const messages = loaded.some((m) => m.id === props.message.id) ? loaded : [props.message];
+  const items: ViewerItem[] = [];
+  let start = 0;
+  for (const m of [...messages].sort((a, b) => +new Date(a.date) - +new Date(b.date))) {
+    if (m.request || m.type === "event" || m.event) continue;
+    if (m.id === props.message.id) start = items.length;
+    for (const item of messageMedia(m)) items.push({ ...item, sender: senderLabel(m), date: new Date(m.date) });
+  }
+  return { items, start };
+});
 
 const messageType = computed(() => {
   if (props.message.type === "event" || props.message.event) return "event";
@@ -124,7 +145,7 @@ const previewImage = async (index: number) => {
     viewerMounted.value = true;
     await nextTick();
   }
-  mediaViewerRef.value?.open(index);
+  mediaViewerRef.value?.open(conversationMedia.value.start + index);
 };
 
 const optionsMounted = ref(false);
@@ -319,8 +340,8 @@ const longPress = useLongPress(handleRightClick);
         <MediaViewer
           v-if="viewerMounted && media.length > 0"
           ref="mediaViewer"
-          :items="media"
-          :sender="isMine ? t('you') : `${(message.sender ?? contact).name} ${(message.sender ?? contact).lastName}`.trim()"
+          :items="conversationMedia.items"
+          :sender="senderLabel(message)"
           :date="message.date"
         />
         <BubbleOptions

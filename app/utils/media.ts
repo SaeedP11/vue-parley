@@ -1,5 +1,12 @@
 import type { MediaItem, Message } from "~/types";
 
+/** The media viewer's zoom range: 1 is the photo fitted to the screen. */
+export const ZOOM_MIN = 1;
+export const ZOOM_MAX = 5;
+
+/** A media viewer item; it may come from another message than the one opened. */
+export type ViewerItem = MediaItem & { sender?: string; date?: Date };
+
 /** A message's album: its `media`, or, from hosts that only send photos, its `imageUrl`. */
 export const messageMedia = (message: Pick<Message, "media" | "imageUrl">): MediaItem[] =>
   message.media?.length

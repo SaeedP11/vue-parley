@@ -12,7 +12,9 @@
     "fullscreen": "Full screen",
     "exitFullscreen": "Exit full screen",
     "seek": "Seek",
-    "resetZoom": "Reset zoom"
+    "resetZoom": "Reset zoom",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out"
   },
   "cantPlay": "This video can't be played here. Download it to watch.",
   "sentOn": "{day}, {time}",
