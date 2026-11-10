@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [5.5.13] - 2026-11-10
+
+### Fixed
+
+- Call control labels wrap on narrow phones instead of running into the neighbouring control.
+
 ## [5.5.12] - 2026-11-10
 
 ### Added

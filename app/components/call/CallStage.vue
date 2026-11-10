@@ -875,6 +875,7 @@ const runAction = () => {
   flex-shrink: 0;
   align-items: center;
   justify-content: space-around;
+  gap: 0.25rem;
   margin: clamp(0.375rem, 1.5dvh, 0.875rem) var(--gutter) 0;
   padding: clamp(0.375rem, 1.1dvh, 0.75rem) 0.625rem;
   border: 1px solid rgb(255 255 255 / 0.086);
@@ -1078,6 +1079,15 @@ const runAction = () => {
   font-weight: 600;
   text-align: center;
   white-space: nowrap;
+}
+
+/* Long labels wrap instead of running into the neighbouring control on narrow phones. */
+.call-control > span {
+  max-width: 100%;
+  min-height: 2.4em;
+  line-height: 1.2;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .call-control--lit {
