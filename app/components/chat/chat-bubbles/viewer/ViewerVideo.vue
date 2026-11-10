@@ -44,8 +44,17 @@ const sliderContainer = useTemplateRef<HTMLElement>("sliderContainer");
 const playbackSrc = ref(props.src);
 const isSeekable = ref(false);
 const pendingSeek = ref<number | null>(null);
+const isSeeking = ref(false);
+const isDownloadingBlob = ref(false);
+const downloadProgress = ref<number | null>(null);
 let objectUrl: string | null = null;
 let abortController: AbortController | null = null;
+
+interface BufferedRange {
+  startPct: number;
+  widthPct: number;
+}
+const bufferedRanges = ref<BufferedRange[]>([]);
 
 const isPlaying = ref(false);
 const isEnded = ref(false);
@@ -61,6 +70,34 @@ const bufferedPercent = ref(0);
 const showRemainingTime = ref(false);
 const supportsPiP = ref(false);
 const showVolumeSlider = ref(false);
+
+const isTimeBuffered = (time: number): boolean => {
+  const el = video.value;
+  if (!el) return false;
+  const buf = el.buffered;
+  for (let i = 0; i < buf.length; i++) {
+    if (buf.start(i) <= time && time <= buf.end(i)) {
+      return true;
+    }
+  }
+  return false;
+};
+
+const showLoading = computed(() => {
+  if (failed.value || isEnded.value) return false;
+  if (scrubbing.value) return false;
+  return isWaiting.value || isSeeking.value || pendingSeek.value !== null;
+});
+
+const loadingLabel = computed(() => {
+  if (downloadProgress.value !== null && (pendingSeek.value !== null || isDownloadingBlob.value)) {
+    return t("downloading", { progress: downloadProgress.value });
+  }
+  if (pendingSeek.value !== null) {
+    return t("loading");
+  }
+  return null;
+});
 
 // Controls visibility & auto-hiding
 const showControls = ref(true);
@@ -158,30 +195,39 @@ const onSliderMouseLeave = () => {
 const updateBuffered = () => {
   const el = video.value;
   if (!el || !duration.value || duration.value <= 0) {
+    bufferedRanges.value = [];
     bufferedPercent.value = 0;
     return;
   }
   if (playbackSrc.value.startsWith("blob:") || playbackSrc.value.startsWith("data:")) {
+    bufferedRanges.value = [{ startPct: 0, widthPct: 100 }];
     bufferedPercent.value = 100;
     return;
   }
   const buf = el.buffered;
   if (!buf || buf.length === 0) {
+    bufferedRanges.value = [];
     bufferedPercent.value = 0;
     return;
   }
-  const cur = el.currentTime;
-  let end = 0;
+  const d = duration.value;
+  const ranges: BufferedRange[] = [];
+  let maxEnd = 0;
   for (let i = 0; i < buf.length; i++) {
-    if (buf.start(i) <= cur && cur <= buf.end(i)) {
-      end = buf.end(i);
-      break;
-    }
-    if (buf.end(i) > end) {
-      end = buf.end(i);
+    const s = Math.max(0, buf.start(i));
+    const e = Math.min(d, buf.end(i));
+    if (e > s) {
+      ranges.push({
+        startPct: (s / d) * 100,
+        widthPct: ((e - s) / d) * 100,
+      });
+      if (e > maxEnd) {
+        maxEnd = e;
+      }
     }
   }
-  bufferedPercent.value = Math.min(100, (end / duration.value) * 100);
+  bufferedRanges.value = ranges;
+  bufferedPercent.value = Math.min(100, (maxEnd / d) * 100);
 };
 
 // Volume & Wheel handling
@@ -229,10 +275,16 @@ const setupSource = async (url: string) => {
   releaseObjectUrl();
   pendingSeek.value = null;
   isEnded.value = false;
+  isDownloadingBlob.value = false;
+  downloadProgress.value = null;
+  isSeeking.value = false;
+  isWaiting.value = true;
 
   if (!url) {
     playbackSrc.value = "";
     isSeekable.value = false;
+    bufferedRanges.value = [];
+    bufferedPercent.value = 0;
     return;
   }
 
@@ -240,6 +292,7 @@ const setupSource = async (url: string) => {
   if (url.startsWith("blob:") || url.startsWith("data:")) {
     playbackSrc.value = url;
     isSeekable.value = true;
+    bufferedRanges.value = [{ startPct: 0, widthPct: 100 }];
     bufferedPercent.value = 100;
     return;
   }
@@ -251,6 +304,7 @@ const setupSource = async (url: string) => {
       objectUrl = URL.createObjectURL(cached);
       playbackSrc.value = objectUrl;
       isSeekable.value = true;
+      bufferedRanges.value = [{ startPct: 0, widthPct: 100 }];
       bufferedPercent.value = 100;
       return;
     }
@@ -277,9 +331,19 @@ const setupSource = async (url: string) => {
     }
 
     // Server ignores range requests (returns 200). Fetch the full blob in background.
-    const blob = await mediaStore.download(url, { signal: ac.signal });
+    isDownloadingBlob.value = true;
+    const blob = await mediaStore.download(url, {
+      signal: ac.signal,
+      onProgress: (pct) => {
+        if (abortController === ac) {
+          downloadProgress.value = pct;
+        }
+      },
+    });
     if (abortController !== ac) return;
 
+    isDownloadingBlob.value = false;
+    downloadProgress.value = 100;
     objectUrl = URL.createObjectURL(blob);
     const media = video.value;
     const at = pendingSeek.value !== null ? pendingSeek.value : (media?.currentTime ?? 0);
@@ -287,8 +351,8 @@ const setupSource = async (url: string) => {
 
     playbackSrc.value = objectUrl;
     isSeekable.value = true;
+    bufferedRanges.value = [{ startPct: 0, widthPct: 100 }];
     bufferedPercent.value = 100;
-    pendingSeek.value = null;
 
     if (media) {
       media.addEventListener(
@@ -296,14 +360,20 @@ const setupSource = async (url: string) => {
         () => {
           media.currentTime = at;
           media.playbackRate = playbackRate.value;
+          pendingSeek.value = null;
+          isWaiting.value = false;
+          isSeeking.value = false;
           if (wasPlaying) media.play().catch(() => {});
         },
         { once: true },
       );
+    } else {
+      pendingSeek.value = null;
     }
   } catch (error: any) {
     if (error?.name !== "AbortError") {
       isSeekable.value = false;
+      isDownloadingBlob.value = false;
     }
   }
 };
@@ -372,16 +442,23 @@ const seek = (value: number | number[]) => {
   current.value = time;
   if (video.value) {
     if (isSeekable.value) {
+      if (!isTimeBuffered(time)) {
+        isWaiting.value = true;
+      }
+      isSeeking.value = true;
       video.value.currentTime = time;
     } else {
       pendingSeek.value = time;
+      isWaiting.value = true;
     }
   }
 };
 
 const onTimeUpdate = () => {
   if (!scrubbing.value && video.value) {
-    current.value = video.value.currentTime;
+    if (pendingSeek.value === null) {
+      current.value = video.value.currentTime;
+    }
     if ((!duration.value || !Number.isFinite(duration.value)) && video.value.currentTime > 0) {
       duration.value = Math.max(duration.value || 0, video.value.currentTime);
     }
@@ -579,9 +656,13 @@ onBeforeUnmount(() => {
         @play="isPlaying = true; isEnded = false"
         @pause="isPlaying = false"
         @ended="onEnded"
+        @loadstart="isWaiting = true"
+        @seeking="isSeeking = true"
+        @seeked="isSeeking = false"
         @waiting="isWaiting = true"
-        @playing="isWaiting = false; isPlaying = true; isEnded = false"
-        @canplay="isWaiting = false"
+        @stalled="isWaiting = true"
+        @playing="isWaiting = false; isSeeking = false; isPlaying = true; isEnded = false"
+        @canplay="isWaiting = false; isSeeking = false"
         @loadedmetadata="onMetadata"
         @durationchange="onMetadata"
         @timeupdate="onTimeUpdate"
@@ -590,16 +671,28 @@ onBeforeUnmount(() => {
         @error="failed = true"
       />
 
-      <!-- Buffering Spinner -->
-      <ProgressSpinner
-        v-if="isWaiting"
-        stroke-width="3"
-        class="pointer-events-none absolute! top-1/2 left-1/2 size-12! -translate-1/2 z-30 [&_circle]:stroke-white!"
-      />
+      <!-- Buffering & Chunk Loading Overlay -->
+      <Transition name="loading-fade">
+        <div
+          v-if="showLoading"
+          class="pointer-events-none absolute top-1/2 left-1/2 -translate-1/2 z-30 flex flex-col items-center justify-center gap-y-2 rounded-2xl bg-black/60 p-4 text-white backdrop-blur-md shadow-2xl transition-all duration-200"
+        >
+          <ProgressSpinner
+            stroke-width="3"
+            class="size-10! [&_circle]:stroke-white!"
+          />
+          <span
+            v-if="loadingLabel"
+            class="text-label-sm font-semibold tracking-wider text-white/90 tabular-nums animate-pulse"
+          >
+            {{ loadingLabel }}
+          </span>
+        </div>
+      </Transition>
 
       <!-- Replay Button Overlay on Ended -->
       <button
-        v-if="isEnded && !isWaiting"
+        v-if="isEnded && !showLoading"
         type="button"
         class="absolute top-1/2 left-1/2 -translate-1/2 z-30 flex size-16 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur-md shadow-2xl transition-all duration-200 hover:scale-110 hover:bg-black/80 cursor-pointer"
         aria-label="Replay"
@@ -611,7 +704,7 @@ onBeforeUnmount(() => {
       <!-- Center Action Feedback Ripple -->
       <Transition name="feedback-fade">
         <div
-          v-if="feedbackState && !isEnded"
+          v-if="feedbackState && !isEnded && !showLoading"
           :key="feedbackState.id"
           class="pointer-events-none absolute top-1/2 left-1/2 -translate-1/2 z-30 flex items-center justify-center rounded-full bg-black/60 p-4 text-white backdrop-blur-md shadow-2xl"
         >
@@ -669,9 +762,18 @@ onBeforeUnmount(() => {
 
           <!-- Track Background & Buffered Progress Bar -->
           <div class="pointer-events-none absolute inset-x-0 h-1 overflow-hidden rounded-full bg-white/25">
+            <!-- Background blob download progress when non-range streaming is downloading -->
             <div
-              class="h-full bg-white/45 transition-all duration-300"
-              :style="{ width: `${bufferedPercent}%` }"
+              v-if="isDownloadingBlob && downloadProgress !== null"
+              class="h-full bg-white/30 transition-all duration-300"
+              :style="{ width: `${downloadProgress}%` }"
+            />
+            <!-- HTML5 Video Buffered Ranges -->
+            <div
+              v-for="(range, idx) in bufferedRanges"
+              :key="idx"
+              class="absolute top-0 h-full bg-white/50 transition-all duration-200"
+              :style="{ left: `${range.startPct}%`, width: `${range.widthPct}%` }"
             />
           </div>
 
@@ -808,6 +910,21 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+.loading-fade-enter-active,
+.loading-fade-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.loading-fade-enter-from,
+.loading-fade-leave-to {
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.85);
+}
+.loading-fade-enter-to,
+.loading-fade-leave-from {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
+
 .feedback-fade-enter-active,
 .feedback-fade-leave-active {
   transition: opacity 0.25s ease, transform 0.25s ease;

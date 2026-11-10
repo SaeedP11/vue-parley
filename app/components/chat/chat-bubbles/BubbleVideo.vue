@@ -31,6 +31,7 @@ const videoRef = ref<HTMLVideoElement | null>(null);
 const isPlaying = ref(false);
 const isMuted = ref(false);
 const isLoaded = ref(false);
+const isBuffering = ref(false);
 const progress = ref(0);
 
 const uploadData = computed(() =>
@@ -209,7 +210,13 @@ onBeforeUnmount(() => {
         @ended="handleEnded"
         @play="handlePlay"
         @pause="handlePause"
-        @loadeddata="isLoaded = true"
+        @waiting="isBuffering = true"
+        @stalled="isBuffering = true"
+        @seeking="isBuffering = true"
+        @seeked="isBuffering = false"
+        @playing="isBuffering = false; isPlaying = true"
+        @canplay="isBuffering = false"
+        @loadeddata="isLoaded = true; isBuffering = false"
         @loadedmetadata="handleMetadata"
         @durationchange="handleMetadata"
       ></video>
@@ -219,8 +226,16 @@ onBeforeUnmount(() => {
         class="absolute inset-0 flex items-center justify-center bg-chat-background"
       ></div>
 
+      <!-- Loading spinner when chunk is not prepared or is downloading / buffering -->
       <div
-        v-if="mode === 'playback' && !isUploading"
+        v-if="mode === 'playback' && !isUploading && (isBuffering || !isLoaded)"
+        class="absolute inset-0 flex items-center justify-center bg-black/40 z-20 pointer-events-none"
+      >
+        <div class="size-7 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+      </div>
+
+      <div
+        v-if="mode === 'playback' && !isUploading && !isBuffering && isLoaded"
         class="absolute inset-0 flex items-center justify-center transition-all duration-300"
         :class="[
           isPlaying ? 'bg-transparent opacity-0' : '  bg-black/30 opacity-100',
