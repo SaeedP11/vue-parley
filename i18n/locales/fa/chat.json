@@ -195,7 +195,9 @@
         "shareScreen": "اشتراک صفحه",
         "stopSharing": "توقف اشتراک",
         "youArePresenting": "شما در حال اشتراک‌گذاری صفحه هستید",
-        "tileFullscreen": "تمام‌صفحه {name}"
+        "tileFullscreen": "تمام‌صفحه {name}",
+        "miniView": "تصویر پنجره کوچک",
+        "showInMini": "نمایش تصویر {name}"
       },
       "controls": {
         "enableSound": "برای روشن کردن صدا ضربه بزنید",

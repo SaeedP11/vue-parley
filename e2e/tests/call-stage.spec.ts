@@ -62,6 +62,15 @@ test("the stage shows names, a host action and the other participants", async ({
   const mini = alice!.getByTestId("call-stage-mini");
   await expect(mini).toBeVisible();
   await expect(mini).not.toContainText(/\{count\}|peopleCount/);
+
+  // The user picks whose video the mini window shows (wide screens only: phones get a strip).
+  await alice!.setViewportSize({ width: 1280, height: 800 });
+  const people = mini.getByTestId("call-stage-mini-person");
+  await expect(people).toHaveCount(3);
+  const you = people.filter({ hasText: "You" });
+  await you.click();
+  await expect(you).toHaveAttribute("aria-pressed", "true");
+  await expect(mini.locator(".call-mini-name")).toHaveText("You");
   await mini.getByTestId("call-stage-mini-expand").click();
   await expect(alice!.getByTestId("call-stage")).toBeVisible();
 

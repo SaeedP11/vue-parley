@@ -195,7 +195,9 @@
         "shareScreen": "Share",
         "stopSharing": "Stop sharing",
         "youArePresenting": "You are sharing your screen",
-        "tileFullscreen": "Show {name} full screen"
+        "tileFullscreen": "Show {name} full screen",
+        "miniView": "Mini window video",
+        "showInMini": "Show {name}"
       },
       "controls": {
         "enableSound": "Tap to turn on sound",

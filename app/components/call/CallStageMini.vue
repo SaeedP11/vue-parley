@@ -1,3 +1,8 @@
+<script lang="ts">
+// The pick outlives a maximize/minimize round trip, and dies with its call.
+const picks = new WeakMap<object, string>();
+</script>
+
 <script setup lang="ts">
 import { useCallStore } from "~/stores/callStore";
 import { formatDuration } from "~/utils/format";
@@ -18,12 +23,24 @@ const session = callStore.session!;
 const { media } = session;
 
 const participants = computed(() => session.participants.value);
-const main = computed(() => participants.value.find((person) => !person.isSelf) ?? participants.value[0]);
+const pickedId = ref(picks.get(session));
+const main = computed(
+  () =>
+    participants.value.find((person) => person.id === pickedId.value) ??
+    participants.value.find((person) => !person.isSelf) ??
+    participants.value[0],
+);
+const pick = (id: string) => {
+  pickedId.value = id;
+  picks.set(session, id);
+};
+const nameOf = (person: (typeof participants.value)[number]) =>
+  person.isSelf ? t("chat.call.you") : person.name || t("chat.call.stage.participant");
 const stream = computed(() => (main.value?.isSelf ? media.localStream.value : main.value?.camera));
 const cameraOn = computed(() =>
   main.value?.isSelf ? media.isVideoOn.value : main.value?.media?.video !== false && !!main.value?.camera?.getVideoTracks().length,
 );
-const name = computed(() => main.value?.name || t("chat.call.stage.participant"));
+const name = computed(() => (main.value ? nameOf(main.value) : t("chat.call.stage.participant")));
 const duration = computed(() => formatDuration(Math.max(0, Math.floor(callStore.elapsedTime))));
 
 const card = ref<HTMLElement>();
@@ -87,6 +104,28 @@ const endCall = async () => {
       <CallStageVideo v-if="cameraOn" :stream="stream" />
       <span v-else class="call-mini-off">{{ t("chat.call.cameraOff") }}</span>
       <span class="call-mini-name">{{ name }}</span>
+    </div>
+
+    <div
+      v-if="participants.length > 1"
+      class="call-mini-people"
+      role="group"
+      :aria-label="t('chat.call.stage.miniView')"
+      data-testid="call-stage-mini-people"
+    >
+      <button
+        v-for="person in participants"
+        :key="person.id"
+        type="button"
+        class="call-mini-person"
+        :aria-pressed="person.id === main?.id"
+        :aria-label="t('chat.call.stage.showInMini', { name: nameOf(person) })"
+        data-testid="call-stage-mini-person"
+        @pointerdown.stop
+        @click="pick(person.id)"
+      >
+        {{ nameOf(person) }}
+      </button>
     </div>
   </div>
 </template>
@@ -182,12 +221,39 @@ const endCall = async () => {
   text-shadow: 0 1px 4px rgb(0 0 0 / 0.6);
 }
 
+.call-mini-people {
+  display: flex;
+  gap: 0.375rem;
+  margin-top: 0.5rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.call-mini-person {
+  flex-shrink: 0;
+  max-width: 8rem;
+  padding: 0.25rem 0.625rem;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #2b3a47;
+  font-size: 0.6875rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.call-mini-person[aria-pressed="true"] {
+  background: #2f6fed;
+  font-weight: 700;
+}
+
 @media (max-width: 640px) {
   .call-mini {
     padding: 0.5rem;
   }
 
-  .call-mini-video {
+  .call-mini-video,
+  .call-mini-people {
     display: none;
   }
 }

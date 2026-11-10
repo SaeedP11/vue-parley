@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [5.5.19] - 2026-11-10
+
+### Added
+
+- The minimized call window lists the participants; picking one switches whose video it shows, and the pick survives maximize/minimize.
+
 ## [5.5.18] - 2026-11-10
 
 ### Changed
