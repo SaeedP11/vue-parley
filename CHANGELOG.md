@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [5.5.15] - 2026-11-10
+
+### Added
+
+- Video player displays loading state and download percentage when video chunks or fallback blobs are loading.
+- Timeline seekbar renders multi-segment buffered ranges.
+- BubbleVideo message bubbles show an unobtrusive buffering spinner during chunk loading.
+
 ## [5.5.13] - 2026-11-10
 
 ### Fixed
