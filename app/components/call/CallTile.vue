@@ -5,7 +5,7 @@
  * the speaking ring, and a "can't connect" state with Retry (FR-022). The <video> stays mounted
  * whatever shows over it: it also plays the person's sound.
  */
-import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, toRef } from "vue";
 import Avatar from "primevue/avatar";
 import BIcon from "~/components/global/BIcon.vue";
 import Button from "primevue/button";
@@ -18,6 +18,7 @@ import CallButton from "./CallButton.vue";
 import CallIcon from "./CallIcon.vue";
 import { callButtonDt, focusRing, nameChip, tileActions, tileButton, tip } from "./tokens";
 import { avatarToneStyle, nameInitials } from "~/utils/avatar";
+import { useTileZoom } from "~/composables/call/useTileZoom";
 
 const vTooltip = Tooltip;
 
@@ -100,6 +101,9 @@ const pinLabel = computed(() =>
 const pauseLabel = computed(() =>
   props.paused ? t("chat.call.controls.playVideo") : t("chat.call.controls.pauseVideo"),
 );
+const zoomArea = ref<HTMLElement | null>(null);
+const zoom = useTileZoom(zoomArea, toRef(props, "mirrored"));
+
 const fullscreenLabel = computed(() =>
   props.isFullscreen ? t("chat.call.controls.exitFullscreen") : t("chat.call.controls.fullscreen"),
 );
@@ -114,7 +118,17 @@ const fullscreenLabel = computed(() =>
     class="group relative min-h-0 min-w-0 overflow-hidden rounded-2xl bg-neutral-800 ring-3 ring-inset transition-shadow [clip-path:inset(0_round_var(--radius-2xl))] motion-reduce:transition-none"
     :class="speaking && !isScreen ? 'ring-sky-400' : 'ring-transparent'"
   >
-    <div class="absolute inset-0" :data-testid="innerTestId">
+    <div
+      ref="zoomArea"
+      class="absolute inset-0 touch-none"
+      :data-testid="innerTestId"
+      @wheel="zoom.onWheel"
+      @pointerdown="zoom.onPointerDown"
+      @pointermove="zoom.onPointerMove"
+      @pointerup="zoom.onPointerUp"
+      @pointercancel="zoom.onPointerUp"
+      @dblclick="zoom.reset"
+    >
       <video
         ref="videoEl"
         :data-testid="tile.kind === 'self' ? 'call-local-video' : undefined"
@@ -126,7 +140,9 @@ const fullscreenLabel = computed(() =>
           'object-contain',
           tile.kind === 'self' && 'pointer-events-none',
           mirrored && '-scale-x-100',
+          zoom.zoomed.value && 'cursor-grab',
         ]"
+        :style="zoom.videoStyle.value"
       />
 
       <!-- Camera off or not (yet) sent: the person's initial. -->
@@ -210,6 +226,16 @@ const fullscreenLabel = computed(() =>
           :class="focusRing"
           data-testid="call-pin"
           @click="emit('pin')"
+        />
+        <CallButton
+          v-if="zoom.zoomed.value && !showAvatar"
+          v-tooltip.top="tip(t('chat.call.controls.resetZoom'))"
+          icon="refresh"
+          :label="t('chat.call.controls.resetZoom')"
+          v-bind="tileButton"
+          :class="focusRing"
+          data-testid="call-reset-zoom"
+          @click="zoom.reset"
         />
         <template v-if="!compact && !showAvatar">
           <CallButton
