@@ -29,6 +29,7 @@ const props = withDefaults(
 const messagesStore = useMessagesStore();
 const videoRef = ref<HTMLVideoElement | null>(null);
 const isPlaying = ref(false);
+const isMuted = ref(false);
 const isLoaded = ref(false);
 const progress = ref(0);
 
@@ -65,13 +66,41 @@ const togglePlay = () => {
   }
 };
 
+const knownDuration = ref(0);
+
+const handleMetadata = () => {
+  const el = videoRef.value;
+  if (!el) return;
+  const d = el.duration;
+  if (Number.isFinite(d) && d > 0) {
+    knownDuration.value = d;
+  } else if (d === Infinity) {
+    const onTime = () => {
+      el.removeEventListener("timeupdate", onTime);
+      const resolved =
+        Number.isFinite(el.duration) && el.duration > 0
+          ? el.duration
+          : el.currentTime;
+      if (Number.isFinite(resolved) && resolved > 0) {
+        knownDuration.value = resolved;
+      }
+      el.currentTime = 0;
+    };
+    el.addEventListener("timeupdate", onTime, { once: true });
+    el.currentTime = 1e101;
+  }
+};
+
 const handleTimeUpdate = () => {
   if (!videoRef.value || props.mode === "recording" || isUploading.value)
     return;
   const current = videoRef.value.currentTime;
-  const total = videoRef.value.duration;
-  if (total) {
-    progress.value = (current / total) * 100;
+  let total = videoRef.value.duration;
+  if (!Number.isFinite(total) || total <= 0) {
+    total = knownDuration.value;
+  }
+  if (total && Number.isFinite(total) && total > 0) {
+    progress.value = Math.min((current / total) * 100, 100);
   }
 };
 
@@ -171,7 +200,7 @@ onBeforeUnmount(() => {
         :poster="thumbnail"
         playsinline
         loop
-        muted
+        :muted="mode === 'recording' || isMuted"
         class="w-full h-full object-cover transition-opacity duration-300"
         :class="[
           isLoaded || mode === 'recording' ? 'opacity-100' : 'opacity-0',
@@ -181,6 +210,8 @@ onBeforeUnmount(() => {
         @play="handlePlay"
         @pause="handlePause"
         @loadeddata="isLoaded = true"
+        @loadedmetadata="handleMetadata"
+        @durationchange="handleMetadata"
       ></video>
 
       <div

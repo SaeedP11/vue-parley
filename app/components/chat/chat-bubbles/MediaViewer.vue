@@ -62,6 +62,8 @@ const goToward = (direction: "left" | "right") =>
 
 useEventListener(window, "keydown", (event: KeyboardEvent) => {
   if (!isOpen.value || event.defaultPrevented) return;
+  // Let ViewerVideo handle arrow keys for seeking and volume
+  if (active.value?.kind === "video") return;
   if ((event.target as HTMLElement | null)?.closest("[role='slider']")) return;
   if (event.key === "ArrowLeft") goToward("right");
   else if (event.key === "ArrowRight") goToward("left");
