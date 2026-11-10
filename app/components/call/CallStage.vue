@@ -349,13 +349,14 @@ const runAction = () => {
         </button>
         <span>{{ t("chat.call.stage.flipCamera") }}</span>
       </div>
-      <div v-if="callStore.canShareScreen" class="call-control" :class="media.isScreenSharing.value && 'call-control--lit'">
+      <div v-if="callStore.canShareScreen && media.canShareScreen" class="call-control" :class="media.isScreenSharing.value && 'call-control--lit'">
         <button
           type="button"
           class="call-control-button"
           :class="media.isScreenSharing.value && 'call-control-button--lit'"
           :aria-label="shareLabel"
           :aria-pressed="media.isScreenSharing.value"
+          :disabled="media.isScreenShareStarting.value"
           data-testid="call-stage-screen-share"
           @click="session.toggleScreenShare()"
         >

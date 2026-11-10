@@ -91,6 +91,8 @@ const {
   isFullscreen,
   canFullscreen,
   isScreenSharing,
+  canShareScreen,
+  isScreenShareStarting,
   showControls,
   resetControlsTimeout,
   cameras,
@@ -807,11 +809,12 @@ const tileProps = (tile: CallTileInfo, compact = false) => ({
         />
 
         <CallButton
-          v-if="callStore.canShareScreen"
+          v-if="callStore.canShareScreen && canShareScreen"
           v-tooltip.top="tip(shareLabel)"
           :icon="isScreenSharing ? 'cancelPresentation' : 'presentToAll'"
           :label="shareLabel"
           :severity="isScreenSharing ? 'contrast' : 'secondary'"
+          :disabled="isScreenShareStarting"
           v-bind="barButton"
           data-testid="call-toggle-screen"
           :data-active="isScreenSharing"

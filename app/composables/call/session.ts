@@ -396,11 +396,17 @@ export function createCallSession(opts: CallSessionOptions) {
   }
 
   async function toggleScreenShare() {
+    if (media.isScreenShareStarting.value) return;
     if (media.isScreenSharing.value) return stopScreenShare();
     const stream = await media.startScreenShare(stopScreenShare);
     if (!stream) return;
+    if (ended) {
+      media.stopScreenShare();
+      return;
+    }
     // Tell the others this stream is a screen before it reaches them.
     await announceTracks();
+    if (ended || media.screenStream.value !== stream) return;
     stream.getVideoTracks().forEach((track) => peers.addTrackToAll(track, stream));
   }
 

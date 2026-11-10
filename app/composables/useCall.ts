@@ -63,6 +63,8 @@ export default function useCall({ layoutKey }: { layoutKey?: () => string } = {}
     isAudioOn: media.isAudioOn,
     isVideoOn: media.isVideoOn,
     isScreenSharing: media.isScreenSharing,
+    canShareScreen: media.canShareScreen,
+    isScreenShareStarting: media.isScreenShareStarting,
     isFlashlightOn: media.isFlashlightOn,
     isFlashlightSupported: media.isFlashlightSupported,
     toggleAudio: media.toggleAudio,

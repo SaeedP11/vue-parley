@@ -35,6 +35,9 @@ export function useCallMedia({ notify, isMobile }: MediaOptions) {
   const isAudioOn = ref(true);
   const isVideoOn = ref(true);
   const isScreenSharing = ref(false);
+  const canShareScreen = typeof navigator !== "undefined" &&
+    typeof navigator.mediaDevices?.getDisplayMedia === "function";
+  const isScreenShareStarting = ref(false);
   const isFlashlightOn = ref(false);
 
   const permissions = ref<{
@@ -259,13 +262,14 @@ export function useCallMedia({ notify, isMobile }: MediaOptions) {
 
   /** Starts sharing the screen; returns the new stream, or null if there is none. */
   async function startScreenShare(onEnded: () => void) {
+    if (isScreenShareStarting.value) return null;
     if (screenStream.value) {
       // Resume a paused share.
       screenStream.value.getVideoTracks()[0]!.enabled = true;
       isScreenSharing.value = true;
       return null;
     }
-    if (!navigator.mediaDevices?.getDisplayMedia) {
+    if (!canShareScreen) {
       error(
         isMobile()
           ? "screenShareMobileUnsupported"
@@ -274,11 +278,18 @@ export function useCallMedia({ notify, isMobile }: MediaOptions) {
       return null;
     }
 
+    isScreenShareStarting.value = true;
     try {
       const stream = await navigator.mediaDevices.getDisplayMedia({
-        video: true,
+        // On phones, prefer the whole display when the browser offers a source picker.
+        video: isMobile() ? { displaySurface: "monitor" } : true,
         audio: false,
       });
+      if (!stream.getVideoTracks().length) {
+        stream.getTracks().forEach((track) => track.stop());
+        error("screenAccessError");
+        return null;
+      }
       screenStream.value = stream;
       trackTypes.value = [...trackTypes.value, { id: stream.id, type: "screen" }];
       stream.getTracks().forEach((track) => (track.onended = onEnded));
@@ -289,6 +300,8 @@ export function useCallMedia({ notify, isMobile }: MediaOptions) {
       error(deviceError(err, "screen", isMobile()));
       isScreenSharing.value = false;
       return null;
+    } finally {
+      isScreenShareStarting.value = false;
     }
   }
 
@@ -354,6 +367,8 @@ export function useCallMedia({ notify, isMobile }: MediaOptions) {
     isAudioOn,
     isVideoOn,
     isScreenSharing,
+    canShareScreen,
+    isScreenShareStarting,
     isFlashlightOn,
     isFlashlightSupported,
     checkPermissions,

@@ -172,6 +172,16 @@ test.describe("video call", () => {
     // The stopped share's tile goes away instead of freezing on its last frame.
     await expect(remoteScreen).toHaveCount(0, { timeout: 20_000 });
     await expect(bob.getByTestId("call-remote-video")).toHaveCount(1);
+
+    // A phone-sized call uses the whole-display capture preference and the same WebRTC path.
+    await alice.setViewportSize({ width: 390, height: 844 });
+    await expect(share).toBeVisible();
+    await share.click();
+    await expect(share).toHaveAttribute("data-active", "true");
+    await expect(remoteScreen).toHaveCount(1, { timeout: 20_000 });
+    await expectPlayingVideo(remoteScreen.locator("video"));
+    await share.click();
+    await expect(remoteScreen).toHaveCount(0, { timeout: 20_000 });
   });
 
   test("minimize to picture-in-picture and restore", async () => {
