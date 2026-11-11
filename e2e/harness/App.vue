@@ -12,7 +12,7 @@ import { backend, blocked, call } from "./backend";
 
 const renderCall = ref(true);
 
-// `stage=1` mounts the call's stage arrangement, with a demo host action, instead of the usual view.
+// `stage=1` renders the call outside the chat page, with host stage options and a demo action.
 const stage = new URLSearchParams(location.search).has("stage");
 const lit = ref(false);
 const stageOptions = {

@@ -7,6 +7,7 @@ import { computed, ref, watch } from "vue";
 import { onClickOutside, onKeyStroke, useFullscreen } from "@vueuse/core";
 import CallIcon from "./CallIcon.vue";
 import CallStageVideo from "./CallStageVideo.vue";
+import { useCallNotices } from "~/composables/call/useCallNotices";
 
 /** A host's own button for one participant: it shows beside their name and in the control bar. */
 export interface CallStageAction {
@@ -43,7 +44,7 @@ const props = defineProps<{
 }>();
 const emit = defineEmits<{ action: []; enableSound: []; people: [] }>();
 
-const { t, n } = useLocalI18n(chat);
+const { t, n, locale } = useLocalI18n(chat);
 const { dir } = useDirection();
 const callStore = useCallStore();
 const session = callStore.session!;
@@ -127,8 +128,25 @@ const cameraOn = (tile?: Tile) =>
 const micOn = (tile?: Tile) => (tile?.isSelf ? media.isAudioOn.value : tile?.media?.audio !== false);
 const isMirrored = (tile?: Tile) => !!tile?.isSelf && media.facingMode.value !== "environment";
 const nameOf = (tile?: Tile) => tile?.name || (tile?.isSelf ? t("chat.call.you") : t("chat.call.stage.participant"));
-const isDisconnected = (tile?: Tile) => !!tile && !tile.isSelf && tile.status !== "connected";
+const isUnreachable = (tile?: Tile) => !!tile && !tile.isSelf && tile.status === "unreachable";
+const isDisconnected = (tile?: Tile) => !!tile && !tile.isSelf && tile.status !== "connected" && !isUnreachable(tile);
 const duration = computed(() => formatDuration(Math.max(0, Math.floor(callStore.elapsedTime))));
+
+// --- Waiting and join/leave notices -----------------------------------------------------------
+
+const waitingText = computed(() =>
+  session.phase.value !== "waiting" || participants.value.length > 1
+    ? ""
+    : session.hadOthers.value
+      ? t("chat.call.everyoneLeft")
+      : t("chat.call.waiting"),
+);
+const notices = useCallNotices(
+  session.participants,
+  (key, params, plural) => t(key, params, plural),
+  () => t("chat.call.andJoin"),
+  () => String(locale.value),
+);
 
 // --- Fullscreen: the browser's where it has one (not an iPhone), else the screen's own ---------
 
@@ -248,6 +266,23 @@ const onExtraClick = (event: MouseEvent) => {
         <CallIcon name="refresh" class="size-4 animate-spin motion-reduce:animate-none" />
         {{ t("chat.call.reconnecting") }}
       </span>
+      <!-- Rebuilding this pair kept failing: say so, and let the user try again. -->
+      <div v-if="isUnreachable(mainTile)" class="call-unreachable" role="status" data-testid="call-tile-unreachable">
+        <span>{{ t("chat.call.cantConnect", { name: nameOf(mainTile) }) }}</span>
+        <button type="button" class="call-retry" data-testid="call-tile-retry" @click="session.retryPeer(mainTile!.id)">
+          <CallIcon name="refresh" class="size-4" />
+          {{ t("chat.call.controls.retry") }}
+        </button>
+      </div>
+      <div v-if="waitingText" class="call-badge call-badge--center" role="status" data-testid="call-waiting">
+        {{ waitingText }}
+      </div>
+      <Transition name="call-notice">
+        <span v-if="notices.current.value && !soundBlocked" :key="notices.current.value.id" class="call-notice" data-testid="call-notice">
+          <bdi>{{ notices.current.value.text }}</bdi>
+        </span>
+      </Transition>
+      <span class="sr-only" aria-live="polite">{{ notices.liveText.value }}</span>
 
       <button v-if="soundBlocked" type="button" class="call-sound" data-testid="call-stage-sound" @click="emit('enableSound')">
         {{ t("chat.call.controls.enableSound") }}
@@ -308,6 +343,18 @@ const onExtraClick = (event: MouseEvent) => {
           <span v-if="isDisconnected(tile)" class="call-badge call-badge--center">
             <CallIcon name="refresh" class="size-4 animate-spin motion-reduce:animate-none" />
           </span>
+          <div v-if="isUnreachable(tile)" class="call-unreachable" role="status" data-testid="call-tile-unreachable">
+            <span class="sr-only">{{ t("chat.call.cantConnect", { name: nameOf(tile) }) }}</span>
+            <button
+              type="button"
+              class="call-retry"
+              :aria-label="t('chat.call.controls.retry')"
+              data-testid="call-tile-retry"
+              @click.stop="session.retryPeer(tile.id)"
+            >
+              <CallIcon name="refresh" class="size-4" />
+            </button>
+          </div>
           <div class="call-tile-footer">
             <span class="call-name">{{ nameOf(tile) }}</span>
             <span class="call-mic" :class="!micOn(tile) && 'call-mic--off'">
@@ -425,6 +472,63 @@ const onExtraClick = (event: MouseEvent) => {
 </template>
 
 <style scoped>
+.call-unreachable {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: rgb(11 17 25 / 0.85);
+  color: #fff;
+  text-align: center;
+}
+.call-screen .call-retry {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  justify-content: center;
+  padding: 0 0.875rem;
+  border-radius: 999px;
+  background: #fff;
+  color: #0b1119;
+  cursor: pointer;
+}
+.call-notice {
+  position: absolute;
+  inset-block-start: 0.75rem;
+  left: 50%;
+  z-index: 4;
+  max-width: calc(100% - 2rem);
+  overflow: hidden;
+  padding: 0.375rem 1rem;
+  border-radius: 999px;
+  background: rgb(0 0 0 / 0.7);
+  color: #fff;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translateX(-50%);
+}
+.call-notice-enter-active,
+.call-notice-leave-active {
+  transition: opacity 0.2s;
+}
+.call-notice-enter-from,
+.call-notice-leave-to {
+  opacity: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .call-notice-enter-active,
+  .call-notice-leave-active {
+    transition: none;
+  }
+}
 .call-screen .call-tile-zoom {
   position: absolute;
   inset-block-start: 0.375rem;

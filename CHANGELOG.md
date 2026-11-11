@@ -4,6 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [5.5.25] - 2026-11-11
+
+### Changed
+
+- The stage (`CallStage`, and `CallStageMini` when minimized) is now the only call UI, also without a `stage` prop and in the chat page's own call. The old grid view and its draggable picture-in-picture window are removed (`CallTile`, `useCallLayout`, `useSpeaking`, `useTileZoom`), along with what only they had: pinning, pausing a tile, the desktop camera picker, the flashlight menu and the speaking highlight.
+- The others' sound now plays from hidden elements of its own (`call-sound`), not from the old view kept mounted under the stage.
+
+### Added
+
+- Stage: "Waiting for others to join…" / "Everyone else left" when alone, join and leave notices (read out to screen readers), and "Can't connect to …" with **Try again** for a participant whose connection can't be rebuilt, in place of an endless "Reconnecting".
+- `Ctrl`/`⌘`+`D` and `+E` still toggle the microphone and camera.
+
+### Known issues
+
+- The e2e specs written for the old view (`call.spec.ts`, `group-call.spec.ts`, `call-flip.spec.ts`, `interop.spec.ts`) still use its test ids and need rewriting for the stage.
+
 ## [5.5.24] - 2026-11-11
 
 ### Changed
