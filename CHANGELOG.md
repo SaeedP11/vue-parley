@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [5.5.21] - 2026-11-11
+
+### Added
+
+- E2E coverage for switching the main call view between participants and a shared screen.
+
 ## [5.5.20] - 2026-11-10
 
 ### Added
