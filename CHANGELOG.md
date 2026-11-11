@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [5.5.22] - 2026-11-11
+
+### Fixed
+
+- A shared screen no longer turns black when it moves between the main view and the participant strip: each stream keeps one `<video>` that moves with it, so an idle screen, which sends no new frames, still shows its picture.
+
 ## [5.5.21] - 2026-11-11
 
 ### Added

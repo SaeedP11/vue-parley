@@ -1,27 +1,75 @@
+<script lang="ts">
+// One <video> per stream, moved between the views that show it instead of rebuilt. A new element
+// stays black until the stream's next frame, and an idle shared screen can send none for minutes.
+const players = new WeakMap<MediaStream, HTMLVideoElement>();
+const inUse = new WeakSet<HTMLVideoElement>();
+
+function take(stream: MediaStream) {
+  const cached = players.get(stream);
+  if (cached && !inUse.has(cached)) return cached;
+  // Already on screen elsewhere: this view gets an element of its own.
+  const video = document.createElement("video");
+  video.muted = true;
+  video.autoplay = true;
+  video.playsInline = true;
+  video.srcObject = stream;
+  if (!cached) players.set(stream, video);
+  return video;
+}
+</script>
+
 <script setup lang="ts">
-import { ref, watchEffect } from "vue";
+import { onBeforeUnmount, onMounted, ref, watch } from "vue";
 /** A muted view of a stream the call already holds: the call's own elements play the sound. */
-const { stream } = defineProps<{ stream?: MediaStream | null; mirrored?: boolean }>();
+const props = defineProps<{ stream?: MediaStream | null; mirrored?: boolean }>();
 
-const video = ref<HTMLVideoElement>();
+const host = ref<HTMLElement>();
+let video: HTMLVideoElement | null = null;
 
-watchEffect(() => {
-  if (!video.value || video.value.srcObject === (stream ?? null)) return;
-  video.value.srcObject = stream ?? null;
-  video.value.play().catch(() => undefined);
-});
+const classes = () => `size-full bg-black object-contain${props.mirrored ? " -scale-x-100" : ""}`;
+
+function release() {
+  if (video) inUse.delete(video);
+  video = null;
+}
+
+function show() {
+  if (!host.value || !props.stream) return;
+  video = take(props.stream);
+  inUse.add(video);
+  video.className = classes();
+  host.value.append(video);
+  if (video.paused) video.play().catch(() => undefined);
+}
+
+onMounted(show);
+// Before the next view mounts, so it can take this element over.
+onBeforeUnmount(release);
+
+watch(
+  () => props.stream,
+  () => {
+    video?.remove();
+    release();
+    show();
+  },
+);
+watch(
+  () => props.mirrored,
+  () => video && (video.className = classes()),
+);
 
 // Flipping the camera keeps the stream and swaps its track: Safari only listens when srcObject changes.
 defineExpose({
   refresh: () => {
-    if (!video.value) return;
-    video.value.srcObject = null;
-    video.value.srcObject = stream ?? null;
-    video.value.play().catch(() => undefined);
+    if (!video) return;
+    video.srcObject = null;
+    video.srcObject = props.stream ?? null;
+    video.play().catch(() => undefined);
   },
 });
 </script>
 
 <template>
-  <video ref="video" muted autoplay playsinline class="size-full bg-black object-contain" :class="mirrored && '-scale-x-100'" />
+  <div ref="host" class="size-full" />
 </template>
