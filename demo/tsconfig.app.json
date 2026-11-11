@@ -5,7 +5,7 @@
     "types": ["vite/client"],
     "allowArbitraryExtensions": true,
     // One Vue for both the demo and the workspace-linked package (see vite.config.ts).
-    "paths": { "vue": ["./node_modules/vue"] },
+    "paths": { "vue": ["./node_modules/vue"], "~/*": ["../app/*"] },
 
     /* Linting */
     "noUnusedLocals": true,

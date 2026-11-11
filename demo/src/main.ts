@@ -8,10 +8,10 @@ import App from "./App.vue";
 import { primeVueOptions } from "./theme";
 import "./style.css";
 
-// Open the demo in two tabs and start a call from both: they signal over a BroadcastChannel and
-// connect directly, with no server. `?user=` picks who you are in each tab.
+import { userId } from "./user";
 
-const userId = new URLSearchParams(location.search).get("user") ?? "me";
+// Open the demo in two tabs (the "Open as" link) and call: they signal over a BroadcastChannel
+// and connect directly, with no server.
 const backend = createFakeBackend(demoData(userId), { latency: 300 });
 
 createApp(App)
@@ -25,6 +25,7 @@ createApp(App)
       media: backend.media,
       profile: backend.profile,
       call: createBroadcastCallHandlers(),
+      screenShare: true,
       user: { id: userId, name: userId },
     }),
   )

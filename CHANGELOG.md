@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [5.5.24] - 2026-11-11
+
+### Changed
+
+- Demo playground updated for the current features: a top bar to switch language (fa/en, RTL/LTR) and dark mode and to open a second user's tab for calls, screen share turned on, and examples of the host extension points (`header-actions`, `headerOptions`, `messageOptions`, `above-input`). The demo's type build works again (`~/` alias).
+
 ## [5.5.23] - 2026-11-11
 
 ### Fixed

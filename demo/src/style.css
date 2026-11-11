@@ -3,6 +3,11 @@
 
 body,
 #app {
-  height: 100vh;
+  height: 100dvh;
   margin: 0;
+}
+
+.dark body {
+  background: #18181b;
+  color: #e4e4e7;
 }
