@@ -379,7 +379,7 @@ const onExtraClick = (event: MouseEvent) => {
           </button>
           <span>{{ t("chat.call.stage.flipCamera") }}</span>
         </div>
-        <div v-if="callStore.canShareScreen" class="call-control" :class="media.isScreenSharing.value && 'call-control--lit'">
+        <div v-if="callStore.canShareScreen && media.canShareScreen" class="call-control" :class="media.isScreenSharing.value && 'call-control--lit'">
           <button
             type="button"
             class="call-control-button"

@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [5.5.23] - 2026-11-11
+
+### Fixed
+
+- The share-screen button is hidden when the browser can't share the screen (phones: iOS browsers and Android Chrome have no `getDisplayMedia`), instead of showing a button that only reports an error.
+
 ## [5.5.22] - 2026-11-11
 
 ### Fixed
