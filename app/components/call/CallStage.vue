@@ -91,6 +91,8 @@ watch(
   },
 );
 const showScreen = computed(() => !!presenter.value && screenInMain.value);
+// Off the main view, the shared screen stays reachable as a tile.
+const screenTile = computed(() => !!presenter.value && !screenInMain.value);
 
 const thumbnails = computed(() => {
   const others = showScreen.value
@@ -315,14 +317,14 @@ const onExtraClick = (event: MouseEvent) => {
       </div>
     </div>
 
-    <template v-if="thumbnails.length">
-      <div class="call-others-title">
+    <template v-if="thumbnails.length || screenTile">
+      <div v-if="thumbnails.length" class="call-others-title">
         <h2>{{ t("chat.call.stage.others") }}</h2>
         <span>{{ t("chat.call.stage.peopleCount", { count: n(thumbnails.length) }) }}</span>
       </div>
 
-      <div class="call-others" :class="thumbnails.length + (presenter && !showScreen ? 1 : 0) > 2 && 'call-others--scroll'">
-        <article v-if="presenter && !showScreen" class="call-tile" data-testid="call-stage-screen-tile">
+      <div class="call-others" :class="thumbnails.length + (screenTile ? 1 : 0) > 2 && 'call-others--scroll'">
+        <article v-if="presenter && screenTile" class="call-tile" data-testid="call-stage-screen-tile">
           <CallStageVideo :stream="presenter.screen" />
           <div class="call-tile-footer">
             <span class="call-name">{{ t("chat.call.stage.screenTile", { name: nameOf(presenter) }) }}</span>
@@ -381,17 +383,11 @@ const onExtraClick = (event: MouseEvent) => {
     </template>
 
     <nav class="call-controls" role="toolbar">
-      <div class="call-control">
-        <button type="button" class="call-control-button" :aria-label="t('chat.call.stage.microphone')" :aria-pressed="!media.isAudioOn.value" data-testid="call-stage-mic" @click="media.toggleAudio()">
-          <CallIcon :name="media.isAudioOn.value ? 'mic' : 'micOff'" class="size-6" />
+      <div class="call-control call-control--end">
+        <button type="button" class="call-control-button call-control-button--end" :aria-label="t('chat.call.controls.endCall')" data-testid="call-stage-end" @click="endCall">
+          <CallIcon name="callEnd" class="size-6" />
         </button>
-        <span>{{ t("chat.call.stage.microphone") }}</span>
-      </div>
-      <div class="call-control">
-        <button type="button" class="call-control-button" :aria-label="t('chat.call.stage.camera')" :aria-pressed="!media.isVideoOn.value" data-testid="call-stage-camera" @click="media.toggleVideo()">
-          <CallIcon :name="media.isVideoOn.value ? 'videocam' : 'videocamOff'" class="size-6" />
-        </button>
-        <span>{{ t("chat.call.stage.camera") }}</span>
+        <span>{{ t("chat.call.stage.end") }}</span>
       </div>
       <!-- Phones only: the secondary controls fold into this menu. -->
       <div class="call-control call-control--more" :class="extraLit && 'call-control--lit'">
@@ -460,11 +456,17 @@ const onExtraClick = (event: MouseEvent) => {
         </div>
         <slot name="controls" />
       </div>
-      <div class="call-control call-control--end">
-        <button type="button" class="call-control-button call-control-button--end" :aria-label="t('chat.call.controls.endCall')" data-testid="call-stage-end" @click="endCall">
-          <CallIcon name="callEnd" class="size-6" />
+      <div class="call-control">
+        <button type="button" class="call-control-button" :aria-label="t('chat.call.stage.camera')" :aria-pressed="!media.isVideoOn.value" data-testid="call-stage-camera" @click="media.toggleVideo()">
+          <CallIcon :name="media.isVideoOn.value ? 'videocam' : 'videocamOff'" class="size-6" />
         </button>
-        <span>{{ t("chat.call.stage.end") }}</span>
+        <span>{{ t("chat.call.stage.camera") }}</span>
+      </div>
+      <div class="call-control">
+        <button type="button" class="call-control-button" :aria-label="t('chat.call.stage.microphone')" :aria-pressed="!media.isAudioOn.value" data-testid="call-stage-mic" @click="media.toggleAudio()">
+          <CallIcon :name="media.isAudioOn.value ? 'mic' : 'micOff'" class="size-6" />
+        </button>
+        <span>{{ t("chat.call.stage.microphone") }}</span>
       </div>
     </nav>
 

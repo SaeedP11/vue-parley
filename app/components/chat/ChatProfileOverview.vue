@@ -13,6 +13,7 @@ import Tag from "primevue/tag";
 import vLoading from "~/directives/loading";
 import IconButton from "~/components/general/IconButton.vue";
 import MediaImage from "~/components/general/MediaImage.vue";
+import MediaViewer from "./chat-bubbles/MediaViewer.vue";
 import { useProfileStore } from "~/stores/profileStore.js";
 import ContactAvatar from "./contact/ContactAvatar.vue";
 import useLocalI18n from "~/composables/useLocalI18n";
@@ -21,7 +22,7 @@ import { useCallStore } from "~/stores/callStore.js";
 import { chatProfileOverview } from "@i18n/locales";
 import FileDisplay from "./profile/FileDisplay.vue";
 import { useDate } from "~/composables/useDate.js";
-import { ref, computed, watch } from "vue";
+import { ref, computed, watch, nextTick, useTemplateRef } from "vue";
 import type { Contact } from "~/types";
 
 const props = withDefaults(
@@ -139,6 +140,15 @@ const details = computed(() =>
     },
   ].filter((item) => item.show && item.value !== undefined && item.value !== ""),
 );
+
+const viewerMounted = ref(false);
+const mediaViewerRef = useTemplateRef<InstanceType<typeof MediaViewer>>("mediaViewer");
+const viewerItems = computed(() => mediaAttachements.value.map((url) => ({ url, kind: "image" as const })));
+const openMedia = async (index: number) => {
+  viewerMounted.value = true;
+  await nextTick();
+  mediaViewerRef.value?.open(index);
+};
 
 const mediaRows = computed(() => {
   const rows: string[][] = [];
@@ -369,15 +379,18 @@ const fetchMoreFiles = async () => {
                   class="h-full"
                   @load-more="fetchMoreMedia"
                 >
-                  <template #item="{ item: row }">
+                  <template #item="{ item: row, index: rowIndex }">
                     <div class="grid w-full grid-cols-3 gap-2 pb-2">
-                      <div
+                      <button
                         v-for="(media, idx) in row"
                         :key="idx"
-                        class="aspect-square overflow-hidden rounded-xl bg-chat-surface"
+                        type="button"
+                        data-testid="profile-media-item"
+                        class="aspect-square cursor-zoom-in overflow-hidden rounded-xl border-0 bg-chat-surface p-0"
+                        @click="openMedia(rowIndex * MEDIA_COLUMNS + idx)"
                       >
                         <MediaImage :src="media" class="size-full" />
-                      </div>
+                      </button>
                     </div>
                   </template>
                 </BVirtualVerticalList>
@@ -433,5 +446,11 @@ const fetchMoreFiles = async () => {
         </div>
       </div>
     </div>
+    <MediaViewer
+      v-if="viewerMounted && viewerItems.length"
+      ref="mediaViewer"
+      :items="viewerItems"
+      :sender="fullName"
+    />
   </aside>
 </template>

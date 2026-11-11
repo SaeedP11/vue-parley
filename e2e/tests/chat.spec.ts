@@ -585,6 +585,37 @@ test.describe("images", () => {
     await expect(stage).toHaveAttribute("data-zoomed", "false");
   });
 
+  test("the profile's media tab opens a photo in the zoomable viewer", async ({ page }) => {
+    await openConversation(page, "c2");
+    await page.getByTestId("chat-toggle-info").click();
+    await page.getByTestId("profile-media-item").first().click();
+
+    const viewer = page.locator('[data-testid="image-viewer"][data-open="true"]');
+    const stage = page.getByTestId("viewer-image");
+    await expect(viewer).toBeVisible();
+    await expect(stage).toHaveAttribute("data-zoomed", "false");
+
+    const box = (await stage.locator("img").boundingBox())!;
+    await page.mouse.move(box.x + box.width / 4, box.y + box.height / 4);
+    await page.mouse.wheel(0, -400);
+    await expect(stage).toHaveAttribute("data-zoomed", "true");
+
+    const inner = stage.locator("> div");
+    const before = await inner.evaluate((el) => el.style.transform);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 5 });
+    await page.mouse.up();
+    expect(await inner.evaluate((el) => el.style.transform)).not.toBe(before);
+
+    await page.getByRole("button", { name: "Reset zoom" }).click();
+    await expect(stage).toHaveAttribute("data-zoomed", "false");
+    await page.getByRole("button", { name: "Zoom in" }).click();
+    await expect(stage).toHaveAttribute("data-zoomed", "true");
+
+    await page.keyboard.press("Escape");
+    await expect(viewer).toHaveCount(0);
+  });
+
   test("removes a photo or video before sending", async ({ page }) => {
     await openConversation(page, "c2");
     await page.getByTestId("chat-attach").click();

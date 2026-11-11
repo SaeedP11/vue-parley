@@ -55,3 +55,32 @@ test("an idle shared screen keeps its picture when it moves between the main vie
   await screenTile.getByRole("button", { name: "Show in main view" }).click();
   await expect.poll(() => frameWidth(mainScreen)).toBeGreaterThan(0);
 });
+
+test("alone in a call, the presenter can move their screen out of the main view and back", async ({ context }) => {
+  await context.addInitScript(() => {
+    navigator.mediaDevices.getDisplayMedia = async () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = 640;
+      canvas.height = 360;
+      const g = canvas.getContext("2d")!;
+      setInterval(() => g.fillRect(0, 0, 640, 360), 100);
+      return canvas.captureStream();
+    };
+  });
+
+  const [alice] = await openCallers(context, [{ user: "alice", name: "Alice" }], "&stage=1&locale=en");
+  await openConversation(alice!, "c1");
+  await alice!.getByTestId("chat-start-call").click();
+
+  const stage = alice!.getByTestId("call-stage");
+  await alice!.getByTestId("call-stage-screen-share").click();
+  await expect(stage.getByTestId("call-stage-screen")).toBeVisible({ timeout: 20_000 });
+
+  await stage.getByRole("button", { name: "Show Alice in the main view" }).click();
+  const screenTile = stage.getByTestId("call-stage-screen-tile");
+  await expect(screenTile).toBeVisible();
+  await expect(stage.locator(".call-others-title")).toHaveCount(0);
+
+  await screenTile.getByRole("button", { name: "Show in main view" }).click();
+  await expect(stage.getByTestId("call-stage-screen")).toBeVisible();
+});

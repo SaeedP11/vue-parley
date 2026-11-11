@@ -22,7 +22,8 @@ import { ZOOM_MAX, ZOOM_MIN, type ViewerItem } from "~/utils/media";
 const props = defineProps<{
   items: ViewerItem[];
   sender: string;
-  date: Date;
+  /** Left out where the send time is unknown, e.g. the profile's media tab. */
+  date?: Date;
 }>();
 
 // Galleria's strip never scrolls here, so past this many it is left out.
@@ -41,6 +42,7 @@ const showThumbnails = computed(() => hasMany.value && props.items.length <= MAX
 const activeSender = computed(() => active.value?.sender ?? props.sender);
 const sentOn = computed(() => {
   const date = active.value?.date ?? props.date;
+  if (!date) return "";
   return t("sentOn", { day: formatDateShort(date), time: formatTime(date) });
 });
 const locale = useHostLocale();
@@ -181,7 +183,7 @@ const pt = computed(() => ({
       >
         <div class="min-w-0 ps-1">
           <div class="truncate text-label-md" data-testid="viewer-sender">{{ activeSender }}</div>
-          <div class="truncate text-body-sm text-white/70">{{ sentOn }}</div>
+          <div v-if="sentOn" class="truncate text-body-sm text-white/70">{{ sentOn }}</div>
         </div>
         <div class="flex shrink-0 items-center gap-x-1">
           <span
