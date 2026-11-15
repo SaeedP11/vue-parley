@@ -197,7 +197,11 @@
         "youArePresenting": "شما در حال اشتراک‌گذاری صفحه هستید",
         "tileFullscreen": "تمام‌صفحه {name}",
         "miniView": "تصویر پنجره کوچک",
-        "showInMini": "نمایش تصویر {name}"
+        "showInMini": "نمایش تصویر {name}",
+        "zoomIn": "بزرگ‌نمایی تصویر",
+        "zoomOut": "کوچک‌نمایی تصویر",
+        "pin": "سنجاق کردن تصویر",
+        "unpin": "برداشتن سنجاق تصویر"
       },
       "controls": {
         "enableSound": "برای روشن کردن صدا ضربه بزنید",

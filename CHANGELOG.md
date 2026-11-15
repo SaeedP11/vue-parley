@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [5.5.29] - 2026-11-15
+
+### Added
+
+- Call stage video zoom controls and pinch-to-zoom, plus participant pinning that carries over to the minimized call on desktop and mobile.
+
+### Fixed
+
+- Demo call styles refreshing after the package is rebuilt.
+
 ## [5.5.25] - 2026-11-11
 
 ### Changed

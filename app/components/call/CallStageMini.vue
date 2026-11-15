@@ -11,6 +11,7 @@ import { chat } from "@i18n/locales";
 import { computed, ref } from "vue";
 import { useDraggable, useWindowSize } from "@vueuse/core";
 import CallIcon from "./CallIcon.vue";
+import { useCallPin } from "~/composables/call/useCallPin";
 import CallStageVideo from "./CallStageVideo.vue";
 
 /** The stage's minimized call: a draggable floating card, a compact strip on phones. */
@@ -24,13 +25,16 @@ const { media } = session;
 
 const participants = computed(() => session.participants.value);
 const pickedId = ref(picks.get(session));
+const pinnedId = useCallPin(session);
 const main = computed(
   () =>
+    participants.value.find((person) => person.id === pinnedId.value) ??
     participants.value.find((person) => person.id === pickedId.value) ??
     participants.value.find((person) => !person.isSelf) ??
     participants.value[0],
 );
 const pick = (id: string) => {
+  pinnedId.value = undefined;
   pickedId.value = id;
   picks.set(session, id);
 };
@@ -252,9 +256,8 @@ const endCall = async () => {
     padding: 0.5rem;
   }
 
-  .call-mini-video,
-  .call-mini-people {
-    display: none;
+  .call-mini-video {
+    height: 7rem;
   }
 }
 </style>

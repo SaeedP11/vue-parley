@@ -6,6 +6,7 @@ import { createChat } from "vue-parley";
 import { createBroadcastCallHandlers, createFakeBackend, demoData } from "vue-parley/fakes";
 import App from "./App.vue";
 import { primeVueOptions } from "./theme";
+import "vue-parley/style.css";
 import "./style.css";
 
 import { userId } from "./user";

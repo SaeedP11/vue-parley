@@ -7,6 +7,7 @@ import { computed, ref, watch } from "vue";
 import { onClickOutside, onKeyStroke, useFullscreen } from "@vueuse/core";
 import CallIcon from "./CallIcon.vue";
 import CallStageVideo from "./CallStageVideo.vue";
+import { useCallPin } from "~/composables/call/useCallPin";
 import { useCallNotices } from "~/composables/call/useCallNotices";
 
 /** A host's own button for one participant: it shows beside their name and in the control bar. */
@@ -55,8 +56,9 @@ const selfTile = computed(() => participants.value.find((person) => person.isSel
 
 // --- Who is in the main view -------------------------------------------------------------------
 
-const selectedId = ref<string>();
-const manuallySelected = ref(false);
+const pinnedId = useCallPin(session);
+const selectedId = ref<string | undefined>(pinnedId.value);
+const manuallySelected = ref(!!pinnedId.value);
 const fallbackId = () =>
   participants.value.find((person) => person.id === props.featuredId)?.id ??
   participants.value.find((person) => !person.isSelf)?.id ??
@@ -79,7 +81,39 @@ watch(
   { immediate: true },
 );
 
+watch(participants, () => {
+  if (pinnedId.value && !participants.value.some((person) => person.id === pinnedId.value)) pinnedId.value = undefined;
+});
 const mainTile = computed(() => participants.value.find((person) => person.id === selectedId.value) ?? selfTile.value);
+
+const togglePin = () => {
+  if (mainTile.value) pinnedId.value = pinnedId.value === mainTile.value.id ? undefined : mainTile.value.id;
+};
+
+// Zoom the visible video independently of call controls.
+const scale = ref(1);
+const pointers = new Map<number, { x: number; y: number }>();
+let pinch: { distance: number; scale: number } | undefined;
+const setScale = (value: number) => { scale.value = Math.max(1, Math.min(5, value)); };
+const distance = () => {
+  const [a, b] = [...pointers.values()];
+  return a && b ? Math.hypot(a.x - b.x, a.y - b.y) : 0;
+};
+const pointerDown = (event: PointerEvent) => {
+  if (event.pointerType !== "touch" || (event.target as HTMLElement).closest("button")) return;
+  pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+  (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+  if (pointers.size === 2) pinch = { distance: distance(), scale: scale.value };
+};
+const pointerMove = (event: PointerEvent) => {
+  if (!pointers.has(event.pointerId)) return;
+  pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+  if (pinch && pointers.size === 2 && pinch.distance) setScale(pinch.scale * distance() / pinch.distance);
+};
+const pointerUp = (event: PointerEvent) => {
+  pointers.delete(event.pointerId);
+  if (pointers.size < 2) pinch = undefined;
+};
 
 // --- Screen share: the shared screen takes the main view and everyone, presenter too, is a tile --
 const presenter = computed(() => participants.value.find((person) => !!person.screen?.getVideoTracks().length));
@@ -93,6 +127,7 @@ watch(
 const showScreen = computed(() => !!presenter.value && screenInMain.value);
 // Off the main view, the shared screen stays reachable as a tile.
 const screenTile = computed(() => !!presenter.value && !screenInMain.value);
+watch([selectedId, () => presenter.value?.id, showScreen], () => { scale.value = 1; });
 
 const thumbnails = computed(() => {
   const others = showScreen.value
@@ -239,11 +274,19 @@ const onExtraClick = (event: MouseEvent) => {
       </div>
     </header>
 
-    <div ref="mainCard" class="call-main" :class="{ 'call-main--expanded': isExpanded }">
+    <div ref="mainCard" class="call-main" :class="{ 'call-main--expanded': isExpanded }" @pointerdown="pointerDown" @pointermove="pointerMove" @pointerup="pointerUp" @pointercancel="pointerUp">
+      <div class="call-video-zoom" :style="{ transform: `scale(${scale})` }" :data-scale="scale">
       <CallStageVideo v-if="showScreen" :stream="presenter?.screen" data-testid="call-stage-screen" />
       <CallStageVideo v-else-if="cameraOn(mainTile)" :stream="streamOf(mainTile)" :mirrored="isMirrored(mainTile)" />
       <div v-else class="call-avatar call-avatar--large">{{ nameOf(mainTile).charAt(0) }}</div>
+      </div>
       <div class="call-shade" />
+      <div class="call-view-controls">
+        <button type="button" :aria-label="t('chat.call.stage.zoomOut')" :disabled="scale <= 1" data-testid="call-stage-zoom-out" @click="setScale(scale / 1.25)">−</button>
+        <button type="button" :aria-label="t('chat.call.stage.zoomIn')" :disabled="scale >= 5" data-testid="call-stage-zoom-in" @click="setScale(scale * 1.25)">+</button>
+      </div>
+
+      <button v-if="!showScreen && mainTile" type="button" class="call-pin" :aria-label="t(pinnedId === mainTile.id ? 'chat.call.stage.unpin' : 'chat.call.stage.pin')" :aria-pressed="pinnedId === mainTile.id" data-testid="call-stage-pin" @click="togglePin"><CallIcon :name="pinnedId === mainTile.id ? 'keepOff' : 'keep'" class="size-5" /></button>
 
       <span v-if="showScreen" class="call-badge call-badge--camera" role="status">
         <CallIcon name="presentToAll" class="size-4" />
@@ -706,6 +749,13 @@ const onExtraClick = (event: MouseEvent) => {
   box-shadow: 0 18px 50px rgb(2 6 14 / 0.33);
 }
 
+.call-video-zoom { width: 100%; height: 100%; transform-origin: center; }
+.call-main { touch-action: none; }
+.call-screen .call-view-controls { position: absolute; bottom: 4rem; inset-inline-end: 1rem; display: flex; gap: 0.4rem; z-index: 4; }
+.call-screen .call-view-controls button { display: grid; place-items: center; width: 2.5rem; height: 2.5rem; border: 1px solid rgb(255 255 255 / 0.28); border-radius: 12px; background: rgb(6 20 27 / 0.75); color: white; font-size: 1.4rem; }
+.call-screen .call-view-controls button:disabled { opacity: 0.4; }
+.call-screen .call-pin { position: absolute; top: 1.0625rem; inset-inline-end: 4.125rem; z-index: 4; display: grid; place-items: center; width: 2.375rem; height: 2.375rem; color: #fff; border: 1px solid rgb(255 255 255 / 0.28); border-radius: 12px; background: rgb(6 20 27 / 0.75); }
+.call-screen .call-pin[aria-pressed="true"] { background: #197c93; }
 .call-main--expanded {
   margin: 0;
   border-radius: 0;

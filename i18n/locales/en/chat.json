@@ -197,7 +197,11 @@
         "youArePresenting": "You are sharing your screen",
         "tileFullscreen": "Show {name} full screen",
         "miniView": "Mini window video",
-        "showInMini": "Show {name}"
+        "showInMini": "Show {name}",
+        "zoomIn": "Zoom in video",
+        "zoomOut": "Zoom out video",
+        "pin": "Pin participant",
+        "unpin": "Unpin participant"
       },
       "controls": {
         "enableSound": "Tap to turn on sound",

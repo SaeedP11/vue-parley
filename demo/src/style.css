@@ -1,6 +1,3 @@
-/* The package ships its own compiled styles; no Tailwind needed. */
-@import "vue-parley/style.css";
-
 body,
 #app {
   height: 100dvh;
