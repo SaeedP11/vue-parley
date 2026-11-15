@@ -90,29 +90,56 @@ const togglePin = () => {
   if (mainTile.value) pinnedId.value = pinnedId.value === mainTile.value.id ? undefined : mainTile.value.id;
 };
 
-// Zoom the visible video independently of call controls.
+// Transform only the video, leaving the call controls stationary. Translation is in screen pixels.
 const scale = ref(1);
+const offset = ref({ x: 0, y: 0 });
 const pointers = new Map<number, { x: number; y: number }>();
-let pinch: { distance: number; scale: number } | undefined;
-const setScale = (value: number) => { scale.value = Math.max(1, Math.min(5, value)); };
-const distance = () => {
+let pinch: { distance: number; scale: number; center: { x: number; y: number }; offset: { x: number; y: number } } | undefined;
+const clampOffset = (x: number, y: number, nextScale = scale.value) => {
+  const rect = mainCard.value?.getBoundingClientRect();
+  const maxX = (rect?.width ?? 0) * (nextScale - 1) / 2;
+  const maxY = (rect?.height ?? 0) * (nextScale - 1) / 2;
+  offset.value = { x: Math.max(-maxX, Math.min(maxX, x)), y: Math.max(-maxY, Math.min(maxY, y)) };
+};
+const resetZoom = () => { scale.value = 1; offset.value = { x: 0, y: 0 }; };
+const setScale = (value: number) => {
+  scale.value = Math.max(1, Math.min(5, value));
+  clampOffset(offset.value.x, offset.value.y);
+};
+const geometry = () => {
   const [a, b] = [...pointers.values()];
-  return a && b ? Math.hypot(a.x - b.x, a.y - b.y) : 0;
+  if (!a || !b) return undefined;
+  return { distance: Math.hypot(a.x - b.x, a.y - b.y), center: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 } };
 };
 const pointerDown = (event: PointerEvent) => {
-  if (event.pointerType !== "touch" || (event.target as HTMLElement).closest("button")) return;
+  if ((event.pointerType === "mouse" && event.button !== 0) || (event.target as HTMLElement).closest("button")) return;
+  if (pointers.size >= 2) return;
   pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
   (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
-  if (pointers.size === 2) pinch = { distance: distance(), scale: scale.value };
+  const current = geometry();
+  if (current) pinch = { ...current, scale: scale.value, offset: { ...offset.value } };
 };
 const pointerMove = (event: PointerEvent) => {
-  if (!pointers.has(event.pointerId)) return;
+  const previous = pointers.get(event.pointerId);
+  if (!previous) return;
   pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
-  if (pinch && pointers.size === 2 && pinch.distance) setScale(pinch.scale * distance() / pinch.distance);
+  const current = geometry();
+  if (pinch && current && pinch.distance) {
+    const next = Math.max(1, Math.min(5, pinch.scale * current.distance / pinch.distance));
+    const rect = mainCard.value?.getBoundingClientRect();
+    if (!rect) return;
+    const origin = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+    const ratio = next / pinch.scale;
+    scale.value = next;
+    clampOffset(current.center.x - origin.x - (pinch.center.x - origin.x - pinch.offset.x) * ratio,
+      current.center.y - origin.y - (pinch.center.y - origin.y - pinch.offset.y) * ratio, next);
+  } else if (pointers.size === 1 && scale.value > 1) {
+    clampOffset(offset.value.x + event.clientX - previous.x, offset.value.y + event.clientY - previous.y);
+  }
 };
 const pointerUp = (event: PointerEvent) => {
   pointers.delete(event.pointerId);
-  if (pointers.size < 2) pinch = undefined;
+  pinch = undefined;
 };
 
 // --- Screen share: the shared screen takes the main view and everyone, presenter too, is a tile --
@@ -127,7 +154,7 @@ watch(
 const showScreen = computed(() => !!presenter.value && screenInMain.value);
 // Off the main view, the shared screen stays reachable as a tile.
 const screenTile = computed(() => !!presenter.value && !screenInMain.value);
-watch([selectedId, () => presenter.value?.id, showScreen], () => { scale.value = 1; });
+watch([selectedId, () => presenter.value?.id, showScreen], resetZoom);
 
 const thumbnails = computed(() => {
   const others = showScreen.value
@@ -275,15 +302,17 @@ const onExtraClick = (event: MouseEvent) => {
     </header>
 
     <div ref="mainCard" class="call-main" :class="{ 'call-main--expanded': isExpanded }" @pointerdown="pointerDown" @pointermove="pointerMove" @pointerup="pointerUp" @pointercancel="pointerUp">
-      <div class="call-video-zoom" :style="{ transform: `scale(${scale})` }" :data-scale="scale">
+      <div class="call-video-zoom" :style="{ transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})` }" :data-scale="scale" :data-offset-x="offset.x" :data-offset-y="offset.y">
       <CallStageVideo v-if="showScreen" :stream="presenter?.screen" data-testid="call-stage-screen" />
       <CallStageVideo v-else-if="cameraOn(mainTile)" :stream="streamOf(mainTile)" :mirrored="isMirrored(mainTile)" />
       <div v-else class="call-avatar call-avatar--large">{{ nameOf(mainTile).charAt(0) }}</div>
       </div>
       <div class="call-shade" />
+      <span v-if="showScreen || cameraOn(mainTile)" class="call-gesture-hint">{{ t("chat.call.stage.gestureHint") }}</span>
       <div class="call-view-controls">
-        <button type="button" :aria-label="t('chat.call.stage.zoomOut')" :disabled="scale <= 1" data-testid="call-stage-zoom-out" @click="setScale(scale / 1.25)">−</button>
-        <button type="button" :aria-label="t('chat.call.stage.zoomIn')" :disabled="scale >= 5" data-testid="call-stage-zoom-in" @click="setScale(scale * 1.25)">+</button>
+        <button v-if="scale > 1" type="button" :aria-label="t('chat.call.controls.resetZoom')" data-testid="call-stage-zoom-reset" @click="resetZoom">↺</button>
+        <button type="button" class="call-zoom-step" :aria-label="t('chat.call.stage.zoomOut')" :disabled="scale <= 1" data-testid="call-stage-zoom-out" @click="setScale(scale / 1.25)">−</button>
+        <button type="button" class="call-zoom-step" :aria-label="t('chat.call.stage.zoomIn')" :disabled="scale >= 5" data-testid="call-stage-zoom-in" @click="setScale(scale * 1.25)">+</button>
       </div>
 
       <button v-if="!showScreen && mainTile" type="button" class="call-pin" :aria-label="t(pinnedId === mainTile.id ? 'chat.call.stage.unpin' : 'chat.call.stage.pin')" :aria-pressed="pinnedId === mainTile.id" data-testid="call-stage-pin" @click="togglePin"><CallIcon :name="pinnedId === mainTile.id ? 'keepOff' : 'keep'" class="size-5" /></button>
@@ -750,10 +779,13 @@ const onExtraClick = (event: MouseEvent) => {
 }
 
 .call-video-zoom { width: 100%; height: 100%; transform-origin: center; }
-.call-main { touch-action: none; }
+.call-main { touch-action: none; user-select: none; }
+.call-gesture-hint { display: none; }
+@media (max-width: 767.98px) { .call-gesture-hint { position: absolute; bottom: 4.25rem; inset-inline-start: 1rem; z-index: 3; display: block; max-width: 48%; padding: 0.35rem 0.55rem; border-radius: 0.6rem; background: rgb(6 20 27 / 0.7); color: #fff; font-size: 0.7rem; pointer-events: none; } }
 .call-screen .call-view-controls { position: absolute; bottom: 4rem; inset-inline-end: 1rem; display: flex; gap: 0.4rem; z-index: 4; }
 .call-screen .call-view-controls button { display: grid; place-items: center; width: 2.5rem; height: 2.5rem; border: 1px solid rgb(255 255 255 / 0.28); border-radius: 12px; background: rgb(6 20 27 / 0.75); color: white; font-size: 1.4rem; }
 .call-screen .call-view-controls button:disabled { opacity: 0.4; }
+@media (max-width: 767.98px) { .call-screen .call-view-controls .call-zoom-step { display: none; } }
 .call-screen .call-pin { position: absolute; top: 1.0625rem; inset-inline-end: 4.125rem; z-index: 4; display: grid; place-items: center; width: 2.375rem; height: 2.375rem; color: #fff; border: 1px solid rgb(255 255 255 / 0.28); border-radius: 12px; background: rgb(6 20 27 / 0.75); }
 .call-screen .call-pin[aria-pressed="true"] { background: #197c93; }
 .call-main--expanded {

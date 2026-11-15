@@ -201,7 +201,8 @@
         "zoomIn": "Zoom in video",
         "zoomOut": "Zoom out video",
         "pin": "Pin participant",
-        "unpin": "Unpin participant"
+        "unpin": "Unpin participant",
+        "gestureHint": "Pinch to zoom; drag to move"
       },
       "controls": {
         "enableSound": "Tap to turn on sound",

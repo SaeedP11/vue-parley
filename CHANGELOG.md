@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [5.5.30] - 2026-11-15
+
+### Changed
+
+- Call video supports pinch zoom and dragging, with a reset control and a gesture hint on mobile. Zoom step buttons are hidden on mobile.
+
 ## [5.5.29] - 2026-11-15
 
 ### Added
