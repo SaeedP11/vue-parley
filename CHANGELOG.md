@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [5.5.33] - 2026-11-16
+
+### Added
+
+- Responsive mobile bottom dock for the whiteboard with quick-access tools.
+- Multi-touch pinch-to-zoom and two-finger pan gestures for mobile whiteboard.
+- Adaptive drawers and bottom sheets for whiteboard controls on mobile screens.
+
 ## [5.5.32] - 2026-11-16
 
 ### Added
