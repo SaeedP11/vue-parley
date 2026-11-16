@@ -53,6 +53,7 @@ const emit = defineEmits<{
   (e: "update:fullWindow", val: boolean): void;
   (e: "streamStart", stream: MediaStream): void;
   (e: "streamStop"): void;
+  (e: "update:streamActive", val: boolean): void;
 }>();
 
 const isVisible = computed({
@@ -259,6 +260,7 @@ defineExpose({
               :is-sidebar-open="!isSidebarCollapsed && displayParticipants.length > 0"
               @stream-start="emit('streamStart', $event)"
               @stream-stop="emit('streamStop')"
+              @update:stream-active="emit('update:streamActive', $event)"
               @full-window="toggleFullWindow"
               @maximize="toggleFullWindow"
               @toggle-sidebar="toggleSidebar"

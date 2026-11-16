@@ -124,6 +124,7 @@ const emit = defineEmits<{
   (e: "close"): void;
   (e: "streamStart", stream: MediaStream): void;
   (e: "streamStop"): void;
+  (e: "update:streamActive", val: boolean): void;
   (e: "maximize", maximized: boolean): void;
   (e: "fullWindow", fullWindow: boolean): void;
   (e: "toggleSidebar"): void;
@@ -1735,7 +1736,11 @@ function stopLoop() {
   }
 }
 
+const isStreamActiveInternal = ref(false);
+const effectiveStreamActive = computed(() => !!(props.streamActive || isStreamActiveInternal.value));
+
 function stopActiveStream() {
+  isStreamActiveInternal.value = false;
   stopLoop();
   if (activeStreamTrack) {
     activeStreamTrack.stop();
@@ -1754,6 +1759,7 @@ function stopActiveStream() {
 watch(
   () => props.streamActive,
   (active) => {
+    isStreamActiveInternal.value = !!active;
     if (!active) {
       stopActiveStream();
     } else if (!activeStreamTrack) {
@@ -1805,6 +1811,7 @@ function getStream(fps = 30): MediaStream | null {
     track.addEventListener("ended", () => {
       stopActiveStream();
       emit("streamStop");
+      emit("update:streamActive", false);
     });
   }
 
@@ -1812,13 +1819,16 @@ function getStream(fps = 30): MediaStream | null {
 }
 
 function toggleStream() {
-  if (props.streamActive) {
+  if (effectiveStreamActive.value) {
     stopActiveStream();
     emit("streamStop");
+    emit("update:streamActive", false);
   } else {
     const stream = getStream();
     if (stream) {
+      isStreamActiveInternal.value = true;
       emit("streamStart", stream);
+      emit("update:streamActive", true);
     }
   }
 }
@@ -1916,6 +1926,7 @@ useEventListener(window, "keyup", (e: KeyboardEvent) => {
 
 onMounted(() => {
   if (props.streamActive) {
+    isStreamActiveInternal.value = true;
     const s = getStream();
     if (s) emit("streamStart", s);
   }
@@ -1996,7 +2007,7 @@ defineExpose<WhiteboardExposed>({
 
         <!-- Live HD Badge if streamActive -->
         <div
-          v-if="streamActive"
+          v-if="effectiveStreamActive"
           class="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-[11px] font-bold select-none shrink-0"
           :title="t('board.streaming')"
         >
@@ -2194,20 +2205,39 @@ defineExpose<WhiteboardExposed>({
         </div>
 
         <!-- Stream / Share to Call Button -->
-        <Button
+        <button
           v-if="allowStream"
-          rounded
-          size="small"
-          :severity="streamActive ? 'danger' : 'primary'"
-          class="!px-2.5 !py-1 text-xs font-semibold gap-1.5 transition-all shadow-xs"
+          type="button"
+          class="group relative inline-flex items-center justify-center gap-1.5 h-8 px-2.5 sm:px-3 rounded-xl text-xs font-semibold cursor-pointer select-none transition-all duration-200 active:scale-[0.97] focus-visible:outline-2 focus-visible:outline-offset-2 shrink-0"
+          :class="
+            effectiveStreamActive
+              ? 'bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white shadow-xs hover:shadow-md hover:shadow-rose-600/25 border border-rose-500/50 focus-visible:outline-rose-500'
+              : 'bg-chat-primary hover:bg-chat-primary/90 text-white shadow-xs hover:shadow-md hover:shadow-chat-primary/25 border border-white/20 dark:border-white/10 focus-visible:outline-chat-primary'
+          "
+          :title="effectiveStreamActive ? t('board.stopSharing') : t('board.shareToCall')"
+          :aria-label="effectiveStreamActive ? t('board.stopSharing') : t('board.shareToCall')"
+          :aria-pressed="effectiveStreamActive"
           data-testid="whiteboard-stream-btn"
           @click="toggleStream"
         >
-          <template #icon>
-            <BIcon :icon="streamActive ? 'PhStopCircle' : 'PhBroadcast'" class="size-4" />
-          </template>
-          <span class="hidden sm:inline">{{ streamActive ? t('board.stopSharing') : t('board.shareToCall') }}</span>
-        </Button>
+          <!-- Pulsing Live Ping Dot when streaming -->
+          <span v-if="effectiveStreamActive" class="relative flex size-2 shrink-0" aria-hidden="true">
+            <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-75" />
+            <span class="relative inline-flex size-2 rounded-full bg-white" />
+          </span>
+
+          <!-- Broadcast / Stop Icon -->
+          <BIcon
+            :icon="effectiveStreamActive ? 'PhStopCircle' : 'PhBroadcast'"
+            weight="bold"
+            class="size-4 shrink-0 transition-transform duration-200 group-hover:scale-110"
+          />
+
+          <!-- Text Label -->
+          <span class="hidden sm:inline font-medium tracking-tight">
+            {{ effectiveStreamActive ? t('board.stopSharing') : t('board.shareToCall') }}
+          </span>
+        </button>
 
         <!-- Canvas Theme Toggle (Light / Dark Chalkboard) -->
         <IconButton
