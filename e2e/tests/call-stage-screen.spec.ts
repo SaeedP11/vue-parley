@@ -52,7 +52,7 @@ test("an idle shared screen keeps its picture when it moves between the main vie
   await expect(stage.locator(".call-main-footer")).toContainText("Bob");
   await expect.poll(() => frameWidth(screenTile.locator("video"))).toBeGreaterThan(0);
 
-  await screenTile.getByRole("button", { name: "Show in main view" }).click();
+  await screenTile.getByRole("button", { name: "Show Bob's screen in the main view" }).click();
   await expect.poll(() => frameWidth(mainScreen)).toBeGreaterThan(0);
 });
 
@@ -81,6 +81,55 @@ test("alone in a call, the presenter can move their screen out of the main view 
   await expect(screenTile).toBeVisible();
   await expect(stage.locator(".call-others-title")).toHaveCount(0);
 
-  await screenTile.getByRole("button", { name: "Show in main view" }).click();
+  await screenTile.getByRole("button", { name: "Show Alice's screen in the main view" }).click();
   await expect(stage.getByTestId("call-stage-screen")).toBeVisible();
+});
+
+test("two people share their screens at once: one in the main view, the other as its own tile", async ({ context }) => {
+  await context.addInitScript(() => {
+    navigator.mediaDevices.getDisplayMedia = async () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = 640;
+      canvas.height = 360;
+      const g = canvas.getContext("2d")!;
+      setInterval(() => g.fillRect(0, 0, 640, 360), 100);
+      return canvas.captureStream();
+    };
+  });
+
+  const [alice, bob] = await openCallers(
+    context,
+    [
+      { user: "alice", name: "Alice" },
+      { user: "bob", name: "Bob" },
+    ],
+    "&stage=1&locale=en",
+  );
+  await openConversation(alice!, "c1");
+  await alice!.getByTestId("chat-start-call").click();
+  await openConversation(bob!, "c1");
+  const join = bob!.getByTestId("chat-join-call");
+  await expect(join).toBeEnabled({ timeout: 20_000 });
+  await join.click();
+
+  const stage = alice!.getByTestId("call-stage");
+  await expect(stage.locator(".call-main-footer")).toContainText("Bob", { timeout: 30_000 });
+  await alice!.getByTestId("call-stage-screen-share").click();
+  await expect(stage.locator(".call-main-footer")).toContainText("Alice's screen", { timeout: 20_000 });
+  await bob!.getByTestId("call-stage-screen-share").click();
+
+  // The newer share takes the main view; Alice's own stays reachable as a tile.
+  await expect(stage.locator(".call-main-footer")).toContainText("Bob's screen", { timeout: 20_000 });
+  await expect.poll(() => frameWidth(stage.getByTestId("call-stage-screen").locator("video"))).toBeGreaterThan(0);
+  const tiles = stage.getByTestId("call-stage-screen-tile");
+  await expect(tiles).toHaveCount(1);
+  await tiles.getByRole("button", { name: "Show Alice's screen in the main view" }).click();
+  await expect(stage.locator(".call-main-footer")).toContainText("Alice's screen");
+  await expect(tiles).toHaveCount(1);
+  await expect.poll(() => frameWidth(tiles.locator("video"))).toBeGreaterThan(0);
+
+  // What the user put in the main view stays there when another share starts or stops.
+  await bob!.getByTestId("call-stage-screen-share").click();
+  await expect(tiles).toHaveCount(0);
+  await expect(stage.locator(".call-main-footer")).toContainText("Alice's screen");
 });

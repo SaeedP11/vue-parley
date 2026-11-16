@@ -7,7 +7,7 @@ import { computed, ref, watch } from "vue";
 import { onClickOutside, onKeyStroke, useFullscreen } from "@vueuse/core";
 import CallIcon from "./CallIcon.vue";
 import CallStageVideo from "./CallStageVideo.vue";
-import { useCallPin } from "~/composables/call/useCallPin";
+import { screenKey, useCallMain } from "~/composables/call/useCallMain";
 import { useCallNotices } from "~/composables/call/useCallNotices";
 
 /** A host's own button for one participant: it shows beside their name and in the control bar. */
@@ -56,39 +56,12 @@ const selfTile = computed(() => participants.value.find((person) => person.isSel
 
 // --- Who is in the main view -------------------------------------------------------------------
 
-const pinnedId = useCallPin(session);
-const selectedId = ref<string | undefined>(pinnedId.value);
-const manuallySelected = ref(!!pinnedId.value);
-const fallbackId = () =>
-  participants.value.find((person) => person.id === props.featuredId)?.id ??
-  participants.value.find((person) => !person.isSelf)?.id ??
-  participants.value[0]?.id;
-
-watch(
-  [participants, () => props.featuredId],
-  () => {
-    const ids = new Set(participants.value.map((person) => person.id));
-    const counterpartId =
-      participants.value.find((person) => person.id === props.featuredId)?.id ??
-      participants.value.find((person) => !person.isSelf)?.id;
-    if (!selectedId.value || !ids.has(selectedId.value)) {
-      manuallySelected.value = false;
-      selectedId.value = fallbackId();
-    } else if (!manuallySelected.value && counterpartId && selectedId.value !== counterpartId) {
-      selectedId.value = counterpartId;
-    }
-  },
-  { immediate: true },
-);
-
-watch(participants, () => {
-  if (pinnedId.value && !participants.value.some((person) => person.id === pinnedId.value)) pinnedId.value = undefined;
-});
-const mainTile = computed(() => participants.value.find((person) => person.id === selectedId.value) ?? selfTile.value);
-
-const togglePin = () => {
-  if (mainTile.value) pinnedId.value = pinnedId.value === mainTile.value.id ? undefined : mainTile.value.id;
-};
+// Whoever is in the main view stays there until someone else is picked.
+const main = useCallMain(session, () => props.featuredId);
+const presenters = main.presenters;
+const screenOwner = main.screenOwner;
+const showScreen = computed(() => !!screenOwner.value);
+const mainTile = computed(() => screenOwner.value ?? main.person.value ?? selfTile.value);
 
 // Transform only the video, leaving the call controls stationary. Translation is in screen pixels.
 const scale = ref(1);
@@ -142,19 +115,9 @@ const pointerUp = (event: PointerEvent) => {
   pinch = undefined;
 };
 
-// --- Screen share: the shared screen takes the main view and everyone, presenter too, is a tile --
-const presenter = computed(() => participants.value.find((person) => !!person.screen?.getVideoTracks().length));
-const screenInMain = ref(true);
-watch(
-  () => presenter.value?.id,
-  (id, previous) => {
-    if (id && id !== previous) screenInMain.value = true;
-  },
-);
-const showScreen = computed(() => !!presenter.value && screenInMain.value);
-// Off the main view, the shared screen stays reachable as a tile.
-const screenTile = computed(() => !!presenter.value && !screenInMain.value);
-watch([selectedId, () => presenter.value?.id, showScreen], resetZoom);
+// --- Screen share: each shared screen is its own tile; one may take the main view --------------
+const screenTiles = computed(() => presenters.value.filter((person) => person.id !== screenOwner.value?.id));
+watch(main.key, resetZoom);
 
 const thumbnails = computed(() => {
   const others = showScreen.value
@@ -178,11 +141,7 @@ const flip = async () => {
   }
 };
 
-const pickMain = (id: string) => {
-  screenInMain.value = false;
-  manuallySelected.value = true;
-  selectedId.value = id;
-};
+const pickMain = (id: string) => main.pick(id);
 
 type Tile = (typeof participants.value)[number];
 const isFeatured = (tile?: Tile) => !!tile && !!props.featuredId && tile.id === props.featuredId;
@@ -303,7 +262,7 @@ const onExtraClick = (event: MouseEvent) => {
 
     <div ref="mainCard" class="call-main" :class="{ 'call-main--expanded': isExpanded }" @pointerdown="pointerDown" @pointermove="pointerMove" @pointerup="pointerUp" @pointercancel="pointerUp">
       <div class="call-video-zoom" :style="{ transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})` }" :data-scale="scale" :data-offset-x="offset.x" :data-offset-y="offset.y">
-      <CallStageVideo v-if="showScreen" :stream="presenter?.screen" data-testid="call-stage-screen" />
+      <CallStageVideo v-if="showScreen" :stream="screenOwner?.screen" data-testid="call-stage-screen" />
       <CallStageVideo v-else-if="cameraOn(mainTile)" :stream="streamOf(mainTile)" :mirrored="isMirrored(mainTile)" />
       <div v-else class="call-avatar call-avatar--large">{{ nameOf(mainTile).charAt(0) }}</div>
       </div>
@@ -315,11 +274,9 @@ const onExtraClick = (event: MouseEvent) => {
         <button type="button" class="call-zoom-step" :aria-label="t('chat.call.stage.zoomIn')" :disabled="scale >= 5" data-testid="call-stage-zoom-in" @click="setScale(scale * 1.25)">+</button>
       </div>
 
-      <button v-if="!showScreen && mainTile" type="button" class="call-pin" :aria-label="t(pinnedId === mainTile.id ? 'chat.call.stage.unpin' : 'chat.call.stage.pin')" :aria-pressed="pinnedId === mainTile.id" data-testid="call-stage-pin" @click="togglePin"><CallIcon :name="pinnedId === mainTile.id ? 'keepOff' : 'keep'" class="size-5" /></button>
-
       <span v-if="showScreen" class="call-badge call-badge--camera" role="status">
         <CallIcon name="presentToAll" class="size-4" />
-        {{ presenter?.isSelf ? t("chat.call.stage.youArePresenting") : t("chat.call.stage.presenting", { name: nameOf(presenter) }) }}
+        {{ screenOwner?.isSelf ? t("chat.call.stage.youArePresenting") : t("chat.call.stage.presenting", { name: nameOf(screenOwner) }) }}
       </span>
       <span v-else class="call-badge call-badge--camera">
         <i class="call-dot" :class="!cameraOn(mainTile) && 'call-dot--off'" />
@@ -364,7 +321,7 @@ const onExtraClick = (event: MouseEvent) => {
 
       <div class="call-main-footer">
         <div class="call-identity">
-          <strong>{{ showScreen ? t("chat.call.stage.screenTile", { name: nameOf(presenter) }) : nameOf(mainTile) }}</strong>
+          <strong>{{ showScreen ? t("chat.call.stage.screenTile", { name: nameOf(screenOwner) }) : nameOf(mainTile) }}</strong>
           <span v-if="action?.note && isFeatured(mainTile) && !showScreen" class="call-torch-note" :class="isLit && 'call-torch-note--on'" role="status">
             {{ action.note }}
           </span>
@@ -389,23 +346,23 @@ const onExtraClick = (event: MouseEvent) => {
       </div>
     </div>
 
-    <template v-if="thumbnails.length || screenTile">
+    <template v-if="thumbnails.length || screenTiles.length">
       <div v-if="thumbnails.length" class="call-others-title">
         <h2>{{ t("chat.call.stage.others") }}</h2>
         <span>{{ t("chat.call.stage.peopleCount", { count: n(thumbnails.length) }) }}</span>
       </div>
 
-      <div class="call-others" :class="thumbnails.length + (screenTile ? 1 : 0) > 2 && 'call-others--scroll'">
-        <article v-if="presenter && screenTile" class="call-tile" data-testid="call-stage-screen-tile">
-          <CallStageVideo :stream="presenter.screen" />
+      <div class="call-others" :class="thumbnails.length + screenTiles.length > 2 && 'call-others--scroll'">
+        <article v-for="tile in screenTiles" :key="screenKey(tile.id)" :data-id="tile.id" class="call-tile" data-testid="call-stage-screen-tile">
+          <CallStageVideo :stream="tile.screen" />
           <div class="call-tile-footer">
-            <span class="call-name">{{ t("chat.call.stage.screenTile", { name: nameOf(presenter) }) }}</span>
+            <span class="call-name">{{ t("chat.call.stage.screenTile", { name: nameOf(tile) }) }}</span>
           </div>
           <button
             type="button"
             class="call-tile-pick"
-            :aria-label="t('chat.call.stage.showInMain')"
-            @click="screenInMain = true"
+            :aria-label="t('chat.call.stage.showScreenInMain', { name: nameOf(tile) })"
+            @click="pickMain(screenKey(tile.id))"
           />
         </article>
         <article v-for="tile in thumbnails" :key="tile.id" :data-id="tile.id" class="call-tile" :class="!cameraOn(tile) && 'call-tile--off'">
@@ -786,8 +743,6 @@ const onExtraClick = (event: MouseEvent) => {
 .call-screen .call-view-controls button { display: grid; place-items: center; width: 2.5rem; height: 2.5rem; border: 1px solid rgb(255 255 255 / 0.28); border-radius: 12px; background: rgb(6 20 27 / 0.75); color: white; font-size: 1.4rem; }
 .call-screen .call-view-controls button:disabled { opacity: 0.4; }
 @media (max-width: 767.98px) { .call-screen .call-view-controls .call-zoom-step { display: none; } }
-.call-screen .call-pin { position: absolute; top: 1.0625rem; inset-inline-end: 4.125rem; z-index: 4; display: grid; place-items: center; width: 2.375rem; height: 2.375rem; color: #fff; border: 1px solid rgb(255 255 255 / 0.28); border-radius: 12px; background: rgb(6 20 27 / 0.75); }
-.call-screen .call-pin[aria-pressed="true"] { background: #197c93; }
 .call-main--expanded {
   margin: 0;
   border-radius: 0;

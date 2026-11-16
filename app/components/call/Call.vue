@@ -89,6 +89,7 @@ const peopleOpen = ref(false);
   <CallStageMini
     v-if="callStore.isActive && callStore.isMinimized"
     :title="stage.subtitle ?? stage.title ?? callTitle"
+    :featured-id="stage.featuredId"
     :before-end="stage.beforeEnd"
   />
 

@@ -1,8 +1,3 @@
-<script lang="ts">
-// The pick outlives a maximize/minimize round trip, and dies with its call.
-const picks = new WeakMap<object, string>();
-</script>
-
 <script setup lang="ts">
 import { useCallStore } from "~/stores/callStore";
 import { formatDuration } from "~/utils/format";
@@ -11,11 +6,11 @@ import { chat } from "@i18n/locales";
 import { computed, ref } from "vue";
 import { useDraggable, useWindowSize } from "@vueuse/core";
 import CallIcon from "./CallIcon.vue";
-import { useCallPin } from "~/composables/call/useCallPin";
+import { useCallMain } from "~/composables/call/useCallMain";
 import CallStageVideo from "./CallStageVideo.vue";
 
 /** The stage's minimized call: a draggable floating card, a compact strip on phones. */
-const props = defineProps<{ title: string; beforeEnd?: () => unknown }>();
+const props = defineProps<{ title: string; featuredId?: string; beforeEnd?: () => unknown }>();
 
 const { t, n } = useLocalI18n(chat);
 const { dir } = useDirection();
@@ -24,27 +19,28 @@ const session = callStore.session!;
 const { media } = session;
 
 const participants = computed(() => session.participants.value);
-const pickedId = ref(picks.get(session));
-const pinnedId = useCallPin(session);
-const main = computed(
-  () =>
-    participants.value.find((person) => person.id === pinnedId.value) ??
-    participants.value.find((person) => person.id === pickedId.value) ??
-    participants.value.find((person) => !person.isSelf) ??
-    participants.value[0],
-);
-const pick = (id: string) => {
-  pinnedId.value = undefined;
-  pickedId.value = id;
-  picks.set(session, id);
-};
+// The same main view as the stage's, so a pick carries over both ways.
+const mainView = useCallMain(session, () => props.featuredId);
+const screenOwner = mainView.screenOwner;
+const main = computed(() => screenOwner.value ?? mainView.person.value ?? participants.value[0]);
+const pick = mainView.pick;
 const nameOf = (person: (typeof participants.value)[number]) =>
   person.isSelf ? t("chat.call.you") : person.name || t("chat.call.stage.participant");
-const stream = computed(() => (main.value?.isSelf ? media.localStream.value : main.value?.camera));
-const cameraOn = computed(() =>
-  main.value?.isSelf ? media.isVideoOn.value : main.value?.media?.video !== false && !!main.value?.camera?.getVideoTracks().length,
+const stream = computed(() =>
+  screenOwner.value ? screenOwner.value.screen : main.value?.isSelf ? media.localStream.value : main.value?.camera,
 );
-const name = computed(() => (main.value ? nameOf(main.value) : t("chat.call.stage.participant")));
+const cameraOn = computed(() =>
+  !!screenOwner.value ||
+  (main.value?.isSelf ? media.isVideoOn.value : main.value?.media?.video !== false && !!main.value?.camera?.getVideoTracks().length),
+);
+const personName = computed(() => (main.value ? nameOf(main.value) : t("chat.call.stage.participant")));
+const name = computed(() =>
+  !screenOwner.value
+    ? personName.value
+    : screenOwner.value.isSelf
+      ? t("chat.call.stage.youArePresenting")
+      : t("chat.call.stage.screenTile", { name: personName.value }),
+);
 const duration = computed(() => formatDuration(Math.max(0, Math.floor(callStore.elapsedTime))));
 
 const card = ref<HTMLElement>();
@@ -77,7 +73,7 @@ const endCall = async () => {
     :class="isDragging && 'call-mini--dragging'"
   >
     <div class="call-mini-head">
-      <span class="call-mini-avatar">{{ name.charAt(0) }}</span>
+      <span class="call-mini-avatar">{{ personName.charAt(0) }}</span>
       <div class="call-mini-title">
         <strong>{{ title }}</strong>
         <span>{{ duration }} · {{ t("chat.call.stage.peopleCount", { count: n(participants.length) }) }}</span>
@@ -122,7 +118,7 @@ const endCall = async () => {
         :key="person.id"
         type="button"
         class="call-mini-person"
-        :aria-pressed="person.id === main?.id"
+        :aria-pressed="!screenOwner && person.id === main?.id"
         :aria-label="t('chat.call.stage.showInMini', { name: nameOf(person) })"
         data-testid="call-stage-mini-person"
         @pointerdown.stop
