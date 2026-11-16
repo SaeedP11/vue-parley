@@ -21,7 +21,7 @@ import {
   Transformer,
   type VueKonvaRef,
 } from "vue-konva";
-import type Konva from "konva";
+import Konva from "konva";
 import { nanoid } from "nanoid";
 import { useResizeObserver, useEventListener } from "@vueuse/core";
 import Button from "primevue/button";
