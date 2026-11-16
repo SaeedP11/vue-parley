@@ -224,7 +224,7 @@ defineExpose({
         isVisible
           ? 'z-[100] opacity-100 pointer-events-auto backdrop-blur-xs'
           : '-z-10 opacity-0 pointer-events-none invisible',
-        isFullWindow ? 'p-0' : 'p-2 sm:p-3 md:p-5',
+        isFullWindow ? 'p-0' : 'p-0 sm:p-3 md:p-5',
       ]"
       :style="{ zIndex: isVisible ? 100 : -1 }"
       :dir="dir"
@@ -236,7 +236,7 @@ defineExpose({
         :class="[
           isFullWindow
             ? 'w-full h-full max-w-none rounded-none border-none shadow-none'
-            : 'w-[96vw] max-w-[1440px] h-[92vh] rounded-2xl md:rounded-3xl shadow-2xl border border-gray-200 dark:border-gray-800',
+            : 'w-full h-[100dvh] sm:w-[96vw] sm:max-w-[1440px] sm:h-[92vh] rounded-none sm:rounded-2xl md:rounded-3xl shadow-none sm:shadow-2xl border-none sm:border border-gray-200 dark:border-gray-800',
         ]"
       >
         <!-- Body Area: Unified Whiteboard Toolbar & Canvas, with Dockable Members Sidebar -->
@@ -268,11 +268,19 @@ defineExpose({
             />
           </div>
 
-          <!-- Members Media Cards: Displayed in both standard and full window modes when open -->
+          <!-- Mobile Backdrop Overlay for Members Drawer -->
+          <div
+            v-if="displayParticipants.length > 0 && !isSidebarCollapsed"
+            class="fixed inset-0 bg-black/45 backdrop-blur-xs z-30 md:hidden transition-opacity"
+            aria-hidden="true"
+            @click="toggleSidebar"
+          />
+
+          <!-- Members Media Cards: Docked on desktop (md+), Overlay Drawer on mobile (< md) -->
           <aside
             v-if="displayParticipants.length > 0 && !isSidebarCollapsed"
             :dir="dir"
-            class="w-64 sm:w-72 md:w-80 h-full shrink-0 flex flex-col border-inline-start border-gray-200 dark:border-gray-800 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md z-10 transition-all duration-200"
+            class="fixed md:static inset-y-0 end-0 z-40 md:z-10 w-72 sm:w-80 max-w-[85vw] h-full shrink-0 flex flex-col border-inline-start border-gray-200 dark:border-gray-800 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md shadow-2xl md:shadow-none transition-all duration-200"
             data-testid="whiteboard-members-sidebar"
           >
             <!-- Sidebar Header -->

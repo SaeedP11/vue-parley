@@ -169,7 +169,7 @@ const currentColorCss = computed(() => {
 </script>
 
 <template>
-  <div class="flex flex-col gap-3 p-3 w-72 text-xs select-none">
+  <div class="flex flex-col gap-3 p-3 w-72 max-w-[calc(100vw-2.5rem)] text-xs select-none">
     <!-- Palette Group Selector -->
     <div class="flex items-center justify-between pb-1 border-b border-gray-100 dark:border-gray-800">
       <div class="flex items-center gap-1">

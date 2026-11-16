@@ -146,6 +146,7 @@ const colorPopoverRef = useTemplateRef<InstanceType<typeof Popover>>("colorPopov
 const fillColorPopoverRef = useTemplateRef<InstanceType<typeof Popover>>("fillColorPopover");
 const sizePopoverRef = useTemplateRef<InstanceType<typeof Popover>>("sizePopover");
 const pagesMenuRef = useTemplateRef<InstanceType<typeof Menu>>("pagesMenu");
+const overflowMenuRef = useTemplateRef<InstanceType<typeof Menu>>("overflowMenu");
 
 // Canvas Dimensions
 const stageSize = reactive({
@@ -1364,6 +1365,129 @@ const setZoom = (nextScale: number) => {
   markDirty();
 };
 
+// Multi-Touch Pinch-to-Zoom & Two-Finger Pan Gestures
+let lastTouchDist = 0;
+let lastTouchCenter: { x: number; y: number } | null = null;
+let isTwoFingerGesture = false;
+
+function handleStageTouchStart(e: Konva.KonvaEventObject<TouchEvent>) {
+  const touches = e.evt.touches;
+  if (touches && touches.length >= 2) {
+    isTwoFingerGesture = true;
+    // Abort active stroke drawing if one finger was already on canvas
+    if (isDrawing.value) {
+      isDrawing.value = false;
+      if (activeNativeNode) {
+        activeNativeNode.destroy();
+        activeNativeNode = null;
+        activeStrokePoints = [];
+        scratchLayerRef.value?.getNode()?.batchDraw();
+      }
+    }
+    lastTouchDist = Math.hypot(
+      touches[1].clientX - touches[0].clientX,
+      touches[1].clientY - touches[0].clientY,
+    );
+    lastTouchCenter = {
+      x: (touches[0].clientX + touches[1].clientX) / 2,
+      y: (touches[0].clientY + touches[1].clientY) / 2,
+    };
+    return;
+  }
+
+  isTwoFingerGesture = false;
+  handleStageMouseDown(e);
+}
+
+function handleStageTouchMove(e: Konva.KonvaEventObject<TouchEvent>) {
+  const touches = e.evt.touches;
+  if (touches && touches.length >= 2) {
+    if (e.evt.cancelable) {
+      e.evt.preventDefault();
+    }
+    if (!lastTouchCenter || lastTouchDist <= 0) {
+      lastTouchDist = Math.hypot(
+        touches[1].clientX - touches[0].clientX,
+        touches[1].clientY - touches[0].clientY,
+      );
+      lastTouchCenter = {
+        x: (touches[0].clientX + touches[1].clientX) / 2,
+        y: (touches[0].clientY + touches[1].clientY) / 2,
+      };
+      return;
+    }
+
+    const currentDist = Math.hypot(
+      touches[1].clientX - touches[0].clientX,
+      touches[1].clientY - touches[0].clientY,
+    );
+    const currentCenter = {
+      x: (touches[0].clientX + touches[1].clientX) / 2,
+      y: (touches[0].clientY + touches[1].clientY) / 2,
+    };
+
+    const stage = stageRef.value?.getStage();
+    if (stage && currentDist > 0) {
+      const containerRect = containerRef.value?.getBoundingClientRect();
+      const originX = containerRect ? containerRect.left : 0;
+      const originY = containerRect ? containerRect.top : 0;
+
+      // Pinch zoom anchored around touch midpoint
+      const scaleFactor = currentDist / lastTouchDist;
+      const oldScale = stageScale.value;
+      const newScale = Math.min(4, Math.max(0.25, oldScale * scaleFactor));
+
+      const pointer = {
+        x: currentCenter.x - originX,
+        y: currentCenter.y - originY,
+      };
+
+      const mousePointTo = {
+        x: (pointer.x - stagePos.x) / oldScale,
+        y: (pointer.y - stagePos.y) / oldScale,
+      };
+
+      stageScale.value = newScale;
+      stagePos.x = pointer.x - mousePointTo.x * newScale;
+      stagePos.y = pointer.y - mousePointTo.y * newScale;
+
+      // Two-finger pan delta
+      const dx = currentCenter.x - lastTouchCenter.x;
+      const dy = currentCenter.y - lastTouchCenter.y;
+      stagePos.x += dx;
+      stagePos.y += dy;
+
+      markDirty();
+    }
+
+    lastTouchDist = currentDist;
+    lastTouchCenter = currentCenter;
+    return;
+  }
+
+  if (isTwoFingerGesture) {
+    return;
+  }
+
+  handleStageMouseMove(e);
+}
+
+function handleStageTouchEnd(e: Konva.KonvaEventObject<TouchEvent>) {
+  const touches = e.evt.touches;
+  if (!touches || touches.length < 2) {
+    lastTouchDist = 0;
+    lastTouchCenter = null;
+  }
+  if (!touches || touches.length === 0) {
+    setTimeout(() => {
+      isTwoFingerGesture = false;
+    }, 60);
+  }
+  if (!isTwoFingerGesture) {
+    handleStageMouseUp();
+  }
+}
+
 function selectStrokeColor(color: string) {
   strokeColor.value = color;
   if (selectedShape.value) {
@@ -1972,6 +2096,58 @@ const activeToolLabel = computed(() => {
   return map[currentTool.value] || t("board.pen");
 });
 
+const overflowMenuItems = computed<MenuItem[]>(() => {
+  const items: MenuItem[] = [
+    {
+      label: canvasTheme.value === "dark" ? t("board.themeLight") : t("board.themeDark"),
+      phIcon: canvasTheme.value === "dark" ? "PhSun" : "PhMoon",
+      command: () => toggleCanvasTheme(),
+    },
+    {
+      label: `${t("board.grid")} (${gridStyle.value})`,
+      phIcon: "PhGridFour",
+      command: () => toggleGrid(),
+    },
+    {
+      label: t("board.copyImage"),
+      phIcon: "PhCopy",
+      command: () => copyImageToClipboard(),
+    },
+    {
+      label: t("board.save"),
+      phIcon: "PhDownloadSimple",
+      command: () => downloadImage("png"),
+    },
+    {
+      separator: true,
+    },
+    {
+      label: t("board.erase"),
+      phIcon: "PhTrash",
+      danger: true,
+      command: () => clear(),
+    },
+  ];
+
+  if (props.maximizable) {
+    items.push({
+      label: effectiveFullWindow.value ? t("board.exitFullWindow") : t("board.fullWindow"),
+      phIcon: effectiveFullWindow.value ? "PhCornersIn" : "PhCornersOut",
+      command: () => toggleMaximize(),
+    });
+  }
+
+  items.push({
+    label: t("board.shortcuts"),
+    phIcon: "PhQuestion",
+    command: () => {
+      showShortcutsModal.value = true;
+    },
+  });
+
+  return items;
+});
+
 defineExpose<WhiteboardExposed>({
   getStream,
   downloadImage,
@@ -2045,8 +2221,8 @@ defineExpose<WhiteboardExposed>({
         </div>
       </div>
 
-      <!-- Center: Main Drawing Tools Dock -->
-      <nav class="flex items-center gap-0.5 sm:gap-1 p-1 rounded-2xl bg-slate-100 dark:bg-slate-800 border border-slate-200/70 dark:border-slate-700/70 shadow-xs overflow-x-auto max-w-[50vw]">
+      <!-- Center: Main Drawing Tools Dock (Desktop & Tablet) -->
+      <nav class="hidden md:flex items-center gap-0.5 sm:gap-1 p-1 rounded-2xl bg-slate-100 dark:bg-slate-800 border border-slate-200/70 dark:border-slate-700/70 shadow-xs overflow-x-auto max-w-[50vw]">
         <!-- Select (V) -->
         <IconButton
           icon="PhCursor"
@@ -2244,7 +2420,7 @@ defineExpose<WhiteboardExposed>({
           :icon="canvasTheme === 'dark' ? 'PhSun' : 'PhMoon'"
           :label="canvasTheme === 'dark' ? t('board.themeLight') : t('board.themeDark')"
           icon-class="size-4 text-slate-600 dark:text-slate-300"
-          class="hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl"
+          class="hidden md:flex hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl"
           @click="toggleCanvasTheme"
         />
 
@@ -2253,7 +2429,7 @@ defineExpose<WhiteboardExposed>({
           icon="PhGridFour"
           :label="`${t('board.grid')} (${gridStyle})`"
           icon-class="size-4"
-          class="rounded-xl transition-all"
+          class="hidden md:flex rounded-xl transition-all"
           :class="gridStyle !== 'none' ? 'bg-slate-100 dark:bg-slate-800 text-chat-primary font-bold' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'"
           @click="toggleGrid"
         />
@@ -2263,7 +2439,7 @@ defineExpose<WhiteboardExposed>({
           icon="PhCopy"
           :label="t('board.copyImage')"
           icon-class="size-4 text-slate-700 dark:text-slate-200"
-          class="hover:bg-slate-100 dark:hover:bg-slate-800"
+          class="hidden md:flex hover:bg-slate-100 dark:hover:bg-slate-800"
           @click="copyImageToClipboard"
         />
 
@@ -2272,7 +2448,7 @@ defineExpose<WhiteboardExposed>({
           icon="PhDownloadSimple"
           :label="t('board.save')"
           icon-class="size-4 text-slate-700 dark:text-slate-200"
-          class="hover:bg-slate-100 dark:hover:bg-slate-800"
+          class="hidden md:flex hover:bg-slate-100 dark:hover:bg-slate-800"
           @click="downloadImage('png')"
         />
 
@@ -2281,7 +2457,7 @@ defineExpose<WhiteboardExposed>({
           icon="PhQuestion"
           :label="t('board.shortcuts')"
           icon-class="size-4 text-slate-500 hover:text-chat-primary"
-          class="hover:bg-slate-100 dark:hover:bg-slate-800"
+          class="hidden md:flex hover:bg-slate-100 dark:hover:bg-slate-800"
           @click="showShortcutsModal = true"
         />
 
@@ -2308,8 +2484,17 @@ defineExpose<WhiteboardExposed>({
           :icon="effectiveFullWindow ? 'PhCornersIn' : 'PhCornersOut'"
           :label="effectiveFullWindow ? t('board.exitFullWindow') : t('board.fullWindow')"
           icon-class="size-4 text-slate-700 dark:text-slate-200"
-          class="hover:bg-slate-100 dark:hover:bg-slate-800"
+          class="hidden sm:flex hover:bg-slate-100 dark:hover:bg-slate-800"
           @click="toggleMaximize"
+        />
+
+        <!-- Mobile Overflow More Options Trigger -->
+        <IconButton
+          icon="PhDotsThreeVertical"
+          :label="t('board.moreOptions')"
+          icon-class="size-4 text-slate-700 dark:text-slate-200"
+          class="md:hidden hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl"
+          @click="overflowMenuRef?.toggle($event)"
         />
 
         <!-- Close Button -->
@@ -2327,7 +2512,7 @@ defineExpose<WhiteboardExposed>({
     <!-- Contextual Floating Properties Bar (Properties Island) -->
     <div
       v-if="currentTool !== 'pan'"
-      class="absolute top-14 left-1/2 -translate-x-1/2 z-10 transition-all max-w-[95vw]"
+      class="absolute top-14 left-1/2 -translate-x-1/2 z-10 transition-all max-w-[calc(100vw-1rem)] select-none"
     >
       <!-- Collapsed State: Micro Pill -->
       <div
@@ -2335,15 +2520,15 @@ defineExpose<WhiteboardExposed>({
         class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/95 dark:bg-slate-800/95 backdrop-blur-md shadow-md border border-slate-200/80 dark:border-slate-700/80 text-xs cursor-pointer hover:border-chat-primary transition-all"
         @click="isPropertiesCollapsed = false"
       >
-        <div class="size-3 rounded-full" :style="{ backgroundColor: strokeColor }" />
-        <span class="text-[11px] font-semibold text-slate-700 dark:text-slate-200">{{ activeToolLabel }}</span>
-        <BIcon icon="PhCaretDown" class="size-3 text-slate-400" />
+        <div class="size-3 rounded-full shrink-0" :style="{ backgroundColor: strokeColor }" />
+        <span class="text-[11px] font-semibold text-slate-700 dark:text-slate-200 truncate">{{ activeToolLabel }}</span>
+        <BIcon icon="PhCaretDown" class="size-3 text-slate-400 shrink-0" />
       </div>
 
       <!-- Expanded State: Full Controls Island -->
       <div
         v-else
-        class="flex flex-wrap items-center justify-center gap-2 px-3 py-1.5 rounded-2xl bg-white/95 dark:bg-slate-800/95 backdrop-blur-md shadow-md border border-slate-200/80 dark:border-slate-700/80 text-xs"
+        class="flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-white/95 dark:bg-slate-800/95 backdrop-blur-md shadow-md border border-slate-200/80 dark:border-slate-700/80 text-xs overflow-x-auto no-scrollbar max-w-[calc(100vw-1.5rem)] whitespace-nowrap"
       >
         <!-- Mode & Size when tool is ERASER -->
         <template v-if="currentTool === 'eraser'">
@@ -2629,9 +2814,10 @@ defineExpose<WhiteboardExposed>({
         @mousedown="handleStageMouseDown"
         @mousemove="handleStageMouseMove"
         @mouseup="handleStageMouseUp"
-        @touchstart="handleStageMouseDown"
-        @touchmove="handleStageMouseMove"
-        @touchend="handleStageMouseUp"
+        @touchstart="handleStageTouchStart"
+        @touchmove="handleStageTouchMove"
+        @touchend="handleStageTouchEnd"
+        @touchcancel="handleStageTouchEnd"
         @wheel="handleWheel"
       >
         <!-- Layer 1: Background Layer (Opaque rectangle matching canvas theme) -->
@@ -2819,8 +3005,138 @@ defineExpose<WhiteboardExposed>({
       </Stage>
     </div>
 
+    <!-- Mobile Bottom Drawing Dock (Thumbs Ergonomic Zone) -->
+    <nav
+      class="md:hidden absolute bottom-3 left-1/2 -translate-x-1/2 z-20 flex items-center gap-0.5 sm:gap-1 p-1 rounded-2xl bg-white/95 dark:bg-slate-800/95 backdrop-blur-md shadow-xl border border-slate-200/80 dark:border-slate-700/80 max-w-[calc(100vw-1.5rem)] overflow-x-auto no-scrollbar select-none"
+      data-testid="whiteboard-mobile-bottom-dock"
+    >
+      <!-- Select (V) -->
+      <IconButton
+        icon="PhCursor"
+        :label="`${t('board.select')} (V)`"
+        icon-class="size-4"
+        class="rounded-xl transition-all !p-1.5 shrink-0"
+        :class="currentTool === 'select' ? 'bg-chat-primary text-white shadow-xs font-bold' : 'text-slate-600 dark:text-slate-300 hover:bg-white/80 dark:hover:bg-slate-700/80'"
+        @click="currentTool = 'select'"
+      />
+
+      <!-- Pan / Hand (Space / M) -->
+      <IconButton
+        icon="PhHandPalm"
+        :label="`${t('board.pan')} (Space / M)`"
+        icon-class="size-4"
+        class="rounded-xl transition-all !p-1.5 shrink-0"
+        :class="currentTool === 'pan' ? 'bg-chat-primary text-white shadow-xs font-bold' : 'text-slate-600 dark:text-slate-300 hover:bg-white/80 dark:hover:bg-slate-700/80'"
+        @click="currentTool = 'pan'"
+      />
+
+      <!-- Pen (P) -->
+      <IconButton
+        icon="PhPencilSimple"
+        :label="`${t('board.pen')} (P)`"
+        icon-class="size-4"
+        class="rounded-xl transition-all !p-1.5 shrink-0"
+        :class="currentTool === 'pen' ? 'bg-chat-primary text-white shadow-xs font-bold' : 'text-slate-600 dark:text-slate-300 hover:bg-white/80 dark:hover:bg-slate-700/80'"
+        @click="currentTool = 'pen'"
+      />
+
+      <!-- Brush (B) -->
+      <IconButton
+        icon="PhPaintBrush"
+        :label="`${t('board.brush')} (B)`"
+        icon-class="size-4"
+        class="rounded-xl transition-all !p-1.5 shrink-0"
+        :class="currentTool === 'brush' ? 'bg-chat-primary text-white shadow-xs font-bold' : 'text-slate-600 dark:text-slate-300 hover:bg-white/80 dark:hover:bg-slate-700/80'"
+        @click="currentTool = 'brush'"
+      />
+
+      <!-- Highlighter (H) -->
+      <IconButton
+        icon="PhHighlighterCircle"
+        :label="`${t('board.highlighter')} (H)`"
+        icon-class="size-4"
+        class="rounded-xl transition-all !p-1.5 shrink-0"
+        :class="currentTool === 'highlighter' ? 'bg-chat-primary text-white shadow-xs font-bold' : 'text-slate-600 dark:text-slate-300 hover:bg-white/80 dark:hover:bg-slate-700/80'"
+        @click="currentTool = 'highlighter'"
+      />
+
+      <!-- Eraser (E) -->
+      <IconButton
+        icon="PhEraser"
+        :label="`${t('board.eraser')} (E)`"
+        icon-class="size-4"
+        class="rounded-xl transition-all !p-1.5 shrink-0"
+        :class="currentTool === 'eraser' ? 'bg-chat-primary text-white shadow-xs font-bold' : 'text-slate-600 dark:text-slate-300 hover:bg-white/80 dark:hover:bg-slate-700/80'"
+        @click="currentTool = 'eraser'"
+      />
+
+      <!-- Text (T) -->
+      <IconButton
+        icon="PhTextT"
+        :label="`${t('board.text')} (T)`"
+        icon-class="size-4"
+        class="rounded-xl transition-all !p-1.5 shrink-0"
+        :class="currentTool === 'text' ? 'bg-chat-primary text-white shadow-xs font-bold' : 'text-slate-600 dark:text-slate-300 hover:bg-white/80 dark:hover:bg-slate-700/80'"
+        @click="currentTool = 'text'"
+      />
+
+      <!-- Sticky Note (S) -->
+      <IconButton
+        icon="PhNote"
+        :label="`${t('board.sticky')} (S)`"
+        icon-class="size-4"
+        class="rounded-xl transition-all !p-1.5 shrink-0"
+        :class="currentTool === 'sticky' ? 'bg-amber-400 text-amber-950 shadow-xs font-bold' : 'text-slate-600 dark:text-slate-300 hover:bg-white/80 dark:hover:bg-slate-700/80'"
+        @click="currentTool = 'sticky'"
+      />
+
+      <!-- Laser Pointer (L) -->
+      <IconButton
+        icon="PhCrosshairSimple"
+        :label="`${t('board.laser')} (L)`"
+        icon-class="size-4"
+        class="rounded-xl transition-all !p-1.5 shrink-0"
+        :class="currentTool === 'laser' ? 'bg-red-500 text-white shadow-xs font-bold' : 'text-slate-600 dark:text-slate-300 hover:bg-white/80 dark:hover:bg-slate-700/80'"
+        @click="currentTool = 'laser'"
+      />
+
+      <div class="h-4 w-[1px] bg-slate-300 dark:bg-slate-700 mx-0.5 shrink-0" />
+
+      <!-- Shapes Popover Button -->
+      <Button
+        rounded
+        text
+        size="small"
+        :aria-label="t('board.shapes')"
+        class="!p-1.5 rounded-xl transition-all shrink-0"
+        :class="isGeometricTool ? 'bg-chat-primary text-white shadow-xs' : 'text-slate-600 dark:text-slate-300 hover:bg-white/80 dark:hover:bg-slate-700/80'"
+        @click="shapesPopoverRef?.toggle($event)"
+      >
+        <template #icon>
+          <BIcon
+            :icon="
+              currentTool === 'rect' || currentTool === 'square'
+                ? 'PhSquare'
+                : currentTool === 'circle'
+                ? 'PhCircle'
+                : currentTool === 'triangle'
+                ? 'PhTriangle'
+                : currentTool === 'arrow'
+                ? 'PhArrowUpRight'
+                : currentTool === 'star'
+                ? 'PhStar'
+                : currentTool === 'line'
+                ? 'PhMinus'
+                : 'PhShapes'
+            "
+            class="size-4"
+          />
+        </template>
+      </Button>
+    </nav>
+
     <!-- Bottom Floating Navigation & Status Bar -->
-    <div class="absolute bottom-4 left-4 z-10 flex items-center gap-1.5 px-2.5 py-1.5 rounded-2xl bg-white/95 dark:bg-slate-800/95 backdrop-blur-md shadow-md border border-slate-200/80 dark:border-slate-700/80 text-xs">
+    <div class="absolute bottom-16 md:bottom-4 start-3 md:start-4 z-10 flex items-center gap-1.5 px-2.5 py-1.5 rounded-2xl bg-white/95 dark:bg-slate-800/95 backdrop-blur-md shadow-md border border-slate-200/80 dark:border-slate-700/80 text-xs select-none">
       <IconButton
         icon="PhCaretLeft"
         :label="t('board.prevPage')"
@@ -2860,8 +3176,38 @@ defineExpose<WhiteboardExposed>({
       </button>
     </div>
 
-    <!-- Bottom Right Tool Mode Pill -->
-    <div class="absolute bottom-4 right-4 z-10 hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-white/90 dark:bg-slate-800/90 backdrop-blur-md shadow-md border border-slate-200/80 dark:border-slate-700/80 text-xs text-slate-500 dark:text-slate-400">
+    <!-- Mobile Floating Zoom Pill -->
+    <div class="md:hidden absolute bottom-16 end-3 z-10 flex items-center bg-white/95 dark:bg-slate-800/95 backdrop-blur-md rounded-2xl p-0.5 border border-slate-200/80 dark:border-slate-700/80 shadow-md select-none">
+      <button
+        type="button"
+        class="size-6 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center justify-center font-bold text-xs cursor-pointer transition-colors"
+        :title="t('board.zoomOut')"
+        :disabled="stageScale <= 0.25"
+        @click="zoomOut"
+      >
+        −
+      </button>
+      <button
+        type="button"
+        class="px-1.5 h-6 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 font-mono text-[11px] font-semibold flex items-center justify-center cursor-pointer transition-colors"
+        :title="t('board.resetZoom')"
+        @click="resetZoom"
+      >
+        {{ Math.round(stageScale * 100) }}%
+      </button>
+      <button
+        type="button"
+        class="size-6 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center justify-center font-bold text-xs cursor-pointer transition-colors"
+        :title="t('board.zoomIn')"
+        :disabled="stageScale >= 4"
+        @click="zoomIn"
+      >
+        +
+      </button>
+    </div>
+
+    <!-- Desktop Bottom Right Tool Mode Pill -->
+    <div class="absolute bottom-4 end-4 z-10 hidden md:flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-white/90 dark:bg-slate-800/90 backdrop-blur-md shadow-md border border-slate-200/80 dark:border-slate-700/80 text-xs text-slate-500 dark:text-slate-400 select-none">
       <span class="font-medium text-slate-700 dark:text-slate-200">{{ activeToolLabel }}</span>
       <span v-if="currentTool !== 'select' && currentTool !== 'pan'">&middot; {{ strokeWidth }}px</span>
     </div>
@@ -2955,7 +3301,7 @@ defineExpose<WhiteboardExposed>({
 
     <!-- Stroke Color Popover -->
     <Popover ref="colorPopover" :dir="dir" class="vue-chat">
-      <div class="p-3 w-72 select-none">
+      <div class="p-2 sm:p-3 w-72 max-w-[calc(100vw-2rem)] select-none">
         <WhiteboardRgbPicker
           :model-value="strokeColor"
           @update:model-value="selectStrokeColor"
@@ -2965,7 +3311,7 @@ defineExpose<WhiteboardExposed>({
 
     <!-- Fill Color Popover -->
     <Popover ref="fillColorPopover" :dir="dir" class="vue-chat">
-      <div class="p-3 w-72 select-none">
+      <div class="p-2 sm:p-3 w-72 max-w-[calc(100vw-2rem)] select-none">
         <WhiteboardRgbPicker
           :model-value="fillColor"
           @update:model-value="(c) => { fillColor = c; if (selectedShape) { selectedShape.fill = c; pushHistory(); } markDirty(); }"
@@ -3008,6 +3354,24 @@ defineExpose<WhiteboardExposed>({
         <div class="flex items-center gap-2 px-3 py-2 text-xs cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 w-full">
           <BIcon v-if="item.phIcon" :icon="item.phIcon" class="size-4 shrink-0 text-slate-500" />
           <span class="truncate flex-1">{{ item.label }}</span>
+        </div>
+      </template>
+    </Menu>
+
+    <!-- Mobile Overflow Menu -->
+    <Menu ref="overflowMenu" :model="overflowMenuItems" :popup="true" :dir="dir" class="vue-chat">
+      <template #item="{ item }">
+        <div
+          class="flex items-center gap-2 px-3 py-2 text-xs cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 w-full transition-colors"
+          :class="item.danger ? 'text-red-500 hover:text-red-600' : 'text-slate-700 dark:text-slate-200'"
+        >
+          <BIcon
+            v-if="item.phIcon"
+            :icon="item.phIcon"
+            class="size-4 shrink-0"
+            :class="item.danger ? 'text-red-500' : 'text-slate-500 dark:text-slate-400'"
+          />
+          <span class="truncate flex-1 font-medium">{{ item.label }}</span>
         </div>
       </template>
     </Menu>
