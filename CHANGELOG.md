@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [5.5.32] - 2026-11-16
+
+### Added
+
+- Interactive whiteboard with live canvas streaming and multi-layer drawing.
+- Two-way `streamActive` sync and modernized share to call button.
+
 ## [5.5.31] - 2026-11-16
 
 ### Changed
