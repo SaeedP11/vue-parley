@@ -34,8 +34,6 @@
   "exclude": [
     "node_modules",
     "dist",
-    "app/components/call2",
-    // Unused, and written against call-store fields that no longer exist.
-    "app/components/call/paint-board"
+    "app/components/call2"
   ]
 }

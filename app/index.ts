@@ -24,6 +24,13 @@ export { default as BEmojiPicker } from "./components/global/BEmojiPicker.vue";
 export type { EmojiSelection } from "./components/global/emoji/types";
 export { default as BIcon } from "./components/global/BIcon.vue";
 
+export { default as Whiteboard } from "./components/whiteboard/Whiteboard.vue";
+export type { WhiteboardExposed } from "./components/whiteboard/Whiteboard.vue";
+export { default as WhiteboardDialog } from "./components/whiteboard/WhiteboardDialog.vue";
+export { default as WhiteboardRgbPicker } from "./components/whiteboard/WhiteboardRgbPicker.vue";
+export { default as CallPaintBoard } from "./components/call/paint-board/CallPaintBoard.vue";
+export type * from "./components/whiteboard/types";
+
 export * from "./types";
 export * from "./stores/messageStores";
 export * from "./stores/chatStore";

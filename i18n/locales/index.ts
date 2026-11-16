@@ -118,6 +118,8 @@ export const callPaintBoard = {
   fa: { ...componentsGeneral.fa, ...callPaintBoardFa },
 };
 
+export const whiteboardLocale = callPaintBoard;
+
 export const chatBubble = {
   en: { ...componentsGeneral.en, ...chatBubbleEn },
   fa: { ...componentsGeneral.fa, ...chatBubbleFa },

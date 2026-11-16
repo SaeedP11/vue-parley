@@ -18,17 +18,17 @@ const phosphor = require("@iconify-json/ph/icons.json");
 
 const ICONS = [
   "AirplaneTilt", "ArrowBendUpLeft", "ArrowDown", "ArrowLeft", "ArrowRight", "ArrowUUpLeft",
-  "ArrowUUpRight", "ArrowsClockwise", "ArrowsInSimple", "Buildings", "Cake", "Camera",
+  "ArrowUUpRight", "ArrowUpRight", "ArrowsClockwise", "ArrowsInSimple", "ArrowsOutSimple", "Buildings", "Cake", "Camera",
   "CaretDown", "CaretLeft", "CaretRight", "CaretUp", "ChatCircleDots", "Check", "CheckCircle",
-  "Checks", "CircleNotch", "Clock", "Copy", "CornersIn", "DotsThreeVertical", "DownloadSimple",
-  "Eraser", "File", "FileText", "Files", "FilmStrip", "Flag", "FrameCorners", "Hamburger",
-  "HandWaving", "Heart", "IdentificationCard", "Image", "Images", "Info", "Lightbulb",
+  "Checks", "Circle", "CircleNotch", "Clock", "Copy", "CornersIn", "CornersOut", "Cursor", "DotsThreeVertical", "DownloadSimple",
+  "Eraser", "File", "FileText", "Files", "FilmStrip", "Flag", "FrameCorners", "GridFour", "Hamburger",
+  "HandWaving", "Heart", "HighlighterCircle", "IdentificationCard", "Image", "Images", "Info", "Lightbulb",
   "Lightning", "LightningSlash", "LockKey", "MagnifyingGlass", "MagnifyingGlassMinus", "MagnifyingGlassPlus", "Microphone", "MicrophoneSlash",
-  "Monitor", "MonitorArrowUp", "Moon", "MusicNotes", "Palette", "PaperPlaneTilt", "Paperclip",
-  "Pause", "PauseCircle", "PawPrint", "PencilLine", "PencilSimpleLine", "Phone", "PhoneCall",
-  "PhoneX", "Play", "PlayCircle", "Plus", "Resize", "SidebarSimple", "Smiley", "SmileyMeh",
-  "SoccerBall", "SpeakerHigh", "SpeakerSlash", "Subtitles", "SunDim", "Trash", "TrayArrowDown",
-  "UploadSimple", "User", "Users", "Video", "VideoCamera", "VideoCameraSlash", "Warning",
+  "Minus", "Monitor", "MonitorArrowUp", "Moon", "MusicNotes", "PaintBrush", "PaintBucket", "Palette", "PaperPlaneTilt", "Paperclip",
+  "Pause", "PauseCircle", "PawPrint", "PencilLine", "PencilSimple", "PencilSimpleLine", "Phone", "PhoneCall",
+  "PhoneX", "Play", "PlayCircle", "Plus", "Resize", "Shapes", "SidebarSimple", "Smiley", "SmileyMeh",
+  "SoccerBall", "SpeakerHigh", "SpeakerSlash", "Square", "Star", "Subtitles", "SunDim", "Trash", "TrayArrowDown",
+  "Triangle", "UploadSimple", "User", "Users", "Video", "VideoCamera", "VideoCameraSlash", "Warning",
   "WarningCircle", "WarningOctagon", "Waveform", "X", "XCircle", "XSquare",
 ];
 

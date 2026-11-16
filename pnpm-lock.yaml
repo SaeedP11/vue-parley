@@ -14,12 +14,18 @@ importers:
       '@tanstack/vue-virtual':
         specifier: ^3.13.39
         version: 3.13.39(vue@3.5.38(typescript@5.9.3))
+      konva:
+        specifier: ^10.9.1
+        version: 10.9.1
       mediabunny:
         specifier: ^1.61.3
         version: 1.61.3
       nanoid:
         specifier: ^6.0.0
         version: 6.0.0
+      vue-konva:
+        specifier: ^4.0.1
+        version: 4.0.1(konva@10.9.1)(vue@3.5.38(typescript@5.9.3))
     devDependencies:
       '@iconify-json/ph':
         specifier: ^1.2.2
@@ -1446,6 +1452,17 @@ packages:
   kolorist@1.8.0:
     resolution: {integrity: sha512-Y+60/zizpJ3HRH8DCss+q95yr6145JXZo46OTpFvDZWLfRCE4qChOyk1b26nMaNpfHHgxagk9dXT5OP0Tfe+dQ==}
 
+  konva@10.9.1:
+    resolution: {integrity: sha512-m49x+GatSxEUSvqahYhxpTjgKbtrLtw4P4o4B4iux953ZFpceaK52Ea+CFsAsd7W4I0Y5u6mMoRUsY/eltNZmw==}
+    peerDependencies:
+      canvas: ^3.0.0
+      skia-canvas: ^3.0.0
+    peerDependenciesMeta:
+      canvas:
+        optional: true
+      skia-canvas:
+        optional: true
+
   lightningcss-android-arm64@1.32.0:
     resolution: {integrity: sha512-YK7/ClTt4kAK0vo6w3X+Pnm0D2cf2vPHbhOXdoNti1Ga0al1P4TBZhwjATvjNwLEBCnKvjJc2jQgHXH0NEwlAg==}
     engines: {node: '>= 12.0.0'}
@@ -2127,6 +2144,13 @@ packages:
     deprecated: v9 and v10 no longer supported. please migrate to v11. about maintenance status, see https://vue-i18n.intlify.dev/guide/maintenance.html
     peerDependencies:
       vue: ^3.0.0
+
+  vue-konva@4.0.1:
+    resolution: {integrity: sha512-y38dwDxGU+ZmWFcCLdCqG8OOvBnUXt6wDp5sRHD+gADzu3JUxVVg4vri1cw+4S+zjL3NW1Kr6lKoB72YitqClw==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      konva: '>7'
+      vue: ^3
 
   vue-tsc@2.2.12:
     resolution: {integrity: sha512-P7OP77b2h/Pmk+lZdJ0YWs+5tJ6J2+uOQPo7tlBnY44QqQSPYvS0qVT4wqDJgwrZaLe47etJLLQRFia71GYITw==}
@@ -3477,6 +3501,8 @@ snapshots:
 
   kolorist@1.8.0: {}
 
+  konva@10.9.1: {}
+
   lightningcss-android-arm64@1.32.0:
     optional: true
 
@@ -4221,6 +4247,11 @@ snapshots:
       '@intlify/shared': 9.14.4
       '@vue/devtools-api': 6.6.4
       vue: 3.5.39(typescript@6.0.3)
+
+  vue-konva@4.0.1(konva@10.9.1)(vue@3.5.38(typescript@5.9.3)):
+    dependencies:
+      konva: 10.9.1
+      vue: 3.5.38(typescript@5.9.3)
 
   vue-tsc@2.2.12(typescript@5.9.3):
     dependencies:

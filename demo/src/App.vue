@@ -1,12 +1,14 @@
 <script setup lang="ts">
 import { ref, watchEffect } from "vue";
 import { useI18n } from "vue-i18n";
-import { ChatPage, type Message } from "vue-parley";
+import { ChatPage, WhiteboardDialog, type Message } from "vue-parley";
 import { userId } from "./user";
 
 const { locale } = useI18n();
 const dark = ref(matchMedia("(prefers-color-scheme: dark)").matches);
 watchEffect(() => document.documentElement.classList.toggle("dark", dark.value));
+
+const showWhiteboard = ref(false);
 
 const other = userId === "me" ? "sara" : "me";
 const otherTab = `?user=${other}`;
@@ -48,6 +50,7 @@ const messageOptions = (message: Message) => [
         <option value="en">English</option>
       </select>
       <label><input v-model="dark" type="checkbox" /> Dark</label>
+      <button class="demo-chip" @click="showWhiteboard = true">🎨 Whiteboard</button>
     </header>
 
     <ChatPage class="demo-chat" :header-options="headerOptions" :message-options="messageOptions">
@@ -61,6 +64,12 @@ const messageOptions = (message: Message) => [
         </div>
       </template>
     </ChatPage>
+
+    <!-- Whiteboard Dialog with Maximize Support -->
+    <WhiteboardDialog
+      v-model:visible="showWhiteboard"
+      @close="showWhiteboard = false"
+    />
   </div>
 </template>
 

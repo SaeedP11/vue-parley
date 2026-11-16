@@ -71,8 +71,10 @@
   "dependencies": {
     "@iconify/vue": "^5.0.3",
     "@tanstack/vue-virtual": "^3.13.39",
+    "konva": "^10.9.1",
     "mediabunny": "^1.61.3",
-    "nanoid": "^6.0.0"
+    "nanoid": "^6.0.0",
+    "vue-konva": "^4.0.1"
   },
   "devDependencies": {
     "@iconify-json/ph": "^1.2.2",
