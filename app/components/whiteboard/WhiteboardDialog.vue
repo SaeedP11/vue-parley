@@ -221,9 +221,19 @@ defineExpose({
               <BIcon icon="PhPaintBrush" class="size-4.5" />
             </div>
             <div class="flex flex-col">
-              <span class="text-sm font-bold text-gray-800 dark:text-gray-100 leading-tight">
-                {{ title || t("board.title") }}
-              </span>
+              <div class="flex items-center gap-2">
+                <span class="text-sm font-bold text-gray-800 dark:text-gray-100 leading-tight">
+                  {{ title || t("board.title") }}
+                </span>
+                <span
+                  v-if="streamActive"
+                  class="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 select-none shadow-xs"
+                  :title="t('board.streaming')"
+                >
+                  <span class="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  {{ t("board.liveHd") }}
+                </span>
+              </div>
               <span class="text-[11px] text-gray-400 dark:text-gray-500 leading-tight">
                 {{ t("board.shapes") }} &middot; {{ t("board.customRgb") }}
               </span>

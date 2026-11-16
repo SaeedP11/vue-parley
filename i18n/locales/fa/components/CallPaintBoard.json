@@ -46,6 +46,12 @@
     "prevPage": "صفحه قبل",
     "nextPage": "صفحه بعد",
     "close": "بستن",
+    "laser": "اشاره‌گر لیزری",
+    "pan": "جابجایی صفحه",
+    "liveHd": "پخش زنده HD",
+    "zoomIn": "بزرگ‌نمایی",
+    "zoomOut": "کوچک‌نمایی",
+    "resetZoom": "اندازه اصلی",
     "shareToCall": "اشتراک در تماس",
     "stopSharing": "توقف اشتراک",
     "streaming": "در حال پخش"

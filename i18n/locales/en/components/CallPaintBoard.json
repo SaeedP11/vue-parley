@@ -46,6 +46,12 @@
     "prevPage": "Previous page",
     "nextPage": "Next page",
     "close": "Close",
+    "laser": "Laser Pointer",
+    "pan": "Pan Canvas",
+    "liveHd": "LIVE HD",
+    "zoomIn": "Zoom in",
+    "zoomOut": "Zoom out",
+    "resetZoom": "Reset zoom",
     "shareToCall": "Share to Call",
     "stopSharing": "Stop sharing",
     "streaming": "Streaming"

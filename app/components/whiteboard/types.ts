@@ -1,9 +1,11 @@
 export type WhiteboardTool =
   | "select"
+  | "pan"
   | "pen"
   | "brush"
   | "highlighter"
   | "eraser"
+  | "laser"
   | "rect"
   | "square"
   | "circle"
