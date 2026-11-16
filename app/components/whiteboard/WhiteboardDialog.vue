@@ -34,7 +34,7 @@ const props = withDefaults(
     initialColor: "#2563eb",
     maximizable: true,
     fullWindow: false,
-    dismissableMask: true,
+    dismissableMask: false, // Prevents accidental closing during active drawing
     modal: true,
     title: "",
     streamActive: false,
@@ -64,10 +64,48 @@ const isVisible = computed({
 });
 
 const isFullWindow = ref(props.fullWindow ?? false);
+
+watch(
+  () => props.fullWindow,
+  (val) => {
+    if (val !== undefined && val !== isFullWindow.value) {
+      isFullWindow.value = val;
+    }
+  },
+);
+
+const setFullWindow = (val: boolean) => {
+  if (isFullWindow.value === val) return;
+  isFullWindow.value = val;
+  emit("fullWindow", val);
+  emit("update:fullWindow", val);
+  if (val) {
+    emit("maximize");
+  } else {
+    emit("unmaximize");
+  }
+  nextTick(() => {
+    window.dispatchEvent(new Event("resize"));
+    setTimeout(() => {
+      window.dispatchEvent(new Event("resize"));
+    }, 250);
+  });
+};
+
+const toggleFullWindow = (targetVal?: boolean | Event) => {
+  if (typeof targetVal === "boolean") {
+    setFullWindow(targetVal);
+  } else {
+    setFullWindow(!isFullWindow.value);
+  }
+};
+
+const toggleMaximize = toggleFullWindow;
+
 const isMaximized = computed({
   get: () => isFullWindow.value,
   set: (val: boolean) => {
-    isFullWindow.value = val;
+    setFullWindow(val);
   },
 });
 
@@ -131,22 +169,6 @@ watch(isVisible, async (open) => {
   }
 });
 
-const toggleFullWindow = () => {
-  isFullWindow.value = !isFullWindow.value;
-  emit("fullWindow", isFullWindow.value);
-  emit("update:fullWindow", isFullWindow.value);
-  if (isFullWindow.value) {
-    emit("maximize");
-  } else {
-    emit("unmaximize");
-  }
-  nextTick(() => {
-    window.dispatchEvent(new Event("resize"));
-  });
-};
-
-const toggleMaximize = toggleFullWindow;
-
 const toggleSidebar = () => {
   isSidebarCollapsed.value = !isSidebarCollapsed.value;
   nextTick(() => {
@@ -166,15 +188,21 @@ const onMaskClick = (e: MouseEvent) => {
 };
 
 useEventListener(window, "keydown", (e: KeyboardEvent) => {
-  if (isVisible.value && e.key === "Escape") {
+  if (!isVisible.value) return;
+  if (e.key === "Escape") {
     e.stopPropagation();
-    close();
+    if (isFullWindow.value) {
+      setFullWindow(false);
+    } else {
+      close();
+    }
   }
 });
 
 defineExpose({
   getStream: (fps = 30) => whiteboardRef.value?.getStream(fps) ?? null,
   downloadImage: (format?: "png" | "jpeg") => whiteboardRef.value?.downloadImage(format),
+  copyImageToClipboard: () => whiteboardRef.value?.copyImageToClipboard(),
   clear: () => whiteboardRef.value?.clear(),
   undo: () => whiteboardRef.value?.undo(),
   redo: () => whiteboardRef.value?.redo(),
@@ -195,7 +223,7 @@ defineExpose({
         isVisible
           ? 'z-[100] opacity-100 pointer-events-auto backdrop-blur-xs'
           : '-z-10 opacity-0 pointer-events-none invisible',
-        isFullWindow ? 'p-0' : 'p-2 sm:p-4 md:p-6',
+        isFullWindow ? 'p-0' : 'p-2 sm:p-3 md:p-5',
       ]"
       :style="{ zIndex: isVisible ? 100 : -1 }"
       :dir="dir"
@@ -203,91 +231,46 @@ defineExpose({
       @click="onMaskClick"
     >
       <div
-        class="whiteboard-dialog-root rounded-2xl md:rounded-3xl shadow-2xl overflow-hidden border border-gray-200 dark:border-gray-800 bg-white dark:bg-gray-900 flex flex-col transition-all duration-200"
+        class="whiteboard-dialog-root overflow-hidden bg-white dark:bg-gray-900 flex flex-col transition-all duration-200"
         :class="[
           isFullWindow
-            ? '!w-screen !h-screen !max-w-none !rounded-none border-none'
-            : 'w-[94vw] max-w-[1360px] h-[88vh]',
+            ? 'w-full h-full max-w-none rounded-none border-none shadow-none'
+            : 'w-[96vw] max-w-[1440px] h-[92vh] rounded-2xl md:rounded-3xl shadow-2xl border border-gray-200 dark:border-gray-800',
         ]"
       >
-        <!-- Header -->
-        <div
-          class="px-4 py-3 border-b border-gray-100 dark:border-gray-800 bg-white/95 dark:bg-gray-900/95 backdrop-blur-xs flex items-center justify-between shrink-0 select-none"
-        >
-          <div class="flex items-center gap-2">
-            <div
-              class="size-8 rounded-xl bg-chat-primary/10 text-chat-primary flex items-center justify-center"
-            >
-              <BIcon icon="PhPaintBrush" class="size-4.5" />
-            </div>
-            <div class="flex flex-col">
-              <div class="flex items-center gap-2">
-                <span class="text-sm font-bold text-gray-800 dark:text-gray-100 leading-tight">
-                  {{ title || t("board.title") }}
-                </span>
-                <span
-                  v-if="streamActive"
-                  class="flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 select-none shadow-xs"
-                  :title="t('board.streaming')"
-                >
-                  <span class="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  {{ t("board.liveHd") }}
-                </span>
-              </div>
-              <span class="text-[11px] text-gray-400 dark:text-gray-500 leading-tight">
-                {{ t("board.shapes") }} &middot; {{ t("board.customRgb") }}
-              </span>
-            </div>
-          </div>
-
-          <div class="flex items-center gap-1">
-            <button
-              v-if="maximizable"
-              type="button"
-              class="size-8 p-0 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 hover:text-gray-900 dark:hover:text-gray-100 transition-colors flex items-center justify-center cursor-pointer"
-              :aria-label="isFullWindow ? t('board.exitFullWindow') : t('board.fullWindow')"
-              :title="isFullWindow ? t('board.exitFullWindow') : t('board.fullWindow')"
-              data-testid="whiteboard-full-window-button"
-              @click="toggleFullWindow"
-            >
-              <BIcon :icon="isFullWindow ? 'PhCornersIn' : 'PhCornersOut'" class="size-4" />
-            </button>
-            <button
-              type="button"
-              class="size-8 p-0 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-500 hover:text-gray-900 dark:hover:text-gray-100 transition-colors flex items-center justify-center cursor-pointer"
-              :aria-label="t('board.close')"
-              :title="t('board.close')"
-              @click="close"
-            >
-              <BIcon icon="PhX" class="size-4.5" />
-            </button>
-          </div>
-        </div>
-
-        <!-- Body Area: Whiteboard on Left, Members Cards on Right in Full Window Mode -->
-        <div dir="ltr" class="flex-1 w-full h-full min-h-0 relative overflow-hidden flex flex-row">
-          <!-- Whiteboard Container (Kept alive at all times to preserve canvas & WebRTC stream) -->
+        <!-- Body Area: Unified Whiteboard Toolbar & Canvas, with Dockable Members Sidebar -->
+        <div :dir="dir" class="flex-1 w-full h-full min-h-0 relative overflow-hidden flex flex-row">
+          <!-- Whiteboard Container with Unified Top Header -->
           <div
-            :dir="dir"
             class="flex-1 h-full min-w-0 relative overflow-hidden flex flex-col bg-slate-50 dark:bg-slate-900"
           >
             <Whiteboard
               ref="whiteboardRef"
               :initial-tool="initialTool"
               :initial-color="initialColor"
-              :show-close="false"
+              :title="title"
+              :show-close="true"
+              :maximizable="maximizable"
+              :is-full-window="isFullWindow"
               :stream-active="streamActive"
               :allow-stream="allowStream"
+              :has-participants="displayParticipants.length > 0"
+              :participants-count="displayParticipants.length"
+              :is-sidebar-open="!isSidebarCollapsed && displayParticipants.length > 0"
               @stream-start="emit('streamStart', $event)"
               @stream-stop="emit('streamStop')"
+              @full-window="toggleFullWindow"
+              @maximize="toggleFullWindow"
+              @toggle-sidebar="toggleSidebar"
+              @close="close"
             />
           </div>
 
-          <!-- Members Media Cards: Displayed in full window mode on the right of the whiteboard -->
+          <!-- Members Media Cards: Displayed in both standard and full window modes when open -->
           <aside
-            v-if="isFullWindow && displayParticipants.length > 0 && !isSidebarCollapsed"
+            v-if="displayParticipants.length > 0 && !isSidebarCollapsed"
             :dir="dir"
-            class="w-64 sm:w-72 md:w-80 h-full shrink-0 flex flex-col border-l border-gray-200 dark:border-gray-800 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md z-10 transition-all duration-200"
+            class="w-64 sm:w-72 md:w-80 h-full shrink-0 flex flex-col border-inline-start border-gray-200 dark:border-gray-800 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md z-10 transition-all duration-200"
             data-testid="whiteboard-members-sidebar"
           >
             <!-- Sidebar Header -->
@@ -318,7 +301,10 @@ defineExpose({
                 :key="tile.id"
                 :data-id="tile.id"
                 data-testid="whiteboard-member-card"
-                class="relative rounded-xl overflow-hidden bg-gray-950 border border-gray-700/60 shadow-md aspect-video flex flex-col justify-end group shrink-0"
+                class="relative rounded-xl overflow-hidden bg-gray-950 border border-gray-700/60 shadow-md aspect-video flex flex-col justify-end group shrink-0 transition-all duration-200"
+                :class="{
+                  'ring-2 ring-emerald-500 shadow-emerald-500/20': micOn(tile) && !tile.isSelf,
+                }"
               >
                 <!-- Video stream when camera is active -->
                 <CallStageVideo
@@ -393,19 +379,6 @@ defineExpose({
               </article>
             </div>
           </aside>
-
-          <!-- Floating expand button when sidebar is collapsed in full window mode -->
-          <button
-            v-else-if="isFullWindow && displayParticipants.length > 0 && isSidebarCollapsed"
-            type="button"
-            class="absolute top-3 right-3 z-20 p-2 rounded-xl bg-white/90 dark:bg-gray-800/90 shadow-lg border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-200 hover:text-chat-primary transition-all flex items-center gap-1.5 cursor-pointer backdrop-blur-xs"
-            :title="t('board.expandMembers')"
-            @click="toggleSidebar"
-          >
-            <CallIcon name="group" class="size-4 text-gray-500" />
-            <span class="text-xs font-medium">{{ displayParticipants.length }}</span>
-            <BIcon icon="PhSidebarSimple" class="size-4" />
-          </button>
         </div>
       </div>
     </div>

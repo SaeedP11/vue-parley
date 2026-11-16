@@ -12,12 +12,14 @@ import {
 import {
   Stage,
   Layer,
+  Group,
   Line,
   Rect,
   Circle,
   RegularPolygon,
   Arrow,
   Star,
+  Text,
   Transformer,
   type VueKonvaRef,
 } from "vue-konva";
@@ -27,12 +29,14 @@ import { useResizeObserver, useEventListener } from "@vueuse/core";
 import Button from "primevue/button";
 import Popover from "primevue/popover";
 import Menu from "primevue/menu";
+import Dialog from "primevue/dialog";
 import type { MenuItem } from "primevue/menuitem";
 import Slider from "primevue/slider";
 import ToggleSwitch from "primevue/toggleswitch";
 
 import BIcon from "~/components/global/BIcon.vue";
 import IconButton from "~/components/general/IconButton.vue";
+import CallIcon from "~/components/call/CallIcon.vue";
 import WhiteboardRgbPicker from "./WhiteboardRgbPicker.vue";
 import type {
   WhiteboardTool,
@@ -44,6 +48,10 @@ import type {
   TriangleShape,
   ArrowShape,
   StarShape,
+  TextShape,
+  StickyShape,
+  CanvasTheme,
+  GridStyle,
 } from "./types";
 import useLocalI18n, { useDirection } from "~/composables/useLocalI18n";
 import { callPaintBoard } from "@i18n/locales";
@@ -70,6 +78,7 @@ interface LaserPoint {
 export interface WhiteboardExposed {
   getStream: (fps?: number) => MediaStream | null;
   downloadImage: (format?: "png" | "jpeg") => void;
+  copyImageToClipboard: () => Promise<void>;
   clear: () => void;
   undo: () => void;
   redo: () => void;
@@ -88,6 +97,11 @@ const props = withDefaults(
     streamActive?: boolean;
     allowStream?: boolean;
     showGrid?: boolean;
+    isFullWindow?: boolean;
+    hasParticipants?: boolean;
+    participantsCount?: number;
+    isSidebarOpen?: boolean;
+    title?: string;
   }>(),
   {
     initialTool: "pen",
@@ -98,6 +112,11 @@ const props = withDefaults(
     streamActive: false,
     allowStream: true,
     showGrid: true,
+    isFullWindow: undefined,
+    hasParticipants: false,
+    participantsCount: 0,
+    isSidebarOpen: false,
+    title: "",
   },
 );
 
@@ -107,6 +126,7 @@ const emit = defineEmits<{
   (e: "streamStop"): void;
   (e: "maximize", maximized: boolean): void;
   (e: "fullWindow", fullWindow: boolean): void;
+  (e: "toggleSidebar"): void;
 }>();
 
 const { t } = useLocalI18n(callPaintBoard);
@@ -157,12 +177,66 @@ const strokeWidth = ref<number>(props.initialSize);
 const isShapeFilled = ref<boolean>(false);
 const fillColor = ref<string>("#93c5fd");
 const selectedShapeId = ref<string | null>(null);
-const gridVisible = ref<boolean>(props.showGrid);
 const isMaximized = ref<boolean>(false);
+
+const effectiveFullWindow = computed(() => {
+  return typeof props.isFullWindow === "boolean" ? props.isFullWindow : isMaximized.value;
+});
+
+const isStandaloneMaximized = computed(() => {
+  return !props.showClose && typeof props.isFullWindow !== "boolean" && isMaximized.value;
+});
+
+// Canvas Theme & Grid Styles
+const canvasTheme = ref<CanvasTheme>("light");
+const gridStyle = ref<GridStyle>(props.showGrid ? "dots" : "none");
+
+const toggleCanvasTheme = () => {
+  canvasTheme.value = canvasTheme.value === "light" ? "dark" : "light";
+  markDirty();
+};
+
+const toggleGrid = () => {
+  if (gridStyle.value === "dots") gridStyle.value = "lines";
+  else if (gridStyle.value === "lines") gridStyle.value = "none";
+  else gridStyle.value = "dots";
+};
+
+// Properties Island Collapsible State
+const isPropertiesCollapsed = ref(false);
+const showShortcutsModal = ref(false);
+
+// Sticky Notes & Text Settings
+const textFontSize = ref<number>(20);
+const stickyColor = ref<string>("#fef08a");
+const stickyColorPresets = [
+  "#fef08a",
+  "#bbf7d0",
+  "#bfdbfe",
+  "#fbcfe8",
+  "#fed7aa",
+  "#e9d5ff",
+];
+
+// In-canvas Inline Text Editing Overlay
+const isEditingText = ref(false);
+const editingShapeId = ref<string | null>(null);
+const editingText = ref("");
+const editingBox = reactive({
+  left: 0,
+  top: 0,
+  width: 200,
+  height: 100,
+  fontSize: 16,
+  color: "#0f172a",
+  isSticky: false,
+  bgColor: "#ffffff",
+});
+const inlineTextareaRef = useTemplateRef<HTMLTextAreaElement>("inlineTextareaRef");
 
 // Preset colors for quick toolbar switching
 const quickColors = [
-  "#1e293b",
+  "#0f172a",
   "#ef4444",
   "#10b981",
   "#2563eb",
@@ -314,7 +388,54 @@ function deleteSelected() {
   pushHistory();
 }
 
-// Drawing & Scratch States (Direct Native Konva Manipulation - Zero Vue Reactivity on drag)
+// Z-Index Ordering & Duplication
+function bringToFront() {
+  if (!selectedShapeId.value) return;
+  const idx = currentShapes.value.findIndex((s) => s.id === selectedShapeId.value);
+  if (idx < 0 || idx === currentShapes.value.length - 1) return;
+  const [item] = currentShapes.value.splice(idx, 1);
+  if (item) {
+    currentShapes.value.push(item);
+    pushHistory();
+    markDirty();
+  }
+}
+
+function sendToBack() {
+  if (!selectedShapeId.value) return;
+  const idx = currentShapes.value.findIndex((s) => s.id === selectedShapeId.value);
+  if (idx <= 0) return;
+  const [item] = currentShapes.value.splice(idx, 1);
+  if (item) {
+    currentShapes.value.unshift(item);
+    pushHistory();
+    markDirty();
+  }
+}
+
+function duplicateSelected() {
+  if (!selectedShapeId.value) return;
+  const original = currentShapes.value.find((s) => s.id === selectedShapeId.value);
+  if (!original) return;
+  const clone = JSON.parse(JSON.stringify(original)) as WhiteboardShape;
+  clone.id = `shape-${nanoid(8)}`;
+  if ("x" in clone && typeof clone.x === "number") clone.x += 20;
+  if ("y" in clone && typeof clone.y === "number") clone.y += 20;
+  if ("points" in clone && Array.isArray(clone.points)) {
+    clone.points = clone.points.map((p) => p + 20);
+  }
+  currentShapes.value.push(clone);
+  selectedShapeId.value = clone.id;
+  pushHistory();
+  nextTick(() => {
+    const stage = stageRef.value?.getStage();
+    const node = stage?.findOne(`#${clone.id}`);
+    if (node) attachTransformer(node);
+  });
+  markDirty();
+}
+
+// Drawing & Scratch States
 const isDrawing = ref(false);
 const startPos = reactive({ x: 0, y: 0 });
 
@@ -434,11 +555,7 @@ function checkShapeIntersect(shape: WhiteboardShape, px: number, py: number, rad
 
   if (shape.type === "rect" || shape.type === "square") {
     const r = shape as RectShape;
-    const minX = r.x - radius;
-    const maxX = r.x + r.width + radius;
-    const minY = r.y - radius;
-    const maxY = r.y + r.height + radius;
-    return px >= minX && px <= maxX && py >= minY && py <= maxY;
+    return px >= r.x - radius && px <= r.x + r.width + radius && py >= r.y - radius && py <= r.y + r.height + radius;
   }
 
   if (shape.type === "circle") {
@@ -460,13 +577,24 @@ function checkShapeIntersect(shape: WhiteboardShape, px: number, py: number, rad
     return distToSegmentSquared(px, py, pts[0], pts[1], pts[2], pts[3]) <= rSq;
   }
 
+  if (shape.type === "text") {
+    const t = shape as TextShape;
+    const approxW = (t.text.length * (t.fontSize || 18)) * 0.6;
+    const approxH = (t.fontSize || 18) * 1.4;
+    return px >= t.x - radius && px <= t.x + approxW + radius && py >= t.y - radius && py <= t.y + approxH + radius;
+  }
+
+  if (shape.type === "sticky") {
+    const s = shape as StickyShape;
+    return px >= s.x - radius && px <= s.x + s.width + radius && py >= s.y - radius && py <= s.y + s.height + radius;
+  }
+
   return false;
 }
 
 // Laser pointer
 const laserPoints = ref<LaserPoint[]>([]);
 let laserTimer: ReturnType<typeof setInterval> | null = null;
-const isLaserActive = computed(() => laserPoints.value.length > 0);
 
 function addLaserPoint(x: number, y: number) {
   laserPoints.value.push({
@@ -512,7 +640,61 @@ function getRelativePointerPosition(): { x: number; y: number } | null {
   return transform.point(pos);
 }
 
+// Text & Sticky In-Canvas Editor
+function startEditingText(shape: TextShape | StickyShape) {
+  isEditingText.value = true;
+  editingShapeId.value = shape.id;
+  editingText.value = shape.text;
+
+  const scale = stageScale.value || 1;
+  const screenX = shape.x * scale + stagePos.x;
+  const screenY = shape.y * scale + stagePos.y;
+
+  editingBox.left = screenX;
+  editingBox.top = screenY;
+  editingBox.isSticky = shape.type === "sticky";
+  const shapeHeight = "height" in shape && shape.height ? shape.height : (shape.fontSize || 18) * 1.5;
+  editingBox.width = Math.max(140, (shape.width || 180) * scale);
+  editingBox.height = Math.max(70, shapeHeight * scale);
+  editingBox.fontSize = Math.max(12, (shape.fontSize || 16) * scale);
+  editingBox.color = shape.type === "sticky" ? (shape.textColor || "#1e293b") : (shape.fill || strokeColor.value);
+  editingBox.bgColor = shape.type === "sticky" ? shape.fill : "transparent";
+
+  nextTick(() => {
+    if (inlineTextareaRef.value) {
+      inlineTextareaRef.value.focus();
+      inlineTextareaRef.value.select();
+    }
+  });
+}
+
+function finishEditingText() {
+  if (!isEditingText.value || !editingShapeId.value) return;
+  const shape = currentShapes.value.find((s) => s.id === editingShapeId.value);
+  if (shape && (shape.type === "text" || shape.type === "sticky")) {
+    const trimmed = editingText.value.trim();
+    if (trimmed) {
+      shape.text = trimmed;
+    }
+    pushHistory();
+    markDirty();
+  }
+  isEditingText.value = false;
+  editingShapeId.value = null;
+}
+
+function onInlineTextEnter(e: KeyboardEvent) {
+  if (!editingBox.isSticky && !e.shiftKey) {
+    e.preventDefault();
+    finishEditingText();
+  }
+}
+
 function handleStageMouseDown(e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) {
+  if (isEditingText.value) {
+    finishEditingText();
+  }
+
   if (e.evt) {
     updateCursorIndicator(
       "clientX" in e.evt ? e.evt.clientX : e.evt.touches[0]?.clientX ?? 0,
@@ -537,6 +719,64 @@ function handleStageMouseDown(e: Konva.KonvaEventObject<MouseEvent | TouchEvent>
     const pos = getRelativePointerPosition();
     if (pos) {
       addLaserPoint(pos.x, pos.y);
+    }
+    return;
+  }
+
+  // Text tool click to create
+  if (currentTool.value === "text") {
+    const pos = getRelativePointerPosition();
+    if (pos) {
+      const id = `shape-${nanoid(8)}`;
+      const newShape: TextShape = {
+        id,
+        type: "text",
+        x: pos.x,
+        y: pos.y,
+        text: t("board.typeHere") || "Text",
+        fontSize: textFontSize.value,
+        fontFamily: "Inter, system-ui, sans-serif",
+        stroke: strokeColor.value,
+        strokeWidth: 1,
+        fill: strokeColor.value,
+      };
+      currentShapes.value.push(newShape);
+      pushHistory();
+      selectedShapeId.value = id;
+      currentTool.value = "select";
+      nextTick(() => {
+        startEditingText(newShape);
+      });
+    }
+    return;
+  }
+
+  // Sticky Note click to create
+  if (currentTool.value === "sticky") {
+    const pos = getRelativePointerPosition();
+    if (pos) {
+      const id = `shape-${nanoid(8)}`;
+      const newShape: StickyShape = {
+        id,
+        type: "sticky",
+        x: pos.x - 70,
+        y: pos.y - 70,
+        width: 140,
+        height: 140,
+        text: t("board.typeHere") || "Note",
+        fontSize: 15,
+        stroke: "#eab308",
+        strokeWidth: 1,
+        fill: stickyColor.value,
+        textColor: "#1e293b",
+      };
+      currentShapes.value.push(newShape);
+      pushHistory();
+      selectedShapeId.value = id;
+      currentTool.value = "select";
+      nextTick(() => {
+        startEditingText(newShape);
+      });
     }
     return;
   }
@@ -598,7 +838,7 @@ function handleStageMouseDown(e: Konva.KonvaEventObject<MouseEvent | TouchEvent>
       lineCap = "square";
     } else if (tool === "eraser") {
       strokeW = eraserWidth.value;
-      strokeC = "#cbd5e1";
+      strokeC = canvasTheme.value === "dark" ? "#334155" : "#cbd5e1";
       opacity = 0.6;
       tension = 0;
     }
@@ -769,7 +1009,6 @@ function handleStageMouseMove(e: Konva.KonvaEventObject<MouseEvent | TouchEvent>
     const lastX = activeStrokePoints[activeStrokePoints.length - 2];
     const lastY = activeStrokePoints[activeStrokePoints.length - 1];
     const distSq = (pos.x - lastX) ** 2 + (pos.y - lastY) ** 2;
-    // 2px threshold (distSq >= 4) for instant, fluid ink response without flooding
     if (distSq >= 4) {
       activeStrokePoints.push(pos.x, pos.y);
       (activeNativeNode as Konva.Line).points(activeStrokePoints);
@@ -876,7 +1115,7 @@ function handleStageMouseUp() {
         lineCap = "square";
       } else if (tool === "eraser") {
         strokeW = eraserWidth.value;
-        strokeC = "#ffffff";
+        strokeC = canvasTheme.value === "dark" ? "#0f172a" : "#ffffff";
         opacity = 1;
         tension = 0;
       }
@@ -1060,6 +1299,13 @@ function handleShapeTransformEnd(id: string, e: Konva.KonvaEventObject<Event>) {
     const star = shape as StarShape;
     star.outerRadius = Math.max(8, star.outerRadius * Math.max(scaleX, scaleY));
     star.innerRadius = Math.max(4, star.innerRadius * Math.max(scaleX, scaleY));
+  } else if (shape.type === "text") {
+    const t = shape as TextShape;
+    t.fontSize = Math.max(8, Math.round((t.fontSize || 18) * Math.max(scaleX, scaleY)));
+  } else if (shape.type === "sticky") {
+    const st = shape as StickyShape;
+    st.width = Math.max(80, Math.round(st.width * scaleX));
+    st.height = Math.max(80, Math.round(st.height * scaleY));
   }
   pushHistory();
   markDirty();
@@ -1121,9 +1367,30 @@ function selectStrokeColor(color: string) {
   strokeColor.value = color;
   if (selectedShape.value) {
     selectedShape.value.stroke = color;
+    if (selectedShape.value.type === "text") {
+      (selectedShape.value as TextShape).fill = color;
+    }
     pushHistory();
   }
   markDirty();
+}
+
+function setFontSize(size: number) {
+  textFontSize.value = size;
+  if (selectedShape.value && selectedShape.value.type === "text") {
+    (selectedShape.value as TextShape).fontSize = size;
+    pushHistory();
+    markDirty();
+  }
+}
+
+function setStickyColor(color: string) {
+  stickyColor.value = color;
+  if (selectedShape.value && selectedShape.value.type === "sticky") {
+    (selectedShape.value as StickyShape).fill = color;
+    pushHistory();
+    markDirty();
+  }
 }
 
 // Konva Shape Configs
@@ -1231,7 +1498,7 @@ function getStarConfig(item: StarShape) {
     id: item.id,
     x: item.x,
     y: item.y,
-    numPoints: item.numPoints,
+    numPoints: 5,
     innerRadius: item.innerRadius,
     outerRadius: item.outerRadius,
     stroke: item.stroke,
@@ -1246,6 +1513,73 @@ function getStarConfig(item: StarShape) {
   };
 }
 
+function getTextConfig(item: TextShape) {
+  const isSelected = selectedShapeId.value === item.id;
+  return {
+    id: item.id,
+    x: item.x,
+    y: item.y,
+    text: item.text,
+    fontSize: item.fontSize || 18,
+    fontFamily: item.fontFamily || "Inter, system-ui, sans-serif",
+    fill: item.fill || strokeColor.value || (canvasTheme.value === "dark" ? "#f8fafc" : "#0f172a"),
+    draggable: currentTool.value === "select",
+    shadowColor: isSelected ? "#3b82f6" : undefined,
+    shadowBlur: isSelected ? 8 : 0,
+    listening: currentTool.value === "select",
+  };
+}
+
+function getStickyGroupConfig(item: StickyShape) {
+  const isSelected = selectedShapeId.value === item.id;
+  return {
+    id: item.id,
+    x: item.x,
+    y: item.y,
+    draggable: currentTool.value === "select",
+    shadowColor: isSelected ? "#3b82f6" : undefined,
+    shadowBlur: isSelected ? 10 : 0,
+    listening: currentTool.value === "select",
+  };
+}
+
+// Copy Image to Clipboard
+async function copyImageToClipboard() {
+  const stage = stageRef.value?.getStage();
+  if (!stage) return;
+  detachTransformer();
+  const prevPos = { x: stagePos.x, y: stagePos.y };
+  const prevScale = stageScale.value;
+
+  stage.position({ x: 0, y: 0 });
+  stage.scale({ x: 1, y: 1 });
+  stage.batchDraw();
+
+  try {
+    const dataUrl = stage.toDataURL({
+      mimeType: "image/png",
+      pixelRatio: 2,
+    });
+    const res = await fetch(dataUrl);
+    const blob = await res.blob();
+    if (navigator.clipboard && window.ClipboardItem) {
+      await navigator.clipboard.write([
+        new ClipboardItem({ "image/png": blob }),
+      ]);
+      openToast(t("board.copiedToClipboard"), "success");
+    } else {
+      downloadImage("png");
+    }
+  } catch {
+    downloadImage("png");
+  } finally {
+    stage.position(prevPos);
+    stage.scale({ x: prevScale, y: prevScale });
+    stage.batchDraw();
+    markDirty();
+  }
+}
+
 // Download Image with unzoomed high-res export
 function downloadImage(format: "png" | "jpeg" = "png") {
   const stage = stageRef.value?.getStage();
@@ -1256,7 +1590,6 @@ function downloadImage(format: "png" | "jpeg" = "png") {
   const prevPos = { x: stagePos.x, y: stagePos.y };
   const prevScale = stageScale.value;
 
-  // Temporarily reset transform for clean high-res export
   stage.position({ x: 0, y: 0 });
   stage.scale({ x: 1, y: 1 });
   stage.batchDraw();
@@ -1267,7 +1600,6 @@ function downloadImage(format: "png" | "jpeg" = "png") {
     pixelRatio: 2,
   });
 
-  // Restore transform
   stage.position(prevPos);
   stage.scale({ x: prevScale, y: prevScale });
   stage.batchDraw();
@@ -1292,7 +1624,6 @@ let isDirty = true;
 let lastFrameTime = 0;
 let lastHeartbeatTime = 0;
 
-// 30 FPS while active, 1 FPS heartbeat when static
 const ACTIVE_FRAME_INTERVAL = 33;
 const IDLE_HEARTBEAT_INTERVAL = 1000;
 
@@ -1309,7 +1640,6 @@ function renderCompositedFrame() {
   const stageW = stage.width() || stageSize.width || 1280;
   const stageH = stage.height() || stageSize.height || 720;
 
-  // Stream Resolution Clamping: Max 1920x1080 to prevent encoder overload
   const MAX_W = 1920;
   const MAX_H = 1080;
   const scale = Math.min(1, MAX_W / Math.max(1, stageW), MAX_H / Math.max(1, stageH));
@@ -1323,13 +1653,10 @@ function renderCompositedFrame() {
     ctx.imageSmoothingQuality = "high";
   }
 
-  // Fast solid white canvas background (opaque for WebRTC codecs - eliminates copying Layer 1)
-  ctx.fillStyle = "#ffffff";
+  ctx.fillStyle = canvasTheme.value === "dark" ? "#0f172a" : "#ffffff";
   ctx.fillRect(0, 0, streamCanvas.width, streamCanvas.height);
 
-  // High-performance direct layer compositing (bypasses UI handles & empty layers)
   try {
-    // 1. Shapes layer (committed shapes)
     const shapesLayer = shapesLayerRef.value?.getNode();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const shapesCanvas = (shapesLayer as any)?.getCanvas?.()?._canvas;
@@ -1337,7 +1664,6 @@ function renderCompositedFrame() {
       ctx.drawImage(shapesCanvas, 0, 0, streamCanvas.width, streamCanvas.height);
     }
 
-    // 2. Active scratch layer (only when drawing or has children)
     const scratchLayer = scratchLayerRef.value?.getNode();
     if (scratchLayer && (isDrawing.value || scratchLayer.getChildren().length > 0)) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1347,7 +1673,6 @@ function renderCompositedFrame() {
       }
     }
 
-    // 3. Laser layer (only when laser is active)
     if (laserPoints.value.length > 0) {
       const laserLayer = laserLayerRef.value?.getNode();
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1366,7 +1691,6 @@ function renderCompositedFrame() {
     }
   }
 
-  // Request new WebRTC frame if supported
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   if (activeStreamTrack && typeof (activeStreamTrack as any).requestFrame === "function") {
     try {
@@ -1500,9 +1824,10 @@ function toggleStream() {
 }
 
 const toggleMaximize = () => {
-  isMaximized.value = !isMaximized.value;
-  emit("maximize", isMaximized.value);
-  emit("fullWindow", isMaximized.value);
+  const next = !effectiveFullWindow.value;
+  isMaximized.value = next;
+  emit("maximize", next);
+  emit("fullWindow", next);
   markDirty();
 };
 
@@ -1512,6 +1837,12 @@ useEventListener(window, "keydown", (e: KeyboardEvent) => {
 
   if (e.code === "Space" && !isSpacePressed.value) {
     isSpacePressed.value = true;
+  }
+
+  if (e.key === "?" || (e.shiftKey && e.key === "/")) {
+    e.preventDefault();
+    showShortcutsModal.value = !showShortcutsModal.value;
+    return;
   }
 
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
@@ -1524,6 +1855,14 @@ useEventListener(window, "keydown", (e: KeyboardEvent) => {
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") {
     e.preventDefault();
     redo();
+    return;
+  }
+
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "d") {
+    if (selectedShapeId.value) {
+      e.preventDefault();
+      duplicateSelected();
+    }
     return;
   }
 
@@ -1561,7 +1900,10 @@ useEventListener(window, "keydown", (e: KeyboardEvent) => {
     else if (k === "b") currentTool.value = "brush";
     else if (k === "h") currentTool.value = "highlighter";
     else if (k === "e") currentTool.value = "eraser";
+    else if (k === "t") currentTool.value = "text";
+    else if (k === "s") currentTool.value = "sticky";
     else if (k === "l") currentTool.value = "laser";
+    else if (k === "f" && props.maximizable) toggleMaximize();
   }
 });
 
@@ -1606,6 +1948,8 @@ const activeToolLabel = computed(() => {
     highlighter: t("board.highlighter"),
     eraser: t("board.eraser"),
     laser: t("board.laser"),
+    text: t("board.text"),
+    sticky: t("board.sticky"),
     rect: t("board.rectangle"),
     square: t("board.square"),
     circle: t("board.circle"),
@@ -1620,6 +1964,7 @@ const activeToolLabel = computed(() => {
 defineExpose<WhiteboardExposed>({
   getStream,
   downloadImage,
+  copyImageToClipboard,
   clear,
   undo,
   redo,
@@ -1631,31 +1976,37 @@ defineExpose<WhiteboardExposed>({
 
 <template>
   <div
-    class="flex flex-col select-none relative overflow-hidden bg-slate-100 dark:bg-slate-900 text-slate-800 dark:text-slate-100 font-sans"
+    class="flex flex-col select-none relative overflow-hidden text-slate-800 dark:text-slate-100 font-sans"
     :class="[
-      isMaximized ? 'fixed inset-0 z-50 w-screen h-screen' : 'h-full w-full',
+      isStandaloneMaximized ? 'fixed inset-0 z-50 w-screen h-screen' : 'h-full w-full',
+      canvasTheme === 'dark' ? 'bg-slate-950 text-slate-100' : 'bg-slate-100 text-slate-800',
     ]"
   >
-    <!-- Top Header Bar -->
-    <header class="flex items-center justify-between px-3 sm:px-4 py-2 border-b border-gray-200/80 dark:border-gray-800/80 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md z-20 gap-2 shrink-0">
-      <!-- Left: Title, Undo, Redo, Clear -->
-      <div class="flex items-center gap-1 sm:gap-2">
-        <IconButton
-          v-if="showClose"
-          icon="PhX"
-          :label="t('board.close')"
-          icon-class="size-5"
-          @click="emit('close')"
-        />
-
-        <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-200">
-          <BIcon icon="PhPaintBrush" class="size-4 text-chat-primary" />
-          <span class="hidden sm:inline">{{ t("board.title") }}</span>
+    <!-- Top Unified Header Bar -->
+    <header
+      class="flex items-center justify-between px-3 sm:px-4 py-2 border-b border-gray-200/80 dark:border-gray-800/80 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md z-20 gap-2 shrink-0 select-none cursor-default"
+      @dblclick.self="maximizable && toggleMaximize()"
+    >
+      <!-- Left: Title, Live Status, Undo, Redo, Clear -->
+      <div class="flex items-center gap-1 sm:gap-2 min-w-0">
+        <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-chat-primary/10 text-xs font-bold text-chat-primary shrink-0 select-none">
+          <BIcon icon="PhPaintBrush" class="size-4 shrink-0" />
+          <span class="truncate max-w-[140px] hidden sm:inline">{{ title || t("board.title") }}</span>
         </div>
 
-        <div class="h-4 w-[1px] bg-gray-200 dark:bg-gray-800 mx-0.5 sm:mx-1" />
+        <!-- Live HD Badge if streamActive -->
+        <div
+          v-if="streamActive"
+          class="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-[11px] font-bold select-none shrink-0"
+          :title="t('board.streaming')"
+        >
+          <span class="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
+          <span>{{ t("board.liveHd") }}</span>
+        </div>
 
-        <!-- History: Undo & Redo -->
+        <div class="h-4 w-[1px] bg-gray-200 dark:bg-gray-800 mx-0.5" />
+
+        <!-- History: Undo & Redo & Clear -->
         <div class="flex items-center gap-0.5">
           <IconButton
             icon="PhArrowUUpLeft"
@@ -1673,20 +2024,18 @@ defineExpose<WhiteboardExposed>({
             class="hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40"
             @click="redo"
           />
+          <IconButton
+            icon="PhTrash"
+            :label="t('board.erase')"
+            icon-class="size-4 text-slate-500 hover:text-red-500"
+            class="hover:bg-slate-100 dark:hover:bg-slate-800"
+            @click="clear"
+          />
         </div>
-
-        <!-- Clear Board -->
-        <IconButton
-          icon="PhTrash"
-          :label="t('board.erase')"
-          icon-class="size-4 text-slate-500 hover:text-red-500"
-          class="hover:bg-slate-100 dark:hover:bg-slate-800"
-          @click="clear"
-        />
       </div>
 
       <!-- Center: Main Drawing Tools Dock -->
-      <nav class="flex items-center gap-1 p-1 rounded-2xl bg-slate-100 dark:bg-slate-800 border border-slate-200/70 dark:border-slate-700/70 shadow-xs">
+      <nav class="flex items-center gap-0.5 sm:gap-1 p-1 rounded-2xl bg-slate-100 dark:bg-slate-800 border border-slate-200/70 dark:border-slate-700/70 shadow-xs overflow-x-auto max-w-[50vw]">
         <!-- Select (V) -->
         <IconButton
           icon="PhCursor"
@@ -1747,6 +2096,26 @@ defineExpose<WhiteboardExposed>({
           @click="currentTool = 'eraser'"
         />
 
+        <!-- Text (T) -->
+        <IconButton
+          icon="PhTextT"
+          :label="`${t('board.text')} (T)`"
+          icon-class="size-4"
+          class="rounded-xl transition-all"
+          :class="currentTool === 'text' ? 'bg-chat-primary text-white shadow-xs font-bold' : 'text-slate-600 dark:text-slate-300 hover:bg-white/80 dark:hover:bg-slate-700/80'"
+          @click="currentTool = 'text'"
+        />
+
+        <!-- Sticky Note (S) -->
+        <IconButton
+          icon="PhNote"
+          :label="`${t('board.sticky')} (S)`"
+          icon-class="size-4"
+          class="rounded-xl transition-all"
+          :class="currentTool === 'sticky' ? 'bg-amber-400 text-amber-950 shadow-xs font-bold' : 'text-slate-600 dark:text-slate-300 hover:bg-white/80 dark:hover:bg-slate-700/80'"
+          @click="currentTool = 'sticky'"
+        />
+
         <!-- Laser Pointer (L) -->
         <IconButton
           icon="PhCrosshairSimple"
@@ -1792,20 +2161,10 @@ defineExpose<WhiteboardExposed>({
         </Button>
       </nav>
 
-      <!-- Right: Live Badge, Zoom Controls, Stream, Grid Toggle, Export, Maximize -->
-      <div class="flex items-center gap-1 sm:gap-1.5">
-        <!-- Live HD Status Badge -->
-        <div
-          v-if="streamActive"
-          class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-xs font-semibold select-none shadow-xs"
-          :title="t('board.streaming')"
-        >
-          <span class="size-2 rounded-full bg-emerald-500 animate-pulse" />
-          <span>{{ t("board.liveHd") }}</span>
-        </div>
-
+      <!-- Right: Zoom, Share to Call, Theme, Grid, Copy, Save, Members, FullWindow, Close -->
+      <div class="flex items-center gap-1 sm:gap-1.5 shrink-0">
         <!-- Zoom Controls -->
-        <div class="hidden sm:flex items-center bg-slate-100 dark:bg-slate-800 rounded-xl p-0.5 border border-slate-200/80 dark:border-slate-700/80">
+        <div class="hidden md:flex items-center bg-slate-100 dark:bg-slate-800 rounded-xl p-0.5 border border-slate-200/80 dark:border-slate-700/80">
           <button
             type="button"
             class="size-6 rounded-lg hover:bg-white dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center font-bold text-xs cursor-pointer transition-colors"
@@ -1847,17 +2206,35 @@ defineExpose<WhiteboardExposed>({
           <template #icon>
             <BIcon :icon="streamActive ? 'PhStopCircle' : 'PhBroadcast'" class="size-4" />
           </template>
-          <span>{{ streamActive ? t('board.stopSharing') : t('board.shareToCall') }}</span>
+          <span class="hidden sm:inline">{{ streamActive ? t('board.stopSharing') : t('board.shareToCall') }}</span>
         </Button>
 
-        <!-- Grid Toggle -->
+        <!-- Canvas Theme Toggle (Light / Dark Chalkboard) -->
+        <IconButton
+          :icon="canvasTheme === 'dark' ? 'PhSun' : 'PhMoon'"
+          :label="canvasTheme === 'dark' ? t('board.themeLight') : t('board.themeDark')"
+          icon-class="size-4 text-slate-600 dark:text-slate-300"
+          class="hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl"
+          @click="toggleCanvasTheme"
+        />
+
+        <!-- Grid Style Toggle (Dots, Lines, None) -->
         <IconButton
           icon="PhGridFour"
-          :label="t('board.grid')"
+          :label="`${t('board.grid')} (${gridStyle})`"
           icon-class="size-4"
           class="rounded-xl transition-all"
-          :class="gridVisible ? 'bg-slate-100 dark:bg-slate-800 text-chat-primary font-bold' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'"
-          @click="gridVisible = !gridVisible"
+          :class="gridStyle !== 'none' ? 'bg-slate-100 dark:bg-slate-800 text-chat-primary font-bold' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'"
+          @click="toggleGrid"
+        />
+
+        <!-- Copy Image to Clipboard -->
+        <IconButton
+          icon="PhCopy"
+          :label="t('board.copyImage')"
+          icon-class="size-4 text-slate-700 dark:text-slate-200"
+          class="hover:bg-slate-100 dark:hover:bg-slate-800"
+          @click="copyImageToClipboard"
         />
 
         <!-- Export PNG -->
@@ -1869,14 +2246,50 @@ defineExpose<WhiteboardExposed>({
           @click="downloadImage('png')"
         />
 
+        <!-- Keyboard Shortcuts Help (?) -->
+        <IconButton
+          icon="PhQuestion"
+          :label="t('board.shortcuts')"
+          icon-class="size-4 text-slate-500 hover:text-chat-primary"
+          class="hover:bg-slate-100 dark:hover:bg-slate-800"
+          @click="showShortcutsModal = true"
+        />
+
+        <!-- Call Members Sidebar Toggle -->
+        <button
+          v-if="hasParticipants"
+          type="button"
+          class="flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-semibold transition-all cursor-pointer border"
+          :class="
+            isSidebarOpen
+              ? 'bg-chat-primary/10 border-chat-primary/30 text-chat-primary'
+              : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-chat-primary/40'
+          "
+          :title="isSidebarOpen ? t('board.collapseMembers') : t('board.expandMembers')"
+          @click="emit('toggleSidebar')"
+        >
+          <CallIcon name="group" class="size-3.5" />
+          <span>{{ participantsCount }}</span>
+        </button>
+
         <!-- Full Window / Restore Button -->
         <IconButton
           v-if="maximizable"
-          :icon="isMaximized ? 'PhCornersIn' : 'PhCornersOut'"
-          :label="isMaximized ? t('board.exitFullWindow') : t('board.fullWindow')"
+          :icon="effectiveFullWindow ? 'PhCornersIn' : 'PhCornersOut'"
+          :label="effectiveFullWindow ? t('board.exitFullWindow') : t('board.fullWindow')"
           icon-class="size-4 text-slate-700 dark:text-slate-200"
           class="hover:bg-slate-100 dark:hover:bg-slate-800"
           @click="toggleMaximize"
+        />
+
+        <!-- Close Button -->
+        <IconButton
+          v-if="showClose"
+          icon="PhX"
+          :label="t('board.close')"
+          icon-class="size-4.5"
+          class="hover:bg-red-50 dark:hover:bg-red-950/40 hover:text-red-500"
+          @click="emit('close')"
         />
       </div>
     </header>
@@ -1884,53 +2297,85 @@ defineExpose<WhiteboardExposed>({
     <!-- Contextual Floating Properties Bar (Properties Island) -->
     <div
       v-if="currentTool !== 'pan'"
-      class="absolute top-14 left-1/2 -translate-x-1/2 z-10 flex flex-wrap items-center justify-center gap-2 px-3 py-1.5 rounded-2xl bg-white/95 dark:bg-slate-800/95 backdrop-blur-md shadow-md border border-slate-200/80 dark:border-slate-700/80 text-xs transition-all max-w-[95vw]"
+      class="absolute top-14 left-1/2 -translate-x-1/2 z-10 transition-all max-w-[95vw]"
     >
-      <!-- Mode & Size when tool is ERASER -->
-      <template v-if="currentTool === 'eraser'">
-        <div class="flex items-center gap-1">
-          <button
-            type="button"
-            class="flex items-center gap-1 px-2.5 py-1 rounded-lg transition-colors cursor-pointer text-xs"
-            :class="eraserMode === 'stroke' ? 'bg-chat-primary text-white shadow-xs font-semibold' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'"
-            @click="eraserMode = 'stroke'"
-          >
-            <BIcon icon="PhLightning" class="size-3.5" />
-            <span>{{ t("board.strokeEraser") }}</span>
-          </button>
-          <button
-            type="button"
-            class="flex items-center gap-1 px-2.5 py-1 rounded-lg transition-colors cursor-pointer text-xs"
-            :class="eraserMode === 'pixel' ? 'bg-chat-primary text-white shadow-xs font-semibold' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'"
-            @click="eraserMode = 'pixel'"
-          >
-            <BIcon icon="PhPaintBrush" class="size-3.5" />
-            <span>{{ t("board.pixelEraser") }}</span>
-          </button>
-        </div>
+      <!-- Collapsed State: Micro Pill -->
+      <div
+        v-if="isPropertiesCollapsed"
+        class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/95 dark:bg-slate-800/95 backdrop-blur-md shadow-md border border-slate-200/80 dark:border-slate-700/80 text-xs cursor-pointer hover:border-chat-primary transition-all"
+        @click="isPropertiesCollapsed = false"
+      >
+        <div class="size-3 rounded-full" :style="{ backgroundColor: strokeColor }" />
+        <span class="text-[11px] font-semibold text-slate-700 dark:text-slate-200">{{ activeToolLabel }}</span>
+        <BIcon icon="PhCaretDown" class="size-3 text-slate-400" />
+      </div>
 
-        <div class="h-4 w-[1px] bg-slate-200 dark:bg-slate-700 mx-0.5" />
+      <!-- Expanded State: Full Controls Island -->
+      <div
+        v-else
+        class="flex flex-wrap items-center justify-center gap-2 px-3 py-1.5 rounded-2xl bg-white/95 dark:bg-slate-800/95 backdrop-blur-md shadow-md border border-slate-200/80 dark:border-slate-700/80 text-xs"
+      >
+        <!-- Mode & Size when tool is ERASER -->
+        <template v-if="currentTool === 'eraser'">
+          <div class="flex items-center gap-1">
+            <button
+              type="button"
+              class="flex items-center gap-1 px-2.5 py-1 rounded-lg transition-colors cursor-pointer text-xs"
+              :class="eraserMode === 'stroke' ? 'bg-chat-primary text-white shadow-xs font-semibold' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'"
+              @click="eraserMode = 'stroke'"
+            >
+              <BIcon icon="PhLightning" class="size-3.5" />
+              <span>{{ t("board.strokeEraser") }}</span>
+            </button>
+            <button
+              type="button"
+              class="flex items-center gap-1 px-2.5 py-1 rounded-lg transition-colors cursor-pointer text-xs"
+              :class="eraserMode === 'pixel' ? 'bg-chat-primary text-white shadow-xs font-semibold' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'"
+              @click="eraserMode = 'pixel'"
+            >
+              <BIcon icon="PhPaintBrush" class="size-3.5" />
+              <span>{{ t("board.pixelEraser") }}</span>
+            </button>
+          </div>
 
-        <!-- Eraser Size Presets -->
-        <div class="flex items-center gap-1">
-          <span class="text-slate-500 dark:text-slate-400 mr-0.5">{{ t("board.eraserSize") }}:</span>
-          <button
-            v-for="w in [12, 24, 48, 72]"
-            :key="w"
-            type="button"
-            class="px-2 py-0.5 rounded-lg font-mono font-medium transition-colors cursor-pointer"
-            :class="eraserWidth === w ? 'bg-chat-primary text-white shadow-xs' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'"
-            @click="eraserWidth = w"
-          >
-            {{ w }}px
-          </button>
-        </div>
-      </template>
+          <div class="h-4 w-[1px] bg-slate-200 dark:bg-slate-700 mx-0.5" />
 
-      <!-- Normal Properties for Drawing / Shapes / Selection -->
-      <template v-else>
-        <!-- Stroke Color: Active Swatch + Popover trigger -->
-        <div class="flex items-center gap-1.5">
+          <!-- Eraser Size Presets -->
+          <div class="flex items-center gap-1">
+            <span class="text-slate-500 dark:text-slate-400 mr-0.5">{{ t("board.eraserSize") }}:</span>
+            <button
+              v-for="w in [12, 24, 48, 72]"
+              :key="w"
+              type="button"
+              class="px-2 py-0.5 rounded-lg font-mono font-medium transition-colors cursor-pointer"
+              :class="eraserWidth === w ? 'bg-chat-primary text-white shadow-xs' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'"
+              @click="eraserWidth = w"
+            >
+              {{ w }}px
+            </button>
+          </div>
+        </template>
+
+        <!-- Properties for TEXT TOOL or TEXT SELECTED -->
+        <template v-else-if="currentTool === 'text' || selectedShape?.type === 'text'">
+          <!-- Font Size Presets -->
+          <div class="flex items-center gap-1">
+            <span class="text-slate-500 dark:text-slate-400 text-[11px]">{{ t("board.brushSize") }}:</span>
+            <button
+              v-for="s in [14, 18, 24, 32, 40]"
+              :key="s"
+              type="button"
+              class="px-1.5 py-0.5 rounded-lg font-mono text-[11px] cursor-pointer transition-colors"
+              :class="textFontSize === s ? 'bg-chat-primary text-white font-bold' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'"
+              @click="setFontSize(s)"
+            >
+              {{ s }}
+            </button>
+          </div>
+
+          <div class="h-4 w-[1px] bg-slate-200 dark:bg-slate-700 mx-0.5" />
+
+          <!-- Text Color Swatch & Popover -->
           <button
             type="button"
             :title="t('board.strokeColor')"
@@ -1939,7 +2384,7 @@ defineExpose<WhiteboardExposed>({
             @click="colorPopoverRef?.toggle($event)"
           />
 
-          <!-- Quick Color Palette Dots -->
+          <!-- Quick Palette -->
           <div class="flex items-center gap-1">
             <button
               v-for="c in quickColors"
@@ -1951,75 +2396,149 @@ defineExpose<WhiteboardExposed>({
               @click="selectStrokeColor(c)"
             />
           </div>
-        </div>
 
-        <div class="h-4 w-[1px] bg-slate-200 dark:bg-slate-700 mx-0.5" />
+          <!-- Selection Actions: Bring to front, Send to back, Duplicate, Delete -->
+          <template v-if="selectedShapeId">
+            <div class="h-4 w-[1px] bg-slate-200 dark:bg-slate-700 mx-0.5" />
+            <IconButton icon="PhStackSimple" :label="t('board.bringToFront')" icon-class="size-3.5" class="!p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700" @click="bringToFront" />
+            <IconButton icon="PhCopy" :label="t('board.duplicate')" icon-class="size-3.5" class="!p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700" @click="duplicateSelected" />
+            <IconButton icon="PhTrash" :label="t('board.deleteSelected')" icon-class="size-3.5 text-red-500" class="!p-1 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/40" @click="deleteSelected" />
+          </template>
+        </template>
 
-        <!-- Stroke Thickness: Quick Presets + Slider Popover -->
-        <div class="flex items-center gap-1">
-          <button
-            v-for="w in [2, 4, 8, 14]"
-            :key="w"
-            type="button"
-            class="px-2 py-0.5 rounded-lg font-mono font-medium transition-colors cursor-pointer"
-            :class="strokeWidth === w ? 'bg-chat-primary text-white shadow-xs' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'"
-            @click="strokeWidth = w"
-          >
-            {{ w }}px
-          </button>
-
-          <IconButton
-            icon="PhPencilLine"
-            :label="t('board.brushSize')"
-            icon-class="size-4"
-            class="hover:bg-slate-100 dark:hover:bg-slate-700 !p-1 rounded-lg"
-            @click="sizePopoverRef?.toggle($event)"
-          />
-        </div>
-
-        <!-- Geometry Shape Fill Settings (when shape tool or shape selected) -->
-        <template v-if="isGeometricTool || selectedShape">
-          <div class="h-4 w-[1px] bg-slate-200 dark:bg-slate-700 mx-0.5" />
-
-          <div class="flex items-center gap-1.5">
-            <span class="text-slate-600 dark:text-slate-300">{{ t("board.fillShape") }}</span>
-            <ToggleSwitch v-model="isShapeFilled" />
-
+        <!-- Properties for STICKY NOTE TOOL or STICKY NOTE SELECTED -->
+        <template v-else-if="currentTool === 'sticky' || selectedShape?.type === 'sticky'">
+          <span class="text-slate-500 dark:text-slate-400 text-[11px]">{{ t("board.sticky") }}:</span>
+          <div class="flex items-center gap-1">
             <button
-              v-if="isShapeFilled"
+              v-for="sc in stickyColorPresets"
+              :key="sc"
               type="button"
-              :title="t('board.fillColor')"
-              class="size-5 rounded-full border-2 border-white dark:border-slate-800 ring-1 ring-slate-300 dark:ring-slate-600 shadow-xs cursor-pointer ml-1"
-              :style="{ backgroundColor: fillColor }"
-              @click="fillColorPopoverRef?.toggle($event)"
+              class="size-5 rounded-md border border-black/10 dark:border-white/10 transition-transform hover:scale-115 cursor-pointer shadow-xs"
+              :class="{ 'ring-2 ring-chat-primary ring-offset-1': stickyColor === sc }"
+              :style="{ backgroundColor: sc }"
+              @click="setStickyColor(sc)"
             />
           </div>
+
+          <template v-if="selectedShapeId">
+            <div class="h-4 w-[1px] bg-slate-200 dark:bg-slate-700 mx-0.5" />
+            <IconButton icon="PhStackSimple" :label="t('board.bringToFront')" icon-class="size-3.5" class="!p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700" @click="bringToFront" />
+            <IconButton icon="PhCopy" :label="t('board.duplicate')" icon-class="size-3.5" class="!p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700" @click="duplicateSelected" />
+            <IconButton icon="PhTrash" :label="t('board.deleteSelected')" icon-class="size-3.5 text-red-500" class="!p-1 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/40" @click="deleteSelected" />
+          </template>
         </template>
 
-        <!-- Delete Selected Button -->
-        <template v-if="selectedShapeId">
+        <!-- Normal Properties for Drawing / Shapes / Generic Selection -->
+        <template v-else>
+          <!-- Stroke Color: Active Swatch + Popover trigger -->
+          <div class="flex items-center gap-1.5">
+            <button
+              type="button"
+              :title="t('board.strokeColor')"
+              class="size-6 rounded-full border-2 border-white dark:border-slate-800 ring-2 ring-chat-primary/40 shadow-xs flex items-center justify-center cursor-pointer transition-transform hover:scale-105"
+              :style="{ backgroundColor: strokeColor }"
+              @click="colorPopoverRef?.toggle($event)"
+            />
+
+            <!-- Quick Color Palette Dots -->
+            <div class="flex items-center gap-1">
+              <button
+                v-for="c in quickColors"
+                :key="c"
+                type="button"
+                class="size-4.5 rounded-full border border-black/10 dark:border-white/10 transition-transform hover:scale-110 cursor-pointer"
+                :class="{ 'ring-2 ring-chat-primary ring-offset-1': strokeColor === c }"
+                :style="{ backgroundColor: c }"
+                @click="selectStrokeColor(c)"
+              />
+            </div>
+          </div>
+
           <div class="h-4 w-[1px] bg-slate-200 dark:bg-slate-700 mx-0.5" />
 
-          <button
-            type="button"
-            class="flex items-center gap-1 text-red-500 hover:text-red-600 font-medium px-2 py-0.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors cursor-pointer"
-            @click="deleteSelected"
-          >
-            <BIcon icon="PhTrash" class="size-3.5" />
-            <span>{{ t("board.deleteSelected") }}</span>
-          </button>
+          <!-- Stroke Thickness: Quick Presets + Slider Popover -->
+          <div class="flex items-center gap-1">
+            <button
+              v-for="w in [2, 4, 8, 14]"
+              :key="w"
+              type="button"
+              class="px-2 py-0.5 rounded-lg font-mono font-medium transition-colors cursor-pointer"
+              :class="strokeWidth === w ? 'bg-chat-primary text-white shadow-xs' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'"
+              @click="strokeWidth = w"
+            >
+              {{ w }}px
+            </button>
+
+            <IconButton
+              icon="PhPencilLine"
+              :label="t('board.brushSize')"
+              icon-class="size-4"
+              class="hover:bg-slate-100 dark:hover:bg-slate-700 !p-1 rounded-lg"
+              @click="sizePopoverRef?.toggle($event)"
+            />
+          </div>
+
+          <!-- Geometry Shape Fill Settings -->
+          <template v-if="isGeometricTool || selectedShape">
+            <div class="h-4 w-[1px] bg-slate-200 dark:bg-slate-700 mx-0.5" />
+
+            <div class="flex items-center gap-1.5">
+              <span class="text-slate-600 dark:text-slate-300">{{ t("board.fillShape") }}</span>
+              <ToggleSwitch v-model="isShapeFilled" />
+
+              <button
+                v-if="isShapeFilled"
+                type="button"
+                :title="t('board.fillColor')"
+                class="size-5 rounded-full border-2 border-white dark:border-slate-800 ring-1 ring-slate-300 dark:ring-slate-600 shadow-xs cursor-pointer ml-1"
+                :style="{ backgroundColor: fillColor }"
+                @click="fillColorPopoverRef?.toggle($event)"
+              />
+            </div>
+          </template>
+
+          <!-- Shape Actions when selected: Bring to Front, Send to Back, Duplicate, Delete -->
+          <template v-if="selectedShapeId">
+            <div class="h-4 w-[1px] bg-slate-200 dark:bg-slate-700 mx-0.5" />
+            <IconButton icon="PhStackSimple" :label="t('board.bringToFront')" icon-class="size-3.5" class="!p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700" @click="bringToFront" />
+            <IconButton icon="PhCopy" :label="t('board.duplicate')" icon-class="size-3.5" class="!p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700" @click="duplicateSelected" />
+            <button
+              type="button"
+              class="flex items-center gap-1 text-red-500 hover:text-red-600 font-medium px-2 py-0.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors cursor-pointer"
+              @click="deleteSelected"
+            >
+              <BIcon icon="PhTrash" class="size-3.5" />
+              <span>{{ t("board.deleteSelected") }}</span>
+            </button>
+          </template>
         </template>
-      </template>
+
+        <!-- Collapse Island Button -->
+        <button
+          type="button"
+          class="size-5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center justify-center cursor-pointer ml-0.5 transition-colors"
+          :title="t('board.collapseProperties')"
+          @click="isPropertiesCollapsed = true"
+        >
+          <BIcon icon="PhCaretUp" class="size-3.5" />
+        </button>
+      </div>
     </div>
 
     <!-- Canvas Area -->
     <div
       ref="containerRef"
-      class="flex-1 w-full h-full relative overflow-hidden bg-white dark:bg-slate-900 touch-none"
+      class="flex-1 w-full h-full relative overflow-hidden touch-none"
       :class="[
-        gridVisible ? 'whiteboard-dot-grid' : '',
+        canvasTheme === 'dark' ? 'bg-slate-950' : 'bg-white',
+        gridStyle === 'dots'
+          ? (canvasTheme === 'dark' ? 'whiteboard-dot-grid-dark' : 'whiteboard-dot-grid-light')
+          : (gridStyle === 'lines' ? (canvasTheme === 'dark' ? 'whiteboard-line-grid-dark' : 'whiteboard-line-grid-light') : ''),
         isSpacePressed || currentTool === 'pan' ? (isPanning ? 'cursor-grabbing' : 'cursor-grab') : '',
         currentTool === 'select' ? 'cursor-default' : '',
+        currentTool === 'text' ? 'cursor-text' : '',
+        currentTool === 'sticky' ? 'cursor-crosshair' : '',
         !isSpacePressed && (currentTool === 'pen' || currentTool === 'brush' || currentTool === 'highlighter' || currentTool === 'eraser' || currentTool === 'laser') ? 'cursor-none' : '',
         !isSpacePressed && (currentTool === 'line' || currentTool === 'arrow' || currentTool === 'rect' || currentTool === 'square' || currentTool === 'circle' || currentTool === 'triangle' || currentTool === 'star') ? 'cursor-crosshair' : '',
       ]"
@@ -2034,10 +2553,36 @@ defineExpose<WhiteboardExposed>({
         class="pointer-events-none absolute top-0 left-0 z-30 rounded-full transform-gpu transition-opacity duration-100 will-change-transform"
         :style="cursorIndicatorStyle"
       >
-        <!-- Center Precision Dot for Pen/Brush/Highlighter -->
         <div
           v-if="currentTool === 'pen' || currentTool === 'brush' || currentTool === 'highlighter'"
           class="size-1 rounded-full bg-slate-900 dark:bg-white absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 shadow-xs"
+        />
+      </div>
+
+      <!-- In-Canvas Inline Text & Sticky Editor Overlay -->
+      <div
+        v-if="isEditingText"
+        class="absolute z-40 transform-gpu"
+        :style="{
+          left: `${editingBox.left}px`,
+          top: `${editingBox.top}px`,
+          width: `${editingBox.width}px`,
+          minHeight: `${editingBox.height}px`,
+        }"
+      >
+        <textarea
+          ref="inlineTextareaRef"
+          v-model="editingText"
+          class="w-full h-full p-2.5 rounded-xl border-2 border-chat-primary outline-hidden shadow-2xl resize-none font-sans"
+          :style="{
+            fontSize: `${editingBox.fontSize}px`,
+            color: editingBox.color,
+            backgroundColor: editingBox.isSticky ? editingBox.bgColor : (canvasTheme === 'dark' ? '#1e293b' : '#ffffff'),
+          }"
+          :placeholder="t('board.typeHere')"
+          @blur="finishEditingText"
+          @keydown.esc="finishEditingText"
+          @keydown.enter="onInlineTextEnter"
         />
       </div>
 
@@ -2059,7 +2604,7 @@ defineExpose<WhiteboardExposed>({
         @touchend="handleStageMouseUp"
         @wheel="handleWheel"
       >
-        <!-- Layer 1: Background Layer (Opaque white rectangle for clean export & eraser compositing) -->
+        <!-- Layer 1: Background Layer (Opaque rectangle matching canvas theme) -->
         <Layer :config="{ listening: false }">
           <Rect
             :config="{
@@ -2069,13 +2614,13 @@ defineExpose<WhiteboardExposed>({
               y: -5000,
               width: 10000,
               height: 10000,
-              fill: '#ffffff',
+              fill: canvasTheme === 'dark' ? '#0f172a' : '#ffffff',
               listening: false,
             }"
           />
         </Layer>
 
-        <!-- Layer 2: Committed Shapes Layer (Only repaints on shape commit / undo / redo / transform) -->
+        <!-- Layer 2: Committed Shapes Layer -->
         <Layer ref="shapesLayerRef" :config="{ listening: currentTool === 'select' }">
           <template v-for="item in currentShapes" :key="item.id">
             <!-- Freehand Line / Eraser / Straight Line -->
@@ -2143,13 +2688,61 @@ defineExpose<WhiteboardExposed>({
               @dragend="handleShapeDragEnd(item.id, $event)"
               @transformend="handleShapeTransformEnd(item.id, $event)"
             />
+
+            <!-- Text Shape -->
+            <Text
+              v-else-if="item.type === 'text'"
+              :config="getTextConfig(item as TextShape)"
+              @click="handleShapeClick(item.id)"
+              @tap="handleShapeClick(item.id)"
+              @dblclick="startEditingText(item as TextShape)"
+              @dragend="handleShapeDragEnd(item.id, $event)"
+              @transformend="handleShapeTransformEnd(item.id, $event)"
+            />
+
+            <!-- Sticky Note Shape -->
+            <Group
+              v-else-if="item.type === 'sticky'"
+              :config="getStickyGroupConfig(item as StickyShape)"
+              @click="handleShapeClick(item.id)"
+              @tap="handleShapeClick(item.id)"
+              @dblclick="startEditingText(item as StickyShape)"
+              @dragend="handleShapeDragEnd(item.id, $event)"
+              @transformend="handleShapeTransformEnd(item.id, $event)"
+            >
+              <Rect
+                :config="{
+                  width: (item as StickyShape).width,
+                  height: (item as StickyShape).height,
+                  fill: (item as StickyShape).fill,
+                  cornerRadius: 10,
+                  shadowColor: '#000000',
+                  shadowBlur: 8,
+                  shadowOpacity: 0.12,
+                  shadowOffset: { x: 2, y: 3 },
+                }"
+              />
+              <Text
+                :config="{
+                  x: 12,
+                  y: 12,
+                  width: (item as StickyShape).width - 24,
+                  height: (item as StickyShape).height - 24,
+                  text: (item as StickyShape).text,
+                  fontSize: (item as StickyShape).fontSize || 15,
+                  fontFamily: 'Inter, system-ui, sans-serif',
+                  fill: (item as StickyShape).textColor || '#1e293b',
+                  wrap: 'word',
+                }"
+              />
+            </Group>
           </template>
         </Layer>
 
-        <!-- Layer 3: Active Scratch Layer (Zero-latency native Konva drawing - no Vue reactivity overhead) -->
+        <!-- Layer 3: Active Scratch Layer -->
         <Layer ref="scratchLayerRef" :config="{ listening: false }" />
 
-        <!-- Layer 4: Laser Pointer Layer (Fading glowing trail for call presentations) -->
+        <!-- Layer 4: Laser Pointer Layer -->
         <Layer ref="laserLayerRef" :config="{ listening: false }">
           <template v-for="pt in laserPoints" :key="pt.id">
             <Circle
@@ -2332,7 +2925,7 @@ defineExpose<WhiteboardExposed>({
 
     <!-- Stroke Color Popover -->
     <Popover ref="colorPopover" :dir="dir" class="vue-chat">
-      <div class="p-3 w-64 select-none">
+      <div class="p-3 w-72 select-none">
         <WhiteboardRgbPicker
           :model-value="strokeColor"
           @update:model-value="selectStrokeColor"
@@ -2342,7 +2935,7 @@ defineExpose<WhiteboardExposed>({
 
     <!-- Fill Color Popover -->
     <Popover ref="fillColorPopover" :dir="dir" class="vue-chat">
-      <div class="p-3 w-64 select-none">
+      <div class="p-3 w-72 select-none">
         <WhiteboardRgbPicker
           :model-value="fillColor"
           @update:model-value="(c) => { fillColor = c; if (selectedShape) { selectedShape.fill = c; pushHistory(); } markDirty(); }"
@@ -2388,12 +2981,71 @@ defineExpose<WhiteboardExposed>({
         </div>
       </template>
     </Menu>
+
+    <!-- Keyboard Shortcuts Dialog -->
+    <Dialog
+      v-model:visible="showShortcutsModal"
+      modal
+      :header="t('board.shortcuts')"
+      :dir="dir"
+      class="vue-chat max-w-sm w-full"
+    >
+      <div class="flex flex-col gap-3.5 text-xs select-none pt-1">
+        <div class="space-y-1.5">
+          <div class="font-bold text-slate-700 dark:text-slate-200 border-b pb-1 dark:border-slate-700">
+            Tools
+          </div>
+          <div class="grid grid-cols-2 gap-1.5 text-slate-600 dark:text-slate-300">
+            <div class="flex justify-between items-center"><span class="font-mono font-semibold">V</span><span>Select</span></div>
+            <div class="flex justify-between items-center"><span class="font-mono font-semibold">M / Space</span><span>Pan</span></div>
+            <div class="flex justify-between items-center"><span class="font-mono font-semibold">P</span><span>Pen</span></div>
+            <div class="flex justify-between items-center"><span class="font-mono font-semibold">B</span><span>Brush</span></div>
+            <div class="flex justify-between items-center"><span class="font-mono font-semibold">H</span><span>Highlighter</span></div>
+            <div class="flex justify-between items-center"><span class="font-mono font-semibold">E</span><span>Eraser</span></div>
+            <div class="flex justify-between items-center"><span class="font-mono font-semibold">T</span><span>Text</span></div>
+            <div class="flex justify-between items-center"><span class="font-mono font-semibold">S</span><span>Sticky Note</span></div>
+            <div class="flex justify-between items-center"><span class="font-mono font-semibold">L</span><span>Laser</span></div>
+          </div>
+        </div>
+
+        <div class="space-y-1.5">
+          <div class="font-bold text-slate-700 dark:text-slate-200 border-b pb-1 dark:border-slate-700">
+            Actions
+          </div>
+          <div class="grid grid-cols-2 gap-1.5 text-slate-600 dark:text-slate-300">
+            <div class="flex justify-between items-center"><span class="font-mono font-semibold">Ctrl+Z</span><span>Undo</span></div>
+            <div class="flex justify-between items-center"><span class="font-mono font-semibold">Ctrl+Y / ⇧⌘Z</span><span>Redo</span></div>
+            <div class="flex justify-between items-center"><span class="font-mono font-semibold">Ctrl+D</span><span>Duplicate</span></div>
+            <div class="flex justify-between items-center"><span class="font-mono font-semibold">Del / ⌫</span><span>Delete</span></div>
+            <div class="flex justify-between items-center"><span class="font-mono font-semibold">[ / ]</span><span>Brush Size</span></div>
+            <div class="flex justify-between items-center"><span class="font-mono font-semibold">Ctrl+Scroll</span><span>Zoom</span></div>
+            <div class="flex justify-between items-center"><span class="font-mono font-semibold">F</span><span>Full Window</span></div>
+          </div>
+        </div>
+      </div>
+    </Dialog>
   </div>
 </template>
 
 <style scoped>
-.whiteboard-dot-grid {
-  background-image: radial-gradient(rgba(148, 163, 184, 0.35) 1px, transparent 1px);
-  background-size: 20px 20px;
+.whiteboard-dot-grid-light {
+  background-image: radial-gradient(rgba(148, 163, 184, 0.4) 1.5px, transparent 1.5px);
+  background-size: 24px 24px;
+}
+.whiteboard-dot-grid-dark {
+  background-image: radial-gradient(rgba(148, 163, 184, 0.3) 1.5px, transparent 1.5px);
+  background-size: 24px 24px;
+}
+.whiteboard-line-grid-light {
+  background-image:
+    linear-gradient(to right, rgba(226, 232, 240, 0.8) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(226, 232, 240, 0.8) 1px, transparent 1px);
+  background-size: 24px 24px;
+}
+.whiteboard-line-grid-dark {
+  background-image:
+    linear-gradient(to right, rgba(51, 65, 85, 0.6) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(51, 65, 85, 0.6) 1px, transparent 1px);
+  background-size: 24px 24px;
 }
 </style>

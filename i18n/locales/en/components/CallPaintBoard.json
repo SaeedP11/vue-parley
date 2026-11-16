@@ -58,6 +58,23 @@
     "resetZoom": "Reset zoom",
     "shareToCall": "Share to Call",
     "stopSharing": "Stop sharing",
-    "streaming": "Streaming"
+    "streaming": "Streaming",
+    "text": "Text",
+    "sticky": "Sticky Note",
+    "copyImage": "Copy to clipboard",
+    "copiedToClipboard": "Image copied to clipboard.",
+    "canvasTheme": "Canvas theme",
+    "themeLight": "Whiteboard (Light)",
+    "themeDark": "Blackboard (Dark)",
+    "bringToFront": "Bring to front",
+    "sendToBack": "Send to back",
+    "duplicate": "Duplicate",
+    "shortcuts": "Keyboard shortcuts",
+    "gridDots": "Dot grid",
+    "gridLines": "Grid lines",
+    "gridNone": "Blank",
+    "collapseProperties": "Collapse options",
+    "expandProperties": "Expand options",
+    "typeHere": "Type here..."
   }
 }

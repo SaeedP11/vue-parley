@@ -58,6 +58,23 @@
     "resetZoom": "اندازه اصلی",
     "shareToCall": "اشتراک در تماس",
     "stopSharing": "توقف اشتراک",
-    "streaming": "در حال پخش"
+    "streaming": "در حال پخش",
+    "text": "متن",
+    "sticky": "یادداشت چسبان",
+    "copyImage": "کپی در کلیپ‌بورد",
+    "copiedToClipboard": "تصویر در کلیپ‌بورد کپی شد.",
+    "canvasTheme": "تم تخته",
+    "themeLight": "تخته سفید (روشن)",
+    "themeDark": "تخته سیاه (تیره)",
+    "bringToFront": "انتقال به جلو",
+    "sendToBack": "انتقال به عقب",
+    "duplicate": "تکرار شکل",
+    "shortcuts": "کلیدهای میانبر",
+    "gridDots": "نقطه‌ای",
+    "gridLines": "خط‌کشی شطرنجی",
+    "gridNone": "ساده (بدون خط)",
+    "collapseProperties": "بستن گزینه‌ها",
+    "expandProperties": "باز کردن گزینه‌ها",
+    "typeHere": "اینجا بنویسید..."
   }
 }

@@ -37,6 +37,43 @@ const emit = defineEmits<{
 
 const { t } = useLocalI18n(callPaintBoard);
 
+const curatedPalettes = [
+  {
+    name: "Classic",
+    colors: [
+      "#0f172a",
+      "#475569",
+      "#ef4444",
+      "#f97316",
+      "#f59e0b",
+      "#10b981",
+      "#06b6d4",
+      "#2563eb",
+      "#8b5cf6",
+      "#ec4899",
+      "#ffffff",
+    ],
+  },
+  {
+    name: "Pastel",
+    colors: [
+      "#94a3b8",
+      "#fca5a5",
+      "#fdba74",
+      "#fde047",
+      "#86efac",
+      "#67e8f9",
+      "#93c5fd",
+      "#c4b5fd",
+      "#f9a8d4",
+      "#f1f5f9",
+      "#334155",
+    ],
+  },
+];
+
+const selectedPaletteIndex = ref(0);
+
 function parseColor(color: string): { r: number; g: number; b: number; a: number } {
   if (color.startsWith("rgba") || color.startsWith("rgb")) {
     const parts = color.match(/[\d.]+/g);
@@ -132,32 +169,56 @@ const currentColorCss = computed(() => {
 </script>
 
 <template>
-  <div class="flex flex-col gap-3 p-3 w-64 text-xs select-none">
-    <!-- Presets -->
-    <div class="flex flex-wrap gap-1.5 justify-center">
+  <div class="flex flex-col gap-3 p-3 w-72 text-xs select-none">
+    <!-- Palette Group Selector -->
+    <div class="flex items-center justify-between pb-1 border-b border-gray-100 dark:border-gray-800">
+      <div class="flex items-center gap-1">
+        <button
+          v-for="(palette, idx) in curatedPalettes"
+          :key="palette.name"
+          type="button"
+          class="px-2 py-0.5 rounded-md font-medium text-[11px] transition-colors cursor-pointer"
+          :class="
+            selectedPaletteIndex === idx
+              ? 'bg-chat-primary text-white font-semibold shadow-xs'
+              : 'text-gray-500 hover:text-gray-800 dark:hover:text-gray-200'
+          "
+          @click="selectedPaletteIndex = idx"
+        >
+          {{ palette.name }}
+        </button>
+      </div>
+      <span class="text-[10px] text-gray-400 font-mono">{{ toHex(r, g, b).toUpperCase() }}</span>
+    </div>
+
+    <!-- Active Swatches Grid -->
+    <div class="grid grid-cols-6 gap-2 justify-items-center">
       <button
-        v-for="color in presets"
+        v-for="color in curatedPalettes[selectedPaletteIndex]?.colors ?? presets"
         :key="color"
         type="button"
-        class="size-6 rounded-full border border-gray-300 dark:border-gray-600 transition-transform hover:scale-110 active:scale-95 shadow-xs"
+        class="size-6.5 rounded-full border border-black/10 dark:border-white/20 transition-transform hover:scale-115 active:scale-90 shadow-xs cursor-pointer"
         :style="{ backgroundColor: color }"
-        :class="{ 'ring-2 ring-chat-primary ring-offset-1': toHex(r, g, b).toLowerCase() === color.toLowerCase() }"
+        :class="{
+          'ring-2 ring-chat-primary ring-offset-2 scale-110':
+            toHex(r, g, b).toLowerCase() === color.toLowerCase(),
+        }"
         @click="selectPreset(color)"
       />
     </div>
 
     <!-- Preview swatch & Hex -->
-    <div class="flex items-center gap-2 mt-1">
+    <div class="flex items-center gap-2 pt-2 border-t border-gray-100 dark:border-gray-800">
       <div
-        class="size-8 rounded-lg border border-gray-300 dark:border-gray-700 shadow-inner shrink-0"
+        class="size-8 rounded-xl border border-gray-300 dark:border-gray-700 shadow-inner shrink-0"
         :style="{ backgroundColor: currentColorCss }"
       />
       <div class="flex items-center gap-1 flex-1">
-        <span class="text-gray-500 font-medium">#</span>
+        <span class="text-gray-400 font-medium text-xs">#</span>
         <InputText
           v-model="hexInput"
           size="small"
-          class="w-full text-xs font-mono py-1 px-1.5"
+          class="w-full text-xs font-mono py-1 px-2 uppercase rounded-lg"
           placeholder="RRGGBB"
           @blur="onHexBlur"
           @keyup.enter="onHexBlur"
@@ -165,50 +226,65 @@ const currentColorCss = computed(() => {
       </div>
     </div>
 
-    <!-- RGB Sliders -->
-    <div class="flex flex-col gap-2 mt-1">
+    <!-- Interactive RGB Sliders with Visual Gradients -->
+    <div class="flex flex-col gap-2.5 pt-1">
       <!-- RED -->
       <div class="flex items-center gap-2">
-        <span class="w-4 font-semibold text-red-500">R</span>
-        <Slider v-model="r" :min="0" :max="255" class="flex-1" />
+        <span class="w-3.5 font-bold text-red-500 text-[11px]">R</span>
+        <Slider
+          v-model="r"
+          :min="0"
+          :max="255"
+          class="flex-1 slider-red"
+        />
         <InputNumber
           v-model="r"
           :min="0"
           :max="255"
           class="w-12 text-xs"
-          input-class="w-12 text-center text-xs py-0.5 px-1 font-mono"
+          input-class="w-12 text-center text-xs py-0.5 px-1 font-mono rounded-md"
         />
       </div>
 
       <!-- GREEN -->
       <div class="flex items-center gap-2">
-        <span class="w-4 font-semibold text-green-500">G</span>
-        <Slider v-model="g" :min="0" :max="255" class="flex-1" />
+        <span class="w-3.5 font-bold text-emerald-500 text-[11px]">G</span>
+        <Slider
+          v-model="g"
+          :min="0"
+          :max="255"
+          class="flex-1 slider-green"
+        />
         <InputNumber
           v-model="g"
           :min="0"
           :max="255"
           class="w-12 text-xs"
-          input-class="w-12 text-center text-xs py-0.5 px-1 font-mono"
+          input-class="w-12 text-center text-xs py-0.5 px-1 font-mono rounded-md"
         />
       </div>
 
       <!-- BLUE -->
       <div class="flex items-center gap-2">
-        <span class="w-4 font-semibold text-blue-500">B</span>
-        <Slider v-model="b" :min="0" :max="255" class="flex-1" />
+        <span class="w-3.5 font-bold text-blue-500 text-[11px]">B</span>
+        <Slider
+          v-model="b"
+          :min="0"
+          :max="255"
+          class="flex-1 slider-blue"
+        />
         <InputNumber
           v-model="b"
           :min="0"
           :max="255"
           class="w-12 text-xs"
-          input-class="w-12 text-center text-xs py-0.5 px-1 font-mono"
+          input-class="w-12 text-center text-xs py-0.5 px-1 font-mono rounded-md"
         />
       </div>
 
       <!-- ALPHA (if enabled) -->
       <div v-if="showAlpha" class="flex items-center gap-2">
-        <span class="w-4 font-semibold text-gray-500">A</span>
+        <span class="w-3.5 font-bold text-gray-500 text-[11px]">A</span>
         <Slider v-model="a" :min="0" :max="100" class="flex-1" />
         <div class="w-12 text-center text-xs font-mono text-gray-600 dark:text-gray-300">
           {{ a }}%

@@ -6,6 +6,8 @@ export type WhiteboardTool =
   | "highlighter"
   | "eraser"
   | "laser"
+  | "text"
+  | "sticky"
   | "rect"
   | "square"
   | "circle"
@@ -19,6 +21,8 @@ export type ShapeType =
   | "brush"
   | "highlighter"
   | "eraser"
+  | "text"
+  | "sticky"
   | "rect"
   | "square"
   | "circle"
@@ -26,6 +30,9 @@ export type ShapeType =
   | "line"
   | "arrow"
   | "star";
+
+export type CanvasTheme = "light" | "dark";
+export type GridStyle = "dots" | "lines" | "none";
 
 export interface BaseShape {
   id: string;
@@ -91,13 +98,39 @@ export interface StarShape extends BaseShape {
   outerRadius: number;
 }
 
+export interface TextShape extends BaseShape {
+  type: "text";
+  x: number;
+  y: number;
+  text: string;
+  fontSize: number;
+  fontFamily?: string;
+  width?: number;
+  height?: number;
+  fill: string;
+}
+
+export interface StickyShape extends BaseShape {
+  type: "sticky";
+  x: number;
+  y: number;
+  text: string;
+  width: number;
+  height: number;
+  fontSize: number;
+  fill: string;
+  textColor?: string;
+}
+
 export type WhiteboardShape =
   | LineShape
   | RectShape
   | CircleShape
   | TriangleShape
   | ArrowShape
-  | StarShape;
+  | StarShape
+  | TextShape
+  | StickyShape;
 
 export interface WhiteboardPage {
   id: string;
