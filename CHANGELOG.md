@@ -4,6 +4,16 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [5.5.31] - 2026-11-16
+
+### Changed
+
+- The stage has no pin button any more: whoever (or whichever screen) is in the main view stays there until someone else is picked, and the minimized card shows the same, both ways. A share that starts takes the main view only if the user hasn't picked one.
+
+### Fixed
+
+- Two people sharing their screens at once: each screen now gets its own tile, one of them in the main view. Before, each presenter saw only their own screen and the others saw only one of the two.
+
 ## [5.5.30] - 2026-11-15
 
 ### Changed

@@ -179,6 +179,7 @@
         "mainView": "تصویر اصلی",
         "showInMain": "نمایش در تصویر اصلی",
         "showNameInMain": "نمایش {name} در تصویر اصلی",
+        "showScreenInMain": "نمایش صفحه {name} در تصویر اصلی",
         "flipCamera": "چرخش دوربین",
         "frontCamera": "دوربین جلو",
         "backCamera": "دوربین پشت",
@@ -206,8 +207,6 @@
         "showInMini": "نمایش تصویر {name}",
         "zoomIn": "بزرگ‌نمایی تصویر",
         "zoomOut": "کوچک‌نمایی تصویر",
-        "pin": "سنجاق کردن تصویر",
-        "unpin": "برداشتن سنجاق تصویر",
         "gestureHint": "برای زوم دو انگشت را باز کنید؛ برای جابه‌جایی بکشید"
       },
       "controls": {
