@@ -5,10 +5,11 @@ import useLocalI18n from "~/composables/useLocalI18n";
 import { chat } from "@i18n/locales";
 import useCall from "~/composables/useCall";
 import { useEventListener } from "@vueuse/core";
-import { computed, ref } from "vue";
+import { computed, ref, watch } from "vue";
 import CallParticipants from "./CallParticipants.vue";
 import CallStage, { type CallStageAction } from "./CallStage.vue";
 import CallStageMini from "./CallStageMini.vue";
+import WhiteboardDialog from "../whiteboard/WhiteboardDialog.vue";
 
 /** The running call: `CallStage` on screen, `CallStageMini` while minimized. */
 const props = defineProps<{
@@ -59,6 +60,23 @@ useEventListener(window, "keydown", (event: KeyboardEvent) => {
 });
 
 const peopleOpen = ref(false);
+const whiteboardOpen = ref(false);
+
+watch(
+  () => callStore.isActive,
+  (active) => {
+    if (!active) {
+      whiteboardOpen.value = false;
+    }
+  },
+);
+
+const onStartWhiteboardStream = async (stream: MediaStream) => {
+  await callStore.session?.startWhiteboardShare(stream);
+};
+const onStopWhiteboardStream = () => {
+  callStore.session?.stopWhiteboardShare();
+};
 </script>
 
 <template>
@@ -79,9 +97,11 @@ const peopleOpen = ref(false);
     v-bind="stage"
     :title="stage.title ?? callTitle"
     :sound-blocked="soundBlocked"
+    :whiteboard-open="whiteboardOpen"
     @action="emit('stageAction')"
     @enable-sound="enableSound"
     @people="peopleOpen = true"
+    @whiteboard="whiteboardOpen = !whiteboardOpen"
   >
     <template v-if="$slots.stageHeaderEnd" #header-end><slot name="stageHeaderEnd" /></template>
     <template #controls><slot name="stageControls" /></template>
@@ -93,4 +113,13 @@ const peopleOpen = ref(false);
   />
 
   <CallParticipants v-model:visible="peopleOpen" :participants="participants" />
+  <WhiteboardDialog
+    v-if="callStore.session"
+    v-model:visible="whiteboardOpen"
+    :stream-active="callStore.session.media.isWhiteboardSharing.value"
+    :participants="participants"
+    @stream-start="onStartWhiteboardStream"
+    @stream-stop="onStopWhiteboardStream"
+    @close="whiteboardOpen = false"
+  />
 </template>

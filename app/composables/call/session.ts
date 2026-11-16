@@ -118,6 +118,7 @@ export function createCallSession(opts: CallSessionOptions) {
       localStream: media.localStream,
       mediaReady: media.ready,
       screenStream: media.screenStream,
+      whiteboardStream: media.whiteboardStream,
       log,
       onMissingConfig: () => retryCredential(),
       onConnectionFailed: () => notifyOnce("chat.call.errors.connectionFailed"),
@@ -144,7 +145,7 @@ export function createCallSession(opts: CallSessionOptions) {
         joinedAt: joinedAt.value,
         media: { audio: media.isAudioOn.value, video: media.isVideoOn.value },
         camera: media.localStream.value ?? undefined,
-        screen: media.screenStream.value ?? undefined,
+        screen: (media.screenStream.value ?? media.whiteboardStream.value) ?? undefined,
         status: "connected",
       };
       const remotes = Object.entries(peers.remoteNames.value).map(
@@ -166,7 +167,7 @@ export function createCallSession(opts: CallSessionOptions) {
     const participantCount = computed(() => participants.value.length);
     const tileCount = computed(
       () =>
-        (media.screenStream.value ? 1 : 0) +
+        (media.screenStream.value || media.whiteboardStream.value ? 1 : 0) +
         Object.keys(peers.remoteVideos.value).length +
         Object.keys(peers.remoteScreens.value).length,
     );
@@ -398,6 +399,7 @@ export function createCallSession(opts: CallSessionOptions) {
   async function toggleScreenShare() {
     if (media.isScreenShareStarting.value) return;
     if (media.isScreenSharing.value) return stopScreenShare();
+    if (media.isWhiteboardSharing.value) stopWhiteboardShare();
     const stream = await media.startScreenShare(stopScreenShare);
     if (!stream) return;
     if (ended) {
@@ -408,6 +410,25 @@ export function createCallSession(opts: CallSessionOptions) {
     await announceTracks();
     if (ended || media.screenStream.value !== stream) return;
     stream.getVideoTracks().forEach((track) => peers.addTrackToAll(track, stream));
+  }
+
+  async function startWhiteboardShare(stream: MediaStream) {
+    if (ended) return;
+    if (media.isScreenSharing.value) stopScreenShare();
+    const shared = media.startWhiteboardShare(stream, () => {
+      stopWhiteboardShare();
+    });
+    if (!shared) return;
+    await announceTracks();
+    if (ended || media.whiteboardStream.value !== shared) return;
+    shared.getVideoTracks().forEach((track) => peers.addTrackToAll(track, shared));
+  }
+
+  function stopWhiteboardShare() {
+    const stream = media.stopWhiteboardShare();
+    if (!stream) return;
+    void announceTracks();
+    stream.getVideoTracks().forEach((track) => peers.removeTrackFromAll(track));
   }
 
   /** Sends a camera the media layer swapped in; returns the local stream for the preview. */
@@ -438,6 +459,9 @@ export function createCallSession(opts: CallSessionOptions) {
     clearTimeout(capacityCheck);
     clearInterval(presenceTimer);
     clearInterval(silenceTimer);
+    if (media.isWhiteboardSharing.value) {
+      stopWhiteboardShare();
+    }
     void signaling.hangup(channel);
     signaling.stop();
     peers.destroyAll();
@@ -454,6 +478,8 @@ export function createCallSession(opts: CallSessionOptions) {
     start,
     end,
     toggleScreenShare,
+    startWhiteboardShare,
+    stopWhiteboardShare,
     switchCamera,
     flipCamera,
     /** Tries an unreachable participant again. */

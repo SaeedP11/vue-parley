@@ -27,6 +27,7 @@ export function useCallMedia({ notify, isMobile }: MediaOptions) {
 
   const localStream = ref<MediaStream | null>(null);
   const screenStream = ref<MediaStream | null>(null);
+  const whiteboardStream = ref<MediaStream | null>(null);
   /** What each of our streams is, as announced to the others. */
   const trackTypes = ref<TrackTypes>([]);
   const videoTrack = ref<MediaStreamTrack | null>(null);
@@ -35,6 +36,7 @@ export function useCallMedia({ notify, isMobile }: MediaOptions) {
   const isAudioOn = ref(true);
   const isVideoOn = ref(true);
   const isScreenSharing = ref(false);
+  const isWhiteboardSharing = ref(false);
   const canShareScreen = typeof navigator !== "undefined" &&
     typeof navigator.mediaDevices?.getDisplayMedia === "function";
   const isScreenShareStarting = ref(false);
@@ -319,6 +321,40 @@ export function useCallMedia({ notify, isMobile }: MediaOptions) {
     return stream;
   }
 
+  /** Starts sharing the whiteboard; returns the stream so peers can add it. */
+  function startWhiteboardShare(stream: MediaStream, onEnded?: () => void) {
+    if (whiteboardStream.value) {
+      stopWhiteboardShare();
+    }
+    whiteboardStream.value = stream;
+    trackTypes.value = [
+      ...trackTypes.value.filter((t) => t.type !== "whiteboard"),
+      { id: stream.id, type: "whiteboard" },
+    ];
+    stream.getTracks().forEach((track) => {
+      track.onended = () => {
+        onEnded?.();
+        stopWhiteboardShare();
+      };
+    });
+    isWhiteboardSharing.value = true;
+    return stream;
+  }
+
+  /** Stops sharing the whiteboard; returns the stream that was shared so peers can drop it. */
+  function stopWhiteboardShare() {
+    const stream = whiteboardStream.value;
+    if (!stream) return null;
+    stream.getTracks().forEach((track) => {
+      track.stop();
+      track.enabled = false;
+    });
+    trackTypes.value = trackTypes.value.filter((t) => t.type !== "whiteboard");
+    whiteboardStream.value = null;
+    isWhiteboardSharing.value = false;
+    return stream;
+  }
+
   async function toggleFlashlight() {
     const track = videoTrack.value;
     if (!track) {
@@ -344,7 +380,7 @@ export function useCallMedia({ notify, isMobile }: MediaOptions) {
         .applyConstraints({ advanced: [{ torch: false } as MediaTrackConstraintSet] })
         .catch(() => {});
     }
-    for (const stream of [localStream.value, screenStream.value]) {
+    for (const stream of [localStream.value, screenStream.value, whiteboardStream.value]) {
       stream?.getTracks().forEach((track) => {
         track.stop();
         track.enabled = false;
@@ -352,13 +388,16 @@ export function useCallMedia({ notify, isMobile }: MediaOptions) {
     }
     localStream.value = null;
     screenStream.value = null;
+    whiteboardStream.value = null;
     videoTrack.value = null;
+    isWhiteboardSharing.value = false;
   }
 
   return {
     localStream,
     ready,
     screenStream,
+    whiteboardStream,
     trackTypes,
     videoTrack,
     cameras,
@@ -367,6 +406,7 @@ export function useCallMedia({ notify, isMobile }: MediaOptions) {
     isAudioOn,
     isVideoOn,
     isScreenSharing,
+    isWhiteboardSharing,
     canShareScreen,
     isScreenShareStarting,
     isFlashlightOn,
@@ -379,6 +419,8 @@ export function useCallMedia({ notify, isMobile }: MediaOptions) {
     flipCamera,
     startScreenShare,
     stopScreenShare,
+    startWhiteboardShare,
+    stopWhiteboardShare,
     toggleFlashlight,
     stopAll,
   };

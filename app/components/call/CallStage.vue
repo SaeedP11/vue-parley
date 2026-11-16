@@ -7,6 +7,7 @@ import { computed, ref, watch } from "vue";
 import { onClickOutside, onKeyStroke, useFullscreen } from "@vueuse/core";
 import CallIcon from "./CallIcon.vue";
 import CallStageVideo from "./CallStageVideo.vue";
+import WhiteboardDialog from "~/components/whiteboard/WhiteboardDialog.vue";
 import { useCallPin } from "~/composables/call/useCallPin";
 import { useCallNotices } from "~/composables/call/useCallNotices";
 
@@ -42,8 +43,9 @@ const props = defineProps<{
   soundBlocked?: boolean;
   /** Runs before the call ends, e.g. to release something the host switched on. */
   beforeEnd?: () => unknown;
+  whiteboardOpen?: boolean;
 }>();
-const emit = defineEmits<{ action: []; enableSound: []; people: [] }>();
+const emit = defineEmits<{ action: []; enableSound: []; people: []; whiteboard: [] }>();
 
 const { t, n, locale } = useLocalI18n(chat);
 const { dir } = useDirection();
@@ -245,10 +247,48 @@ const runAction = () => {
   else emit("action");
 };
 
+const isWhiteboard = computed(() => {
+  if (!presenter.value) return false;
+  if (presenter.value.isSelf) return media.isWhiteboardSharing.value;
+  const types = session.peers.remoteStreamTypes.value[presenter.value.id] ?? [];
+  return types.some((t) => t.type === "whiteboard");
+});
+
+const internalWhiteboardOpen = ref(false);
+const isParentHandlingWhiteboard = computed(() => props.whiteboardOpen !== undefined);
+const whiteboardVisible = computed({
+  get: () => (isParentHandlingWhiteboard.value ? props.whiteboardOpen! : internalWhiteboardOpen.value),
+  set: (val) => {
+    if (isParentHandlingWhiteboard.value) {
+      emit("whiteboard");
+    } else {
+      internalWhiteboardOpen.value = val;
+    }
+  },
+});
+
+const toggleWhiteboard = () => {
+  if (isParentHandlingWhiteboard.value) {
+    emit("whiteboard");
+  } else {
+    internalWhiteboardOpen.value = !internalWhiteboardOpen.value;
+  }
+};
+
+const onStartWhiteboardStream = async (stream: MediaStream) => {
+  await session.startWhiteboardShare(stream);
+};
+
+const onStopWhiteboardStream = () => {
+  session.stopWhiteboardShare();
+};
+
 const moreOpen = ref(false);
 const moreButton = ref<HTMLElement>();
 const extraPanel = ref<HTMLElement>();
-const extraLit = computed(() => media.isScreenSharing.value || isLit.value);
+const extraLit = computed(
+  () => media.isScreenSharing.value || media.isWhiteboardSharing.value || isLit.value,
+);
 onClickOutside(extraPanel, () => (moreOpen.value = false), { ignore: [moreButton] });
 onKeyStroke("Escape", () => (moreOpen.value = false));
 // Only the stage's own items close the menu; a host control may anchor a popover to its button.
@@ -318,8 +358,24 @@ const onExtraClick = (event: MouseEvent) => {
       <button v-if="!showScreen && mainTile" type="button" class="call-pin" :aria-label="t(pinnedId === mainTile.id ? 'chat.call.stage.unpin' : 'chat.call.stage.pin')" :aria-pressed="pinnedId === mainTile.id" data-testid="call-stage-pin" @click="togglePin"><CallIcon :name="pinnedId === mainTile.id ? 'keepOff' : 'keep'" class="size-5" /></button>
 
       <span v-if="showScreen" class="call-badge call-badge--camera" role="status">
-        <CallIcon name="presentToAll" class="size-4" />
-        {{ presenter?.isSelf ? t("chat.call.stage.youArePresenting") : t("chat.call.stage.presenting", { name: nameOf(presenter) }) }}
+        <CallIcon :name="isWhiteboard ? 'whiteboard' : 'presentToAll'" class="size-4" />
+        {{
+          isWhiteboard
+            ? presenter?.isSelf
+              ? t("chat.call.stage.youAreSharingWhiteboard")
+              : t("chat.call.stage.sharingWhiteboard", { name: nameOf(presenter) })
+            : presenter?.isSelf
+              ? t("chat.call.stage.youArePresenting")
+              : t("chat.call.stage.presenting", { name: nameOf(presenter) })
+        }}
+        <button
+          v-if="isWhiteboard && presenter?.isSelf"
+          type="button"
+          class="ml-2 font-normal underline hover:text-white transition-colors cursor-pointer text-xs"
+          @click.stop="session.stopWhiteboardShare()"
+        >
+          {{ t("chat.call.stage.stopSharing") }}
+        </button>
       </span>
       <span v-else class="call-badge call-badge--camera">
         <i class="call-dot" :class="!cameraOn(mainTile) && 'call-dot--off'" />
@@ -364,7 +420,13 @@ const onExtraClick = (event: MouseEvent) => {
 
       <div class="call-main-footer">
         <div class="call-identity">
-          <strong>{{ showScreen ? t("chat.call.stage.screenTile", { name: nameOf(presenter) }) : nameOf(mainTile) }}</strong>
+          <strong>{{
+            showScreen
+              ? isWhiteboard
+                ? t("chat.call.stage.whiteboardTile", { name: nameOf(presenter) })
+                : t("chat.call.stage.screenTile", { name: nameOf(presenter) })
+              : nameOf(mainTile)
+          }}</strong>
           <span v-if="action?.note && isFeatured(mainTile) && !showScreen" class="call-torch-note" :class="isLit && 'call-torch-note--on'" role="status">
             {{ action.note }}
           </span>
@@ -399,7 +461,11 @@ const onExtraClick = (event: MouseEvent) => {
         <article v-if="presenter && screenTile" class="call-tile" data-testid="call-stage-screen-tile">
           <CallStageVideo :stream="presenter.screen" />
           <div class="call-tile-footer">
-            <span class="call-name">{{ t("chat.call.stage.screenTile", { name: nameOf(presenter) }) }}</span>
+            <span class="call-name">{{
+              isWhiteboard
+                ? t("chat.call.stage.whiteboardTile", { name: nameOf(presenter) })
+                : t("chat.call.stage.screenTile", { name: nameOf(presenter) })
+            }}</span>
           </div>
           <button
             type="button"
@@ -509,6 +575,23 @@ const onExtraClick = (event: MouseEvent) => {
           </button>
           <span>{{ shareLabel }}</span>
         </div>
+        <div class="call-control" :class="media.isWhiteboardSharing.value && 'call-control--lit'">
+          <button
+            type="button"
+            class="call-control-button"
+            :class="[
+              media.isWhiteboardSharing.value && 'call-control-button--lit',
+              whiteboardVisible && 'call-control-button--open',
+            ]"
+            :aria-label="t('chat.call.stage.whiteboard')"
+            :aria-pressed="media.isWhiteboardSharing.value"
+            data-testid="call-stage-whiteboard"
+            @click="toggleWhiteboard"
+          >
+            <CallIcon name="whiteboard" class="size-6" />
+          </button>
+          <span>{{ t("chat.call.stage.whiteboard") }}</span>
+        </div>
         <div v-if="action" class="call-control" :class="isLit && 'call-control--lit'">
           <button
             type="button"
@@ -542,6 +625,15 @@ const onExtraClick = (event: MouseEvent) => {
       </div>
     </nav>
 
+    <WhiteboardDialog
+      v-if="!isParentHandlingWhiteboard"
+      v-model:visible="internalWhiteboardOpen"
+      :stream-active="media.isWhiteboardSharing.value"
+      :participants="participants"
+      @stream-start="onStartWhiteboardStream"
+      @stream-stop="onStopWhiteboardStream"
+      @close="internalWhiteboardOpen = false"
+    />
   </section>
 </template>
 

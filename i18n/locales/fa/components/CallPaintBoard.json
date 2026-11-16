@@ -38,8 +38,16 @@
     "grid": "تغییر حالت شطرنجی",
     "maximize": "تمام صفحه",
     "restore": "بازگردانی اندازه",
+    "fullWindow": "تمام پنجره",
+    "exitFullWindow": "خروج از تمام پنجره",
+    "members": "اعضای تماس",
+    "collapseMembers": "بستن پنل اعضا",
+    "expandMembers": "باز کردن پنل اعضا",
     "prevPage": "صفحه قبل",
     "nextPage": "صفحه بعد",
-    "close": "بستن"
+    "close": "بستن",
+    "shareToCall": "اشتراک در تماس",
+    "stopSharing": "توقف اشتراک",
+    "streaming": "در حال پخش"
   }
 }

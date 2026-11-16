@@ -72,6 +72,7 @@ const props = withDefaults(
     showClose?: boolean;
     maximizable?: boolean;
     streamActive?: boolean;
+    allowStream?: boolean;
     showGrid?: boolean;
   }>(),
   {
@@ -81,6 +82,7 @@ const props = withDefaults(
     showClose: false,
     maximizable: false,
     streamActive: false,
+    allowStream: true,
     showGrid: true,
   },
 );
@@ -90,6 +92,7 @@ const emit = defineEmits<{
   (e: "streamStart", stream: MediaStream): void;
   (e: "streamStop"): void;
   (e: "maximize", maximized: boolean): void;
+  (e: "fullWindow", fullWindow: boolean): void;
 }>();
 
 const { t } = useLocalI18n(callPaintBoard);
@@ -199,6 +202,7 @@ function undo() {
   }
   selectedShapeId.value = null;
   detachTransformer();
+  scheduleStreamFrameUpdate();
 }
 
 function redo() {
@@ -210,6 +214,7 @@ function redo() {
   }
   selectedShapeId.value = null;
   detachTransformer();
+  scheduleStreamFrameUpdate();
 }
 
 function clear() {
@@ -218,6 +223,7 @@ function clear() {
   pushHistory();
   selectedShapeId.value = null;
   detachTransformer();
+  scheduleStreamFrameUpdate();
 }
 
 function addPage() {
@@ -477,6 +483,8 @@ function handleStageMouseMove() {
     star.outerRadius = outer;
     star.innerRadius = Math.round(outer * 0.45);
   }
+
+  triggerStreamFrameUpdate();
 }
 
 function handleStageMouseUp() {
@@ -502,6 +510,7 @@ function handleStageMouseUp() {
     }
     drawingShape.value = null;
   }
+  scheduleStreamFrameUpdate();
 }
 
 function handleShapeClick(id: string) {
@@ -521,6 +530,7 @@ function handleShapeDragEnd(id: string, e: Konva.KonvaEventObject<DragEvent>) {
   shape.x = e.target.x();
   shape.y = e.target.y();
   pushHistory();
+  scheduleStreamFrameUpdate();
 }
 
 function handleShapeTransformEnd(id: string, e: Konva.KonvaEventObject<Event>) {
@@ -553,6 +563,7 @@ function handleShapeTransformEnd(id: string, e: Konva.KonvaEventObject<Event>) {
     star.innerRadius = Math.max(4, star.innerRadius * Math.max(scaleX, scaleY));
   }
   pushHistory();
+  scheduleStreamFrameUpdate();
 }
 
 // Konva Shape Configs
@@ -693,21 +704,204 @@ function downloadImage(format: "png" | "jpeg" = "png") {
   openToast(t("board.savedSuccessfully"), "success");
 }
 
+let activeStreamTrack: MediaStreamTrack | null = null;
+let activeStream: MediaStream | null = null;
+let animFrameId: number | null = null;
+let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+let streamCanvas: HTMLCanvasElement | null = null;
+
+function renderCompositedFrame() {
+  const stage = stageRef.value?.getStage();
+  if (!stage || !streamCanvas) return;
+  const ctx = streamCanvas.getContext("2d", { alpha: false });
+  if (!ctx) return;
+
+  const targetW = Math.max(320, Math.round(stage.width() || stageSize.width || 1280));
+  const targetH = Math.max(240, Math.round(stage.height() || stageSize.height || 720));
+
+  if (Math.abs(streamCanvas.width - targetW) > 8 || Math.abs(streamCanvas.height - targetH) > 8) {
+    streamCanvas.width = targetW;
+    streamCanvas.height = targetH;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = "high";
+  }
+
+  // Paint solid white canvas background (opaque for WebRTC codecs)
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, streamCanvas.width, streamCanvas.height);
+
+  // If currently drawing, force synchronous stage redraw to capture the newest stroke
+  if (isDrawing.value) {
+    try {
+      stage.batchDraw();
+    } catch {
+      // ignore
+    }
+  }
+
+  // Composite all scene layers with scaling to stream canvas resolution
+  try {
+    const layers = stage.getLayers();
+    for (const layer of layers) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const layerCanvas = (layer as any).getCanvas?.()?._canvas;
+      if (layerCanvas && layerCanvas.width > 0 && layerCanvas.height > 0) {
+        ctx.drawImage(layerCanvas, 0, 0, streamCanvas.width, streamCanvas.height);
+      }
+    }
+  } catch {
+    const domCanvases = stage.content?.querySelectorAll("canvas") ?? [];
+    for (let i = 0; i < domCanvases.length; i++) {
+      const c = domCanvases[i];
+      if (c && c.width > 0 && c.height > 0) {
+        ctx.drawImage(c, 0, 0, streamCanvas.width, streamCanvas.height);
+      }
+    }
+  }
+
+  // If track supports requestFrame, push the new frame immediately into WebRTC
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  if (activeStreamTrack && typeof (activeStreamTrack as any).requestFrame === "function") {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (activeStreamTrack as any).requestFrame();
+    } catch {
+      // ignore
+    }
+  }
+}
+
+function triggerStreamFrameUpdate() {
+  if (activeStreamTrack) {
+    renderCompositedFrame();
+  }
+}
+
+function scheduleStreamFrameUpdate() {
+  if (activeStreamTrack) {
+    nextTick(() => renderCompositedFrame());
+  }
+}
+
+watch(currentPageIndex, () => {
+  scheduleStreamFrameUpdate();
+});
+
+function startLoop() {
+  stopLoop();
+
+  const loop = () => {
+    renderCompositedFrame();
+    animFrameId = requestAnimationFrame(loop);
+  };
+  loop();
+
+  // Heartbeat fallback: even when tab is backgrounded or rAF is throttled, keep streaming alive at 20fps
+  heartbeatTimer = setInterval(() => {
+    renderCompositedFrame();
+  }, 50);
+}
+
+function stopLoop() {
+  if (animFrameId !== null) {
+    cancelAnimationFrame(animFrameId);
+    animFrameId = null;
+  }
+  if (heartbeatTimer !== null) {
+    clearInterval(heartbeatTimer);
+    heartbeatTimer = null;
+  }
+}
+
+function stopActiveStream() {
+  stopLoop();
+  if (activeStreamTrack) {
+    activeStreamTrack.stop();
+    activeStreamTrack = null;
+  }
+  if (activeStream) {
+    activeStream.getTracks().forEach((t) => t.stop());
+    activeStream = null;
+  }
+  if (streamCanvas && streamCanvas.parentNode) {
+    streamCanvas.parentNode.removeChild(streamCanvas);
+  }
+  streamCanvas = null;
+}
+
+watch(
+  () => props.streamActive,
+  (active) => {
+    if (!active) {
+      stopActiveStream();
+    } else if (!activeStreamTrack) {
+      const stream = getStream();
+      if (stream) emit("streamStart", stream);
+    }
+  },
+);
+
 function getStream(fps = 30): MediaStream | null {
   const stage = stageRef.value?.getStage();
   if (!stage) return null;
-  const canvas = stage.content.querySelector("canvas") as HTMLCanvasElement | null;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  if (canvas && typeof (canvas as any).captureStream === "function") {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return (canvas as any).captureStream(fps);
+
+  if (!streamCanvas) {
+    streamCanvas = document.createElement("canvas");
+    streamCanvas.style.position = "fixed";
+    streamCanvas.style.left = "-99999px";
+    streamCanvas.style.top = "-99999px";
+    streamCanvas.style.pointerEvents = "none";
+    streamCanvas.style.opacity = "0";
+    streamCanvas.style.width = "1px";
+    streamCanvas.style.height = "1px";
+    document.body.appendChild(streamCanvas);
   }
-  return null;
+
+  const w = Math.max(320, Math.round(stage.width() || stageSize.width || 1280));
+  const h = Math.max(240, Math.round(stage.height() || stageSize.height || 720));
+  streamCanvas.width = w;
+  streamCanvas.height = h;
+
+  startLoop();
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const canvasWithStream = streamCanvas as any;
+  const captureFn = canvasWithStream.captureStream || canvasWithStream.mozCaptureStream;
+  if (typeof captureFn !== "function") {
+    stopActiveStream();
+    return null;
+  }
+
+  const stream: MediaStream = captureFn.call(canvasWithStream, fps);
+  activeStream = stream;
+  const track = stream.getVideoTracks()[0];
+  if (track) {
+    activeStreamTrack = track;
+    track.addEventListener("ended", () => {
+      stopActiveStream();
+      emit("streamStop");
+    });
+  }
+
+  return stream;
+}
+
+function toggleStream() {
+  if (props.streamActive) {
+    stopActiveStream();
+    emit("streamStop");
+  } else {
+    const stream = getStream();
+    if (stream) {
+      emit("streamStart", stream);
+    }
+  }
 }
 
 const toggleMaximize = () => {
   isMaximized.value = !isMaximized.value;
   emit("maximize", isMaximized.value);
+  emit("fullWindow", isMaximized.value);
 };
 
 // Keyboard shortcuts (Ctrl+Z, Ctrl+Y, Delete, 1-6 tools)
@@ -741,6 +935,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   window.removeEventListener("keydown", handleKeydown);
+  stopActiveStream();
 });
 
 // Shape selection indicator
@@ -925,8 +1120,25 @@ defineExpose<WhiteboardExposed>({
         </Button>
       </nav>
 
-      <!-- Right: Grid Toggle, Export Image, Maximize -->
+      <!-- Right: Stream, Grid Toggle, Export Image, Maximize -->
       <div class="flex items-center gap-1 sm:gap-1.5">
+        <!-- Stream / Share to Call Button -->
+        <Button
+          v-if="allowStream"
+          rounded
+          size="small"
+          :severity="streamActive ? 'danger' : 'primary'"
+          class="!px-2.5 !py-1 text-xs font-semibold gap-1.5 transition-all shadow-xs"
+          :class="streamActive ? 'animate-pulse' : ''"
+          data-testid="whiteboard-stream-btn"
+          @click="toggleStream"
+        >
+          <template #icon>
+            <BIcon :icon="streamActive ? 'PhStopCircle' : 'PhBroadcast'" class="size-4" />
+          </template>
+          <span>{{ streamActive ? t('board.stopSharing') : t('board.shareToCall') }}</span>
+        </Button>
+
         <!-- Grid Toggle -->
         <IconButton
           icon="PhGridFour"
@@ -946,11 +1158,11 @@ defineExpose<WhiteboardExposed>({
           @click="downloadImage('png')"
         />
 
-        <!-- Maximize / Restore Button -->
+        <!-- Full Window / Restore Button -->
         <IconButton
           v-if="maximizable"
           :icon="isMaximized ? 'PhCornersIn' : 'PhCornersOut'"
-          :label="isMaximized ? t('board.restore') : t('board.maximize')"
+          :label="isMaximized ? t('board.exitFullWindow') : t('board.fullWindow')"
           icon-class="size-4 text-slate-700 dark:text-slate-200"
           class="hover:bg-slate-100 dark:hover:bg-slate-800"
           @click="toggleMaximize"

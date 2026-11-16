@@ -9,6 +9,10 @@ const dark = ref(matchMedia("(prefers-color-scheme: dark)").matches);
 watchEffect(() => document.documentElement.classList.toggle("dark", dark.value));
 
 const showWhiteboard = ref(false);
+const demoWhiteboardParticipants = [
+  { id: "me", userId: "me", name: "Me", isSelf: true, status: "connected" as const, media: { audio: true, video: false } },
+  { id: "sara", userId: "sara", name: "Sara Mohammadi", isSelf: false, status: "connected" as const, media: { audio: false, video: false } },
+];
 
 const other = userId === "me" ? "sara" : "me";
 const otherTab = `?user=${other}`;
@@ -65,9 +69,10 @@ const messageOptions = (message: Message) => [
       </template>
     </ChatPage>
 
-    <!-- Whiteboard Dialog with Maximize Support -->
+    <!-- Whiteboard Dialog with Full Window Support -->
     <WhiteboardDialog
       v-model:visible="showWhiteboard"
+      :participants="demoWhiteboardParticipants"
       @close="showWhiteboard = false"
     />
   </div>

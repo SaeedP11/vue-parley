@@ -25,6 +25,7 @@ export interface PeerOptions {
   /** Whether getting our own media is over, successfully or not. Peers wait for it. */
   mediaReady: Ref<boolean>;
   screenStream: Ref<MediaStream | null>;
+  whiteboardStream?: Ref<MediaStream | null>;
   /** ICE servers and policy for each new connection, or null when none are usable yet. */
   rtcConfig: () => RTCConfiguration | null;
   /** A peer is waiting for ICE servers; call `retryPending()` once there may be some. */
@@ -43,7 +44,7 @@ export interface PeerOptions {
  * A peer can't be created before our own media exists; such requests wait until it does.
  */
 export function usePeers(opts: PeerOptions) {
-  const { selfId, signaling, localStream, screenStream, log } = opts;
+  const { selfId, signaling, localStream, screenStream, whiteboardStream, log } = opts;
 
   const peers = ref<Record<string, PeerConnection>>({});
   const remoteVideos = ref<Record<string, RemoteStream>>({});
@@ -113,13 +114,13 @@ export function usePeers(opts: PeerOptions) {
     if (joinedAt !== undefined) remoteJoinedAt.value[remoteId] = joinedAt;
   }
 
-  /** Whether `stream` is the remote's screen share, going by what they announced. */
+  /** Whether `stream` is the remote's screen share or whiteboard, going by what they announced. */
   function isScreen(remoteId: string, stream: MediaStream) {
     const announced = remoteStreamTypes.value[remoteId] ?? [];
     const match = announced.find((t) => t.id === stream.id);
-    if (match) return match.type === "screen";
-    // Stream ids didn't survive the trip: fall back to "they announced a screen".
-    return announced.some((t) => t.type === "screen");
+    if (match) return match.type === "screen" || match.type === "whiteboard";
+    // Stream ids didn't survive the trip: fall back to "they announced a screen or whiteboard".
+    return announced.some((t) => t.type === "screen" || t.type === "whiteboard");
   }
 
   function put(target: Ref<Record<string, RemoteStream>>, remoteId: string, entry?: ReceivedStream) {
@@ -162,7 +163,7 @@ export function usePeers(opts: PeerOptions) {
     remoteStreamTypes.value[remoteId] = types;
     for (const r of received[remoteId] ?? []) {
       const match = types.find((t) => t.id === r.stream.id);
-      if (match) r.screen = match.type === "screen";
+      if (match) r.screen = match.type === "screen" || match.type === "whiteboard";
     }
     place(remoteId);
   }
@@ -202,7 +203,9 @@ export function usePeers(opts: PeerOptions) {
         log: (...args) => log("peer", remoteId, ...args),
         onSignal: (signal) => void signaling.signal(remoteId, signal),
         onStream: (stream) => onRemoteStream(remoteId, name, stream),
-        isScreenTrack: (track) => !!screenStream.value?.getTracks().includes(track),
+        isScreenTrack: (track) =>
+          !!screenStream.value?.getTracks().includes(track) ||
+          !!whiteboardStream?.value?.getTracks().includes(track),
         // A receive-only remote sends no stream, so the connection itself says it is up.
         onConnectionState(state) {
           if (peers.value[remoteId] !== peer) return;
@@ -246,7 +249,7 @@ export function usePeers(opts: PeerOptions) {
     }
     log("created peer", remoteId, "initiator:", initiator);
 
-    const screen = screenStream.value;
+    const screen = screenStream.value ?? whiteboardStream?.value;
     screen?.getVideoTracks().forEach((track) => peer.addTrack(track, screen));
 
     peers.value[remoteId] = markRaw(peer);

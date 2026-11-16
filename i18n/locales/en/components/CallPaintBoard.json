@@ -38,8 +38,16 @@
     "grid": "Toggle grid",
     "maximize": "Maximize",
     "restore": "Restore",
+    "fullWindow": "Full window",
+    "exitFullWindow": "Exit full window",
+    "members": "Call Members",
+    "collapseMembers": "Collapse members panel",
+    "expandMembers": "Expand members panel",
     "prevPage": "Previous page",
     "nextPage": "Next page",
-    "close": "Close"
+    "close": "Close",
+    "shareToCall": "Share to Call",
+    "stopSharing": "Stop sharing",
+    "streaming": "Streaming"
   }
 }

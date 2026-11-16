@@ -319,7 +319,7 @@ export const CallMessageType = {
 } as const;
 export type CallMessageType = (typeof CallMessageType)[keyof typeof CallMessageType];
 
-export type TrackType = "webcam" | "screen" | "audio" | "webcam_audio";
+export type TrackType = "webcam" | "screen" | "audio" | "webcam_audio" | "whiteboard";
 
 export type CallMessageSchema =
   | {

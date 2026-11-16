@@ -18,8 +18,8 @@ const phosphor = require("@iconify-json/ph/icons.json");
 
 const ICONS = [
   "AirplaneTilt", "ArrowBendUpLeft", "ArrowDown", "ArrowLeft", "ArrowRight", "ArrowUUpLeft",
-  "ArrowUUpRight", "ArrowUpRight", "ArrowsClockwise", "ArrowsInSimple", "ArrowsOutSimple", "Buildings", "Cake", "Camera",
-  "CaretDown", "CaretLeft", "CaretRight", "CaretUp", "ChatCircleDots", "Check", "CheckCircle",
+  "ArrowUUpRight", "ArrowUpRight", "ArrowsClockwise", "ArrowsInSimple", "ArrowsOutSimple", "Broadcast", "Buildings", "Cake", "Camera",
+  "CaretDown", "CaretLeft", "CaretRight", "CaretUp", "Chalkboard", "ChalkboardSimple", "ChatCircleDots", "Check", "CheckCircle",
   "Checks", "Circle", "CircleNotch", "Clock", "Copy", "CornersIn", "CornersOut", "Cursor", "DotsThreeVertical", "DownloadSimple",
   "Eraser", "File", "FileText", "Files", "FilmStrip", "Flag", "FrameCorners", "GridFour", "Hamburger",
   "HandWaving", "Heart", "HighlighterCircle", "IdentificationCard", "Image", "Images", "Info", "Lightbulb",
@@ -27,7 +27,7 @@ const ICONS = [
   "Minus", "Monitor", "MonitorArrowUp", "Moon", "MusicNotes", "PaintBrush", "PaintBucket", "Palette", "PaperPlaneTilt", "Paperclip",
   "Pause", "PauseCircle", "PawPrint", "PencilLine", "PencilSimple", "PencilSimpleLine", "Phone", "PhoneCall",
   "PhoneX", "Play", "PlayCircle", "Plus", "Resize", "Shapes", "SidebarSimple", "Smiley", "SmileyMeh",
-  "SoccerBall", "SpeakerHigh", "SpeakerSlash", "Square", "Star", "Subtitles", "SunDim", "Trash", "TrayArrowDown",
+  "SoccerBall", "SpeakerHigh", "SpeakerSlash", "Square", "Star", "StopCircle", "Subtitles", "SunDim", "Trash", "TrayArrowDown",
   "Triangle", "UploadSimple", "User", "Users", "Video", "VideoCamera", "VideoCameraSlash", "Warning",
   "WarningCircle", "WarningOctagon", "Waveform", "X", "XCircle", "XSquare",
 ];
