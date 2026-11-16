@@ -314,10 +314,154 @@ function deleteSelected() {
   pushHistory();
 }
 
-// Drawing & Laser States
+// Drawing & Scratch States (Direct Native Konva Manipulation - Zero Vue Reactivity on drag)
 const isDrawing = ref(false);
-const drawingShape = ref<WhiteboardShape | null>(null);
 const startPos = reactive({ x: 0, y: 0 });
+
+let activeNativeNode: Konva.Shape | null = null;
+let activeStrokePoints: number[] = [];
+let hasErasedAnyShape = false;
+const eraserMode = ref<"stroke" | "pixel">("stroke");
+const eraserWidth = ref<number>(24);
+
+// Dynamic Brush / Eraser Cursor Indicator
+const isCursorInsideCanvas = ref(false);
+const cursorIndicatorRef = useTemplateRef<HTMLDivElement>("cursorIndicatorRef");
+
+function updateCursorIndicator(clientX: number, clientY: number) {
+  if (!containerRef.value || !cursorIndicatorRef.value) return;
+  const rect = containerRef.value.getBoundingClientRect();
+  const x = clientX - rect.left;
+  const y = clientY - rect.top;
+  cursorIndicatorRef.value.style.transform = `translate3d(${x}px, ${y}px, 0) translate(-50%, -50%)`;
+}
+
+function onContainerPointerEnter() {
+  if (currentTool.value !== "select" && currentTool.value !== "pan") {
+    isCursorInsideCanvas.value = true;
+  }
+}
+
+function onContainerPointerLeave() {
+  isCursorInsideCanvas.value = false;
+}
+
+function onContainerPointerMove(e: PointerEvent) {
+  if (!isCursorInsideCanvas.value && currentTool.value !== "select" && currentTool.value !== "pan") {
+    isCursorInsideCanvas.value = true;
+  }
+  updateCursorIndicator(e.clientX, e.clientY);
+}
+
+const cursorVisualSize = computed(() => {
+  const scale = stageScale.value || 1;
+  if (currentTool.value === "laser") return 18;
+  if (currentTool.value === "eraser") {
+    return Math.max(10, Math.min(180, eraserWidth.value * scale));
+  }
+  if (currentTool.value === "brush") {
+    return Math.max(8, Math.min(180, strokeWidth.value * 2.2 * scale));
+  }
+  if (currentTool.value === "highlighter") {
+    return Math.max(12, Math.min(180, strokeWidth.value * 3.5 * scale));
+  }
+  return Math.max(4, Math.min(180, strokeWidth.value * scale));
+});
+
+const cursorIndicatorStyle = computed(() => {
+  const size = cursorVisualSize.value;
+  const tool = currentTool.value;
+
+  if (tool === "laser") {
+    return {
+      width: `${size}px`,
+      height: `${size}px`,
+      borderColor: strokeColor.value || "#ef4444",
+      backgroundColor: "rgba(239, 68, 68, 0.4)",
+      boxShadow: "0 0 10px rgba(239, 68, 68, 0.8)",
+    };
+  }
+
+  if (tool === "eraser") {
+    return {
+      width: `${size}px`,
+      height: `${size}px`,
+      borderColor: "#ef4444",
+      borderStyle: "dashed",
+      borderWidth: "1.5px",
+      backgroundColor: "rgba(239, 68, 68, 0.12)",
+    };
+  }
+
+  return {
+    width: `${size}px`,
+    height: `${size}px`,
+    borderColor: strokeColor.value,
+    borderStyle: "solid",
+    borderWidth: "1.5px",
+    backgroundColor: `${strokeColor.value}26`,
+  };
+});
+
+// Fast Vector Math for Object / Stroke Eraser Mode
+function distToSegmentSquared(px: number, py: number, x1: number, y1: number, x2: number, y2: number) {
+  const l2 = (x2 - x1) ** 2 + (y2 - y1) ** 2;
+  if (l2 === 0) return (px - x1) ** 2 + (py - y1) ** 2;
+  let t = ((px - x1) * (x2 - x1) + (py - y1) * (y2 - y1)) / l2;
+  t = Math.max(0, Math.min(1, t));
+  return (px - (x1 + t * (x2 - x1))) ** 2 + (py - (y1 + t * (y2 - y1))) ** 2;
+}
+
+function checkShapeIntersect(shape: WhiteboardShape, px: number, py: number, radius: number): boolean {
+  const rSq = (radius + (shape.strokeWidth || 4) / 2) ** 2;
+
+  if (
+    shape.type === "pen" ||
+    shape.type === "brush" ||
+    shape.type === "highlighter" ||
+    shape.type === "line" ||
+    shape.type === "eraser"
+  ) {
+    const pts = (shape as LineShape).points;
+    if (!pts || pts.length < 2) return false;
+    for (let i = 0; i < pts.length - 2; i += 2) {
+      if (distToSegmentSquared(px, py, pts[i], pts[i + 1], pts[i + 2], pts[i + 3]) <= rSq) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  if (shape.type === "rect" || shape.type === "square") {
+    const r = shape as RectShape;
+    const minX = r.x - radius;
+    const maxX = r.x + r.width + radius;
+    const minY = r.y - radius;
+    const maxY = r.y + r.height + radius;
+    return px >= minX && px <= maxX && py >= minY && py <= maxY;
+  }
+
+  if (shape.type === "circle") {
+    const c = shape as CircleShape;
+    const dSq = (px - c.x) ** 2 + (py - c.y) ** 2;
+    return dSq <= (c.radius + radius) ** 2;
+  }
+
+  if (shape.type === "triangle" || shape.type === "star") {
+    const s = shape as TriangleShape;
+    const dSq = (px - s.x) ** 2 + (py - s.y) ** 2;
+    return dSq <= (s.radius + radius) ** 2;
+  }
+
+  if (shape.type === "arrow") {
+    const a = shape as ArrowShape;
+    const pts = a.points;
+    if (!pts || pts.length < 4) return false;
+    return distToSegmentSquared(px, py, pts[0], pts[1], pts[2], pts[3]) <= rSq;
+  }
+
+  return false;
+}
 
 // Laser pointer
 const laserPoints = ref<LaserPoint[]>([]);
@@ -369,6 +513,13 @@ function getRelativePointerPosition(): { x: number; y: number } | null {
 }
 
 function handleStageMouseDown(e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) {
+  if (e.evt) {
+    updateCursorIndicator(
+      "clientX" in e.evt ? e.evt.clientX : e.evt.touches[0]?.clientX ?? 0,
+      "clientY" in e.evt ? e.evt.clientY : e.evt.touches[0]?.clientY ?? 0,
+    );
+  }
+
   // Pan mode (or Spacebar held)
   if (currentTool.value === "pan" || isSpacePressed.value) {
     isPanning.value = true;
@@ -400,21 +551,41 @@ function handleStageMouseDown(e: Konva.KonvaEventObject<MouseEvent | TouchEvent>
     return;
   }
 
-  // Drawing tools
-  isDrawing.value = true;
+  // Eraser in Stroke Mode (instant object deletion)
+  if (currentTool.value === "eraser" && eraserMode.value === "stroke") {
+    isDrawing.value = true;
+    hasErasedAnyShape = false;
+    const pos = getRelativePointerPosition();
+    if (pos) {
+      const initialCount = currentShapes.value.length;
+      currentShapes.value = currentShapes.value.filter(
+        (s) => !checkShapeIntersect(s, pos.x, pos.y, eraserWidth.value / 2),
+      );
+      if (currentShapes.value.length !== initialCount) {
+        hasErasedAnyShape = true;
+        shapesLayerRef.value?.getNode()?.batchDraw();
+        markDirty();
+      }
+    }
+    return;
+  }
+
+  // Drawing tools (pen, brush, highlighter, pixel eraser, line, shapes)
   const pos = getRelativePointerPosition();
   if (!pos) return;
+  isDrawing.value = true;
   startPos.x = pos.x;
   startPos.y = pos.y;
 
-  const id = `shape-${nanoid(8)}`;
   const tool = currentTool.value;
+  const scratchLayer = scratchLayerRef.value?.getNode();
 
   if (tool === "pen" || tool === "brush" || tool === "highlighter" || tool === "eraser") {
+    const isEraser = tool === "eraser";
     let strokeW = strokeWidth.value;
     let strokeC = strokeColor.value;
     let opacity = 1;
-    let tension = 0.5;
+    let tension = 0.4;
     let lineCap: "round" | "butt" | "square" = "round";
     let lineJoin: "round" | "bevel" | "miter" = "round";
 
@@ -423,38 +594,48 @@ function handleStageMouseDown(e: Konva.KonvaEventObject<MouseEvent | TouchEvent>
     } else if (tool === "highlighter") {
       strokeW = Math.max(16, strokeWidth.value * 3.5);
       opacity = 0.35;
+      tension = 0;
       lineCap = "square";
     } else if (tool === "eraser") {
-      strokeW = Math.max(14, strokeWidth.value * 3);
+      strokeW = eraserWidth.value;
+      strokeC = "#cbd5e1";
+      opacity = 0.6;
+      tension = 0;
     }
 
-    drawingShape.value = {
-      id,
-      type: tool,
-      points: [pos.x, pos.y, pos.x, pos.y],
+    activeStrokePoints = [pos.x, pos.y, pos.x, pos.y];
+    activeNativeNode = new Konva.Line({
+      id: "scratch-active",
+      points: activeStrokePoints,
       stroke: strokeC,
       strokeWidth: strokeW,
       opacity,
       tension,
       lineCap,
       lineJoin,
-    } as LineShape;
+      listening: false,
+      dash: isEraser ? [6, 4] : undefined,
+    });
+    scratchLayer?.add(activeNativeNode);
+    scratchLayer?.batchDraw();
   } else if (tool === "line") {
-    drawingShape.value = {
-      id,
-      type: "line",
-      points: [pos.x, pos.y, pos.x, pos.y],
+    activeStrokePoints = [pos.x, pos.y, pos.x, pos.y];
+    activeNativeNode = new Konva.Line({
+      id: "scratch-active",
+      points: activeStrokePoints,
       stroke: strokeColor.value,
       strokeWidth: strokeWidth.value,
       opacity: 1,
       tension: 0,
       lineCap: "round",
       lineJoin: "round",
-    } as LineShape;
+      listening: false,
+    });
+    scratchLayer?.add(activeNativeNode);
+    scratchLayer?.batchDraw();
   } else if (tool === "rect" || tool === "square") {
-    drawingShape.value = {
-      id,
-      type: tool,
+    activeNativeNode = new Konva.Rect({
+      id: "scratch-active",
       x: pos.x,
       y: pos.y,
       width: 0,
@@ -463,11 +644,13 @@ function handleStageMouseDown(e: Konva.KonvaEventObject<MouseEvent | TouchEvent>
       strokeWidth: strokeWidth.value,
       fill: isShapeFilled.value ? fillColor.value : undefined,
       opacity: 1,
-    } as RectShape;
+      listening: false,
+    });
+    scratchLayer?.add(activeNativeNode);
+    scratchLayer?.batchDraw();
   } else if (tool === "circle") {
-    drawingShape.value = {
-      id,
-      type: "circle",
+    activeNativeNode = new Konva.Circle({
+      id: "scratch-active",
       x: pos.x,
       y: pos.y,
       radius: 0,
@@ -475,24 +658,28 @@ function handleStageMouseDown(e: Konva.KonvaEventObject<MouseEvent | TouchEvent>
       strokeWidth: strokeWidth.value,
       fill: isShapeFilled.value ? fillColor.value : undefined,
       opacity: 1,
-    } as CircleShape;
+      listening: false,
+    });
+    scratchLayer?.add(activeNativeNode);
+    scratchLayer?.batchDraw();
   } else if (tool === "triangle") {
-    drawingShape.value = {
-      id,
-      type: "triangle",
+    activeNativeNode = new Konva.RegularPolygon({
+      id: "scratch-active",
       x: pos.x,
       y: pos.y,
-      radius: 0,
       sides: 3,
+      radius: 0,
       stroke: strokeColor.value,
       strokeWidth: strokeWidth.value,
       fill: isShapeFilled.value ? fillColor.value : undefined,
       opacity: 1,
-    } as TriangleShape;
+      listening: false,
+    });
+    scratchLayer?.add(activeNativeNode);
+    scratchLayer?.batchDraw();
   } else if (tool === "arrow") {
-    drawingShape.value = {
-      id,
-      type: "arrow",
+    activeNativeNode = new Konva.Arrow({
+      id: "scratch-active",
       points: [pos.x, pos.y, pos.x, pos.y],
       pointerLength: Math.max(10, strokeWidth.value * 3),
       pointerWidth: Math.max(10, strokeWidth.value * 3),
@@ -500,11 +687,13 @@ function handleStageMouseDown(e: Konva.KonvaEventObject<MouseEvent | TouchEvent>
       fill: strokeColor.value,
       strokeWidth: strokeWidth.value,
       opacity: 1,
-    } as ArrowShape;
+      listening: false,
+    });
+    scratchLayer?.add(activeNativeNode);
+    scratchLayer?.batchDraw();
   } else if (tool === "star") {
-    drawingShape.value = {
-      id,
-      type: "star",
+    activeNativeNode = new Konva.Star({
+      id: "scratch-active",
       x: pos.x,
       y: pos.y,
       numPoints: 5,
@@ -514,13 +703,23 @@ function handleStageMouseDown(e: Konva.KonvaEventObject<MouseEvent | TouchEvent>
       strokeWidth: strokeWidth.value,
       fill: isShapeFilled.value ? fillColor.value : undefined,
       opacity: 1,
-    } as StarShape;
+      listening: false,
+    });
+    scratchLayer?.add(activeNativeNode);
+    scratchLayer?.batchDraw();
   }
 
   markDirty();
 }
 
-function handleStageMouseMove() {
+function handleStageMouseMove(e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) {
+  if (e.evt) {
+    updateCursorIndicator(
+      "clientX" in e.evt ? e.evt.clientX : e.evt.touches[0]?.clientX ?? 0,
+      "clientY" in e.evt ? e.evt.clientY : e.evt.touches[0]?.clientY ?? 0,
+    );
+  }
+
   // Pan in progress
   if (isPanning.value) {
     const stage = stageRef.value?.getStage();
@@ -542,66 +741,95 @@ function handleStageMouseMove() {
     return;
   }
 
-  if (!isDrawing.value || !drawingShape.value) return;
+  // Eraser in Stroke Mode
+  if (isDrawing.value && currentTool.value === "eraser" && eraserMode.value === "stroke") {
+    const pos = getRelativePointerPosition();
+    if (pos) {
+      const initialCount = currentShapes.value.length;
+      currentShapes.value = currentShapes.value.filter(
+        (s) => !checkShapeIntersect(s, pos.x, pos.y, eraserWidth.value / 2),
+      );
+      if (currentShapes.value.length !== initialCount) {
+        hasErasedAnyShape = true;
+        shapesLayerRef.value?.getNode()?.batchDraw();
+        markDirty();
+      }
+    }
+    return;
+  }
+
+  if (!isDrawing.value || !activeNativeNode) return;
   const pos = getRelativePointerPosition();
   if (!pos) return;
 
-  const shape = drawingShape.value;
   const tool = currentTool.value;
+  const scratchLayer = scratchLayerRef.value?.getNode();
 
   if (tool === "pen" || tool === "brush" || tool === "highlighter" || tool === "eraser") {
-    const line = shape as LineShape;
-    const pts = line.points;
-    const lastX = pts[pts.length - 2];
-    const lastY = pts[pts.length - 1];
+    const lastX = activeStrokePoints[activeStrokePoints.length - 2];
+    const lastY = activeStrokePoints[activeStrokePoints.length - 1];
     const distSq = (pos.x - lastX) ** 2 + (pos.y - lastY) ** 2;
-    // Point distance threshold (at least 3px delta) to prevent point flooding
-    if (distSq >= 9) {
-      line.points.push(pos.x, pos.y);
+    // 2px threshold (distSq >= 4) for instant, fluid ink response without flooding
+    if (distSq >= 4) {
+      activeStrokePoints.push(pos.x, pos.y);
+      (activeNativeNode as Konva.Line).points(activeStrokePoints);
+      scratchLayer?.batchDraw();
       markDirty();
     }
   } else if (tool === "line") {
-    const line = shape as LineShape;
-    line.points = [startPos.x, startPos.y, pos.x, pos.y];
+    activeStrokePoints = [startPos.x, startPos.y, pos.x, pos.y];
+    (activeNativeNode as Konva.Line).points(activeStrokePoints);
+    scratchLayer?.batchDraw();
     markDirty();
   } else if (tool === "arrow") {
-    const arrow = shape as ArrowShape;
-    arrow.points = [startPos.x, startPos.y, pos.x, pos.y];
+    activeStrokePoints = [startPos.x, startPos.y, pos.x, pos.y];
+    (activeNativeNode as Konva.Arrow).points(activeStrokePoints);
+    scratchLayer?.batchDraw();
     markDirty();
   } else if (tool === "rect") {
-    const rect = shape as RectShape;
-    rect.x = Math.min(startPos.x, pos.x);
-    rect.y = Math.min(startPos.y, pos.y);
-    rect.width = Math.abs(pos.x - startPos.x);
-    rect.height = Math.abs(pos.y - startPos.y);
+    activeNativeNode.setAttrs({
+      x: Math.min(startPos.x, pos.x),
+      y: Math.min(startPos.y, pos.y),
+      width: Math.abs(pos.x - startPos.x),
+      height: Math.abs(pos.y - startPos.y),
+    });
+    scratchLayer?.batchDraw();
     markDirty();
   } else if (tool === "square") {
-    const rect = shape as RectShape;
     const side = Math.max(Math.abs(pos.x - startPos.x), Math.abs(pos.y - startPos.y));
-    rect.x = pos.x < startPos.x ? startPos.x - side : startPos.x;
-    rect.y = pos.y < startPos.y ? startPos.y - side : startPos.y;
-    rect.width = side;
-    rect.height = side;
+    activeNativeNode.setAttrs({
+      x: pos.x < startPos.x ? startPos.x - side : startPos.x,
+      y: pos.y < startPos.y ? startPos.y - side : startPos.y,
+      width: side,
+      height: side,
+    });
+    scratchLayer?.batchDraw();
     markDirty();
   } else if (tool === "circle") {
-    const circle = shape as CircleShape;
     const dx = pos.x - startPos.x;
     const dy = pos.y - startPos.y;
-    circle.radius = Math.round(Math.sqrt(dx * dx + dy * dy));
+    activeNativeNode.setAttrs({
+      radius: Math.round(Math.sqrt(dx * dx + dy * dy)),
+    });
+    scratchLayer?.batchDraw();
     markDirty();
   } else if (tool === "triangle") {
-    const tri = shape as TriangleShape;
     const dx = pos.x - startPos.x;
     const dy = pos.y - startPos.y;
-    tri.radius = Math.round(Math.sqrt(dx * dx + dy * dy));
+    activeNativeNode.setAttrs({
+      radius: Math.round(Math.sqrt(dx * dx + dy * dy)),
+    });
+    scratchLayer?.batchDraw();
     markDirty();
   } else if (tool === "star") {
-    const star = shape as StarShape;
     const dx = pos.x - startPos.x;
     const dy = pos.y - startPos.y;
     const outer = Math.round(Math.sqrt(dx * dx + dy * dy));
-    star.outerRadius = outer;
-    star.innerRadius = Math.round(outer * 0.45);
+    activeNativeNode.setAttrs({
+      outerRadius: outer,
+      innerRadius: Math.round(outer * 0.45),
+    });
+    scratchLayer?.batchDraw();
     markDirty();
   }
 }
@@ -613,30 +841,176 @@ function handleStageMouseUp() {
     return;
   }
 
+  // Eraser in Stroke Mode
+  if (currentTool.value === "eraser" && eraserMode.value === "stroke") {
+    isDrawing.value = false;
+    if (hasErasedAnyShape) {
+      pushHistory();
+      hasErasedAnyShape = false;
+    }
+    return;
+  }
+
   if (!isDrawing.value) return;
   isDrawing.value = false;
 
-  if (drawingShape.value) {
-    let isValid = true;
-    const s = drawingShape.value;
-    if (s.type === "rect" || s.type === "square") {
-      if ((s as RectShape).width < 3 && (s as RectShape).height < 3) isValid = false;
-    } else if (s.type === "circle") {
-      if ((s as CircleShape).radius < 3) isValid = false;
-    } else if (s.type === "triangle") {
-      if ((s as TriangleShape).radius < 3) isValid = false;
-    } else if (s.type === "star") {
-      if ((s as StarShape).outerRadius < 3) isValid = false;
+  if (activeNativeNode) {
+    const tool = currentTool.value;
+    const id = `shape-${nanoid(8)}`;
+
+    if (tool === "pen" || tool === "brush" || tool === "highlighter" || tool === "eraser") {
+      const isEraser = tool === "eraser";
+      let strokeW = strokeWidth.value;
+      let strokeC = strokeColor.value;
+      let opacity = 1;
+      let tension = 0.4;
+      let lineCap: "round" | "butt" | "square" = "round";
+      let lineJoin: "round" | "bevel" | "miter" = "round";
+
+      if (tool === "brush") {
+        strokeW = Math.max(8, strokeWidth.value * 2.2);
+      } else if (tool === "highlighter") {
+        strokeW = Math.max(16, strokeWidth.value * 3.5);
+        opacity = 0.35;
+        tension = 0;
+        lineCap = "square";
+      } else if (tool === "eraser") {
+        strokeW = eraserWidth.value;
+        strokeC = "#ffffff";
+        opacity = 1;
+        tension = 0;
+      }
+
+      if (activeStrokePoints.length >= 4) {
+        currentShapes.value.push({
+          id,
+          type: tool,
+          points: [...activeStrokePoints],
+          stroke: strokeC,
+          strokeWidth: strokeW,
+          opacity,
+          tension,
+          lineCap,
+          lineJoin,
+        } as LineShape);
+        pushHistory();
+      }
+    } else if (tool === "line") {
+      if (activeStrokePoints.length >= 4) {
+        currentShapes.value.push({
+          id,
+          type: "line",
+          points: [...activeStrokePoints],
+          stroke: strokeColor.value,
+          strokeWidth: strokeWidth.value,
+          opacity: 1,
+          tension: 0,
+          lineCap: "round",
+          lineJoin: "round",
+        } as LineShape);
+        pushHistory();
+      }
+    } else if (tool === "arrow") {
+      if (activeStrokePoints.length >= 4) {
+        currentShapes.value.push({
+          id,
+          type: "arrow",
+          points: [...activeStrokePoints],
+          pointerLength: Math.max(10, strokeWidth.value * 3),
+          pointerWidth: Math.max(10, strokeWidth.value * 3),
+          stroke: strokeColor.value,
+          fill: strokeColor.value,
+          strokeWidth: strokeWidth.value,
+          opacity: 1,
+        } as ArrowShape);
+        pushHistory();
+      }
+    } else if (tool === "rect" || tool === "square") {
+      const r = activeNativeNode as Konva.Rect;
+      if (r.width() >= 3 && r.height() >= 3) {
+        currentShapes.value.push({
+          id,
+          type: tool,
+          x: r.x(),
+          y: r.y(),
+          width: r.width(),
+          height: r.height(),
+          stroke: strokeColor.value,
+          strokeWidth: strokeWidth.value,
+          fill: isShapeFilled.value ? fillColor.value : undefined,
+          opacity: 1,
+        } as RectShape);
+        pushHistory();
+      }
+    } else if (tool === "circle") {
+      const c = activeNativeNode as Konva.Circle;
+      if (c.radius() >= 3) {
+        currentShapes.value.push({
+          id,
+          type: "circle",
+          x: c.x(),
+          y: c.y(),
+          radius: c.radius(),
+          stroke: strokeColor.value,
+          strokeWidth: strokeWidth.value,
+          fill: isShapeFilled.value ? fillColor.value : undefined,
+          opacity: 1,
+        } as CircleShape);
+        pushHistory();
+      }
+    } else if (tool === "triangle") {
+      const t = activeNativeNode as Konva.RegularPolygon;
+      if (t.radius() >= 3) {
+        currentShapes.value.push({
+          id,
+          type: "triangle",
+          x: t.x(),
+          y: t.y(),
+          sides: 3,
+          radius: t.radius(),
+          stroke: strokeColor.value,
+          strokeWidth: strokeWidth.value,
+          fill: isShapeFilled.value ? fillColor.value : undefined,
+          opacity: 1,
+        } as TriangleShape);
+        pushHistory();
+      }
+    } else if (tool === "star") {
+      const s = activeNativeNode as Konva.Star;
+      if (s.outerRadius() >= 3) {
+        currentShapes.value.push({
+          id,
+          type: "star",
+          x: s.x(),
+          y: s.y(),
+          numPoints: 5,
+          innerRadius: s.innerRadius(),
+          outerRadius: s.outerRadius(),
+          stroke: strokeColor.value,
+          strokeWidth: strokeWidth.value,
+          fill: isShapeFilled.value ? fillColor.value : undefined,
+          opacity: 1,
+        } as StarShape);
+        pushHistory();
+      }
     }
 
-    if (isValid) {
-      currentShapes.value.push(JSON.parse(JSON.stringify(drawingShape.value)));
-      pushHistory();
-    }
-    drawingShape.value = null;
+    activeNativeNode.destroy();
+    activeNativeNode = null;
+    activeStrokePoints = [];
+    scratchLayerRef.value?.getNode()?.batchDraw();
+    shapesLayerRef.value?.getNode()?.batchDraw();
   }
+
   markDirty();
 }
+
+function handleGlobalPointerUp() {
+  if (isDrawing.value) {
+    handleStageMouseUp();
+  }
+}
+useEventListener(window, "pointerup", handleGlobalPointerUp);
 
 function handleShapeClick(id: string) {
   if (currentTool.value !== "select") return;
@@ -763,14 +1137,14 @@ function getLineConfig(item: LineShape) {
     stroke: item.stroke,
     strokeWidth: item.strokeWidth,
     opacity: item.opacity ?? 1,
-    tension: item.tension ?? 0.5,
+    tension: item.tension ?? 0.4,
     lineCap: item.lineCap ?? "round",
     lineJoin: item.lineJoin ?? "round",
     draggable: currentTool.value === "select" && !isEraser,
     globalCompositeOperation: isEraser ? "destination-out" : "source-over",
     shadowColor: isSelected ? "#3b82f6" : undefined,
     shadowBlur: isSelected ? 8 : 0,
-    listening: !isEraser,
+    listening: currentTool.value === "select" && !isEraser,
   };
 }
 
@@ -790,6 +1164,7 @@ function getRectConfig(item: RectShape) {
     draggable: currentTool.value === "select",
     shadowColor: isSelected ? "#3b82f6" : undefined,
     shadowBlur: isSelected ? 8 : 0,
+    listening: currentTool.value === "select",
   };
 }
 
@@ -808,6 +1183,7 @@ function getCircleConfig(item: CircleShape) {
     draggable: currentTool.value === "select",
     shadowColor: isSelected ? "#3b82f6" : undefined,
     shadowBlur: isSelected ? 8 : 0,
+    listening: currentTool.value === "select",
   };
 }
 
@@ -827,6 +1203,7 @@ function getTriangleConfig(item: TriangleShape) {
     draggable: currentTool.value === "select",
     shadowColor: isSelected ? "#3b82f6" : undefined,
     shadowBlur: isSelected ? 8 : 0,
+    listening: currentTool.value === "select",
   };
 }
 
@@ -844,6 +1221,7 @@ function getArrowConfig(item: ArrowShape) {
     draggable: currentTool.value === "select",
     shadowColor: isSelected ? "#3b82f6" : undefined,
     shadowBlur: isSelected ? 8 : 0,
+    listening: currentTool.value === "select",
   };
 }
 
@@ -864,6 +1242,7 @@ function getStarConfig(item: StarShape) {
     draggable: currentTool.value === "select",
     shadowColor: isSelected ? "#3b82f6" : undefined,
     shadowBlur: isSelected ? 8 : 0,
+    listening: currentTool.value === "select",
   };
 }
 
@@ -944,20 +1323,37 @@ function renderCompositedFrame() {
     ctx.imageSmoothingQuality = "high";
   }
 
-  // Solid white canvas background (opaque for WebRTC codecs)
+  // Fast solid white canvas background (opaque for WebRTC codecs - eliminates copying Layer 1)
   ctx.fillStyle = "#ffffff";
   ctx.fillRect(0, 0, streamCanvas.width, streamCanvas.height);
 
-  // Composite drawing layers (excluding selection handles)
+  // High-performance direct layer compositing (bypasses UI handles & empty layers)
   try {
-    const layers = stage.getLayers();
-    const uiLayer = transformerRef.value?.getNode()?.getLayer();
-    for (const layer of layers) {
-      if (uiLayer && layer === uiLayer) continue;
+    // 1. Shapes layer (committed shapes)
+    const shapesLayer = shapesLayerRef.value?.getNode();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const shapesCanvas = (shapesLayer as any)?.getCanvas?.()?._canvas;
+    if (shapesCanvas && shapesCanvas.width > 0 && shapesCanvas.height > 0) {
+      ctx.drawImage(shapesCanvas, 0, 0, streamCanvas.width, streamCanvas.height);
+    }
+
+    // 2. Active scratch layer (only when drawing or has children)
+    const scratchLayer = scratchLayerRef.value?.getNode();
+    if (scratchLayer && (isDrawing.value || scratchLayer.getChildren().length > 0)) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const layerCanvas = (layer as any).getCanvas?.()?._canvas;
-      if (layerCanvas && layerCanvas.width > 0 && layerCanvas.height > 0) {
-        ctx.drawImage(layerCanvas, 0, 0, streamCanvas.width, streamCanvas.height);
+      const scratchCanvas = (scratchLayer as any)?.getCanvas?.()?._canvas;
+      if (scratchCanvas && scratchCanvas.width > 0 && scratchCanvas.height > 0) {
+        ctx.drawImage(scratchCanvas, 0, 0, streamCanvas.width, streamCanvas.height);
+      }
+    }
+
+    // 3. Laser layer (only when laser is active)
+    if (laserPoints.value.length > 0) {
+      const laserLayer = laserLayerRef.value?.getNode();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const laserCanvas = (laserLayer as any)?.getCanvas?.()?._canvas;
+      if (laserCanvas && laserCanvas.width > 0 && laserCanvas.height > 0) {
+        ctx.drawImage(laserCanvas, 0, 0, streamCanvas.width, streamCanvas.height);
       }
     }
   } catch {
@@ -1135,6 +1531,24 @@ useEventListener(window, "keydown", (e: KeyboardEvent) => {
     if (selectedShapeId.value) {
       e.preventDefault();
       deleteSelected();
+    }
+    return;
+  }
+
+  if (e.key === "[" || e.key === "{") {
+    if (currentTool.value === "eraser") {
+      eraserWidth.value = Math.max(6, eraserWidth.value - 4);
+    } else {
+      strokeWidth.value = Math.max(1, strokeWidth.value - 2);
+    }
+    return;
+  }
+
+  if (e.key === "]" || e.key === "}") {
+    if (currentTool.value === "eraser") {
+      eraserWidth.value = Math.min(120, eraserWidth.value + 4);
+    } else {
+      strokeWidth.value = Math.min(60, strokeWidth.value + 2);
     }
     return;
   }
@@ -1469,88 +1883,132 @@ defineExpose<WhiteboardExposed>({
 
     <!-- Contextual Floating Properties Bar (Properties Island) -->
     <div
-      v-if="currentTool !== 'eraser' && currentTool !== 'pan'"
+      v-if="currentTool !== 'pan'"
       class="absolute top-14 left-1/2 -translate-x-1/2 z-10 flex flex-wrap items-center justify-center gap-2 px-3 py-1.5 rounded-2xl bg-white/95 dark:bg-slate-800/95 backdrop-blur-md shadow-md border border-slate-200/80 dark:border-slate-700/80 text-xs transition-all max-w-[95vw]"
     >
-      <!-- Stroke Color: Active Swatch + Popover trigger -->
-      <div class="flex items-center gap-1.5">
-        <button
-          type="button"
-          :title="t('board.strokeColor')"
-          class="size-6 rounded-full border-2 border-white dark:border-slate-800 ring-2 ring-chat-primary/40 shadow-xs flex items-center justify-center cursor-pointer transition-transform hover:scale-105"
-          :style="{ backgroundColor: strokeColor }"
-          @click="colorPopoverRef?.toggle($event)"
-        />
-
-        <!-- Quick Color Palette Dots -->
+      <!-- Mode & Size when tool is ERASER -->
+      <template v-if="currentTool === 'eraser'">
         <div class="flex items-center gap-1">
           <button
-            v-for="c in quickColors"
-            :key="c"
             type="button"
-            class="size-4.5 rounded-full border border-black/10 dark:border-white/10 transition-transform hover:scale-110 cursor-pointer"
-            :class="{ 'ring-2 ring-chat-primary ring-offset-1': strokeColor === c }"
-            :style="{ backgroundColor: c }"
-            @click="selectStrokeColor(c)"
-          />
+            class="flex items-center gap-1 px-2.5 py-1 rounded-lg transition-colors cursor-pointer text-xs"
+            :class="eraserMode === 'stroke' ? 'bg-chat-primary text-white shadow-xs font-semibold' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'"
+            @click="eraserMode = 'stroke'"
+          >
+            <BIcon icon="PhLightning" class="size-3.5" />
+            <span>{{ t("board.strokeEraser") }}</span>
+          </button>
+          <button
+            type="button"
+            class="flex items-center gap-1 px-2.5 py-1 rounded-lg transition-colors cursor-pointer text-xs"
+            :class="eraserMode === 'pixel' ? 'bg-chat-primary text-white shadow-xs font-semibold' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'"
+            @click="eraserMode = 'pixel'"
+          >
+            <BIcon icon="PhPaintBrush" class="size-3.5" />
+            <span>{{ t("board.pixelEraser") }}</span>
+          </button>
         </div>
-      </div>
 
-      <div class="h-4 w-[1px] bg-slate-200 dark:bg-slate-700 mx-0.5" />
-
-      <!-- Stroke Thickness: Quick Presets + Slider Popover -->
-      <div class="flex items-center gap-1">
-        <button
-          v-for="w in [2, 4, 8, 14]"
-          :key="w"
-          type="button"
-          class="px-2 py-0.5 rounded-lg font-mono font-medium transition-colors cursor-pointer"
-          :class="strokeWidth === w ? 'bg-chat-primary text-white shadow-xs' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'"
-          @click="strokeWidth = w"
-        >
-          {{ w }}px
-        </button>
-
-        <IconButton
-          icon="PhPencilLine"
-          :label="t('board.brushSize')"
-          icon-class="size-4"
-          class="hover:bg-slate-100 dark:hover:bg-slate-700 !p-1 rounded-lg"
-          @click="sizePopoverRef?.toggle($event)"
-        />
-      </div>
-
-      <!-- Geometry Shape Fill Settings (when shape tool or shape selected) -->
-      <template v-if="isGeometricTool || selectedShape">
         <div class="h-4 w-[1px] bg-slate-200 dark:bg-slate-700 mx-0.5" />
 
-        <div class="flex items-center gap-1.5">
-          <span class="text-slate-600 dark:text-slate-300">{{ t("board.fillShape") }}</span>
-          <ToggleSwitch v-model="isShapeFilled" />
-
+        <!-- Eraser Size Presets -->
+        <div class="flex items-center gap-1">
+          <span class="text-slate-500 dark:text-slate-400 mr-0.5">{{ t("board.eraserSize") }}:</span>
           <button
-            v-if="isShapeFilled"
+            v-for="w in [12, 24, 48, 72]"
+            :key="w"
             type="button"
-            :title="t('board.fillColor')"
-            class="size-5 rounded-full border-2 border-white dark:border-slate-800 ring-1 ring-slate-300 dark:ring-slate-600 shadow-xs cursor-pointer ml-1"
-            :style="{ backgroundColor: fillColor }"
-            @click="fillColorPopoverRef?.toggle($event)"
-          />
+            class="px-2 py-0.5 rounded-lg font-mono font-medium transition-colors cursor-pointer"
+            :class="eraserWidth === w ? 'bg-chat-primary text-white shadow-xs' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'"
+            @click="eraserWidth = w"
+          >
+            {{ w }}px
+          </button>
         </div>
       </template>
 
-      <!-- Delete Selected Button -->
-      <template v-if="selectedShapeId">
+      <!-- Normal Properties for Drawing / Shapes / Selection -->
+      <template v-else>
+        <!-- Stroke Color: Active Swatch + Popover trigger -->
+        <div class="flex items-center gap-1.5">
+          <button
+            type="button"
+            :title="t('board.strokeColor')"
+            class="size-6 rounded-full border-2 border-white dark:border-slate-800 ring-2 ring-chat-primary/40 shadow-xs flex items-center justify-center cursor-pointer transition-transform hover:scale-105"
+            :style="{ backgroundColor: strokeColor }"
+            @click="colorPopoverRef?.toggle($event)"
+          />
+
+          <!-- Quick Color Palette Dots -->
+          <div class="flex items-center gap-1">
+            <button
+              v-for="c in quickColors"
+              :key="c"
+              type="button"
+              class="size-4.5 rounded-full border border-black/10 dark:border-white/10 transition-transform hover:scale-110 cursor-pointer"
+              :class="{ 'ring-2 ring-chat-primary ring-offset-1': strokeColor === c }"
+              :style="{ backgroundColor: c }"
+              @click="selectStrokeColor(c)"
+            />
+          </div>
+        </div>
+
         <div class="h-4 w-[1px] bg-slate-200 dark:bg-slate-700 mx-0.5" />
 
-        <button
-          type="button"
-          class="flex items-center gap-1 text-red-500 hover:text-red-600 font-medium px-2 py-0.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors cursor-pointer"
-          @click="deleteSelected"
-        >
-          <BIcon icon="PhTrash" class="size-3.5" />
-          <span>{{ t("board.deleteSelected") }}</span>
-        </button>
+        <!-- Stroke Thickness: Quick Presets + Slider Popover -->
+        <div class="flex items-center gap-1">
+          <button
+            v-for="w in [2, 4, 8, 14]"
+            :key="w"
+            type="button"
+            class="px-2 py-0.5 rounded-lg font-mono font-medium transition-colors cursor-pointer"
+            :class="strokeWidth === w ? 'bg-chat-primary text-white shadow-xs' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'"
+            @click="strokeWidth = w"
+          >
+            {{ w }}px
+          </button>
+
+          <IconButton
+            icon="PhPencilLine"
+            :label="t('board.brushSize')"
+            icon-class="size-4"
+            class="hover:bg-slate-100 dark:hover:bg-slate-700 !p-1 rounded-lg"
+            @click="sizePopoverRef?.toggle($event)"
+          />
+        </div>
+
+        <!-- Geometry Shape Fill Settings (when shape tool or shape selected) -->
+        <template v-if="isGeometricTool || selectedShape">
+          <div class="h-4 w-[1px] bg-slate-200 dark:bg-slate-700 mx-0.5" />
+
+          <div class="flex items-center gap-1.5">
+            <span class="text-slate-600 dark:text-slate-300">{{ t("board.fillShape") }}</span>
+            <ToggleSwitch v-model="isShapeFilled" />
+
+            <button
+              v-if="isShapeFilled"
+              type="button"
+              :title="t('board.fillColor')"
+              class="size-5 rounded-full border-2 border-white dark:border-slate-800 ring-1 ring-slate-300 dark:ring-slate-600 shadow-xs cursor-pointer ml-1"
+              :style="{ backgroundColor: fillColor }"
+              @click="fillColorPopoverRef?.toggle($event)"
+            />
+          </div>
+        </template>
+
+        <!-- Delete Selected Button -->
+        <template v-if="selectedShapeId">
+          <div class="h-4 w-[1px] bg-slate-200 dark:bg-slate-700 mx-0.5" />
+
+          <button
+            type="button"
+            class="flex items-center gap-1 text-red-500 hover:text-red-600 font-medium px-2 py-0.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors cursor-pointer"
+            @click="deleteSelected"
+          >
+            <BIcon icon="PhTrash" class="size-3.5" />
+            <span>{{ t("board.deleteSelected") }}</span>
+          </button>
+        </template>
       </template>
     </div>
 
@@ -1562,11 +2020,27 @@ defineExpose<WhiteboardExposed>({
         gridVisible ? 'whiteboard-dot-grid' : '',
         isSpacePressed || currentTool === 'pan' ? (isPanning ? 'cursor-grabbing' : 'cursor-grab') : '',
         currentTool === 'select' ? 'cursor-default' : '',
-        currentTool === 'laser' ? 'cursor-crosshair' : '',
-        currentTool === 'eraser' ? 'cursor-cell' : '',
-        currentTool !== 'select' && currentTool !== 'pan' && currentTool !== 'eraser' && !isSpacePressed ? 'cursor-crosshair' : '',
+        !isSpacePressed && (currentTool === 'pen' || currentTool === 'brush' || currentTool === 'highlighter' || currentTool === 'eraser' || currentTool === 'laser') ? 'cursor-none' : '',
+        !isSpacePressed && (currentTool === 'line' || currentTool === 'arrow' || currentTool === 'rect' || currentTool === 'square' || currentTool === 'circle' || currentTool === 'triangle' || currentTool === 'star') ? 'cursor-crosshair' : '',
       ]"
+      @pointerenter="onContainerPointerEnter"
+      @pointerleave="onContainerPointerLeave"
+      @pointermove="onContainerPointerMove"
     >
+      <!-- Dynamic Brush / Eraser Cursor Preview Ring -->
+      <div
+        v-if="isCursorInsideCanvas && (currentTool === 'pen' || currentTool === 'brush' || currentTool === 'highlighter' || currentTool === 'eraser' || currentTool === 'laser')"
+        ref="cursorIndicatorRef"
+        class="pointer-events-none absolute top-0 left-0 z-30 rounded-full transform-gpu transition-opacity duration-100 will-change-transform"
+        :style="cursorIndicatorStyle"
+      >
+        <!-- Center Precision Dot for Pen/Brush/Highlighter -->
+        <div
+          v-if="currentTool === 'pen' || currentTool === 'brush' || currentTool === 'highlighter'"
+          class="size-1 rounded-full bg-slate-900 dark:bg-white absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 shadow-xs"
+        />
+      </div>
+
       <Stage
         ref="stageRef"
         :config="{
@@ -1602,7 +2076,7 @@ defineExpose<WhiteboardExposed>({
         </Layer>
 
         <!-- Layer 2: Committed Shapes Layer (Only repaints on shape commit / undo / redo / transform) -->
-        <Layer ref="shapesLayerRef">
+        <Layer ref="shapesLayerRef" :config="{ listening: currentTool === 'select' }">
           <template v-for="item in currentShapes" :key="item.id">
             <!-- Freehand Line / Eraser / Straight Line -->
             <Line
@@ -1672,41 +2146,8 @@ defineExpose<WhiteboardExposed>({
           </template>
         </Layer>
 
-        <!-- Layer 3: Active Scratch Layer (ONLY the current stroke in progress - isolated repaint!) -->
-        <Layer ref="scratchLayerRef" :config="{ listening: false }">
-          <template v-if="drawingShape">
-            <Line
-              v-if="
-                drawingShape.type === 'pen' ||
-                drawingShape.type === 'brush' ||
-                drawingShape.type === 'highlighter' ||
-                drawingShape.type === 'eraser' ||
-                drawingShape.type === 'line'
-              "
-              :config="getLineConfig(drawingShape as LineShape)"
-            />
-            <Rect
-              v-else-if="drawingShape.type === 'rect' || drawingShape.type === 'square'"
-              :config="getRectConfig(drawingShape as RectShape)"
-            />
-            <Circle
-              v-else-if="drawingShape.type === 'circle'"
-              :config="getCircleConfig(drawingShape as CircleShape)"
-            />
-            <RegularPolygon
-              v-else-if="drawingShape.type === 'triangle'"
-              :config="getTriangleConfig(drawingShape as TriangleShape)"
-            />
-            <Arrow
-              v-else-if="drawingShape.type === 'arrow'"
-              :config="getArrowConfig(drawingShape as ArrowShape)"
-            />
-            <Star
-              v-else-if="drawingShape.type === 'star'"
-              :config="getStarConfig(drawingShape as StarShape)"
-            />
-          </template>
-        </Layer>
+        <!-- Layer 3: Active Scratch Layer (Zero-latency native Konva drawing - no Vue reactivity overhead) -->
+        <Layer ref="scratchLayerRef" :config="{ listening: false }" />
 
         <!-- Layer 4: Laser Pointer Layer (Fading glowing trail for call presentations) -->
         <Layer ref="laserLayerRef" :config="{ listening: false }">
