@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [5.6.0] - 2026-11-17
+
+### Changed
+
+- Optimize call media streaming bandwidth, framerate, and codecs:
+  - Enable Opus DTX (`usedtx=1`) and single-channel mono audio capture.
+  - Prioritize AV1 and VP9 video codecs via transceiver preferences.
+  - Enforce default capture ceilings on camera and screen sharing.
+  - Cap framerate in RTP sender encoding parameters (camera & screen).
+  - Throttle outgoing camera framerate during background tab visibility.
+
 ## [5.5.33] - 2026-11-16
 
 ### Added
