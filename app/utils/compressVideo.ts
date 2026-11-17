@@ -97,7 +97,7 @@ export async function compressVideo(
         frameRate,
         codec,
         quality: mb.QUALITY_MEDIUM,
-        hardwareAcceleration: "prefer-hardware",
+        hardwareAcceleration: "no-preference",
         forceTranscode: true,
       },
       // Direct packet copy if the source audio codec can be carried by MP4 as-is (e.g. AAC),
