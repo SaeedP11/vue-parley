@@ -478,9 +478,10 @@ function updateCursorIndicator(clientX: number, clientY: number) {
   cursorIndicatorRef.value.style.transform = `translate3d(${x}px, ${y}px, 0) translate(-50%, -50%)`;
 }
 
-function onContainerPointerEnter() {
+function onContainerPointerEnter(e: PointerEvent) {
   if (currentTool.value !== "select" && currentTool.value !== "pan") {
     isCursorInsideCanvas.value = true;
+    updateCursorIndicator(e.clientX, e.clientY);
   }
 }
 
@@ -499,7 +500,7 @@ const cursorVisualSize = computed(() => {
   const scale = stageScale.value || 1;
   if (currentTool.value === "laser") return 18;
   if (currentTool.value === "eraser") {
-    return Math.max(10, Math.min(180, eraserWidth.value * scale));
+    return Math.max(12, Math.min(180, eraserWidth.value * scale));
   }
   if (currentTool.value === "brush") {
     return Math.max(8, Math.min(180, strokeWidth.value * 2.2 * scale));
@@ -507,7 +508,7 @@ const cursorVisualSize = computed(() => {
   if (currentTool.value === "highlighter") {
     return Math.max(12, Math.min(180, strokeWidth.value * 3.5 * scale));
   }
-  return Math.max(4, Math.min(180, strokeWidth.value * scale));
+  return Math.max(6, Math.min(180, strokeWidth.value * scale));
 });
 
 const cursorIndicatorStyle = computed(() => {
@@ -532,6 +533,7 @@ const cursorIndicatorStyle = computed(() => {
       borderStyle: "dashed",
       borderWidth: "1.5px",
       backgroundColor: "rgba(239, 68, 68, 0.12)",
+      boxShadow: "0 0 0 1px rgba(255, 255, 255, 0.5)",
     };
   }
 
@@ -542,6 +544,7 @@ const cursorIndicatorStyle = computed(() => {
     borderStyle: "solid",
     borderWidth: "1.5px",
     backgroundColor: `${strokeColor.value}26`,
+    boxShadow: "0 0 0 1px rgba(0, 0, 0, 0.25)",
   };
 });
 
@@ -714,6 +717,10 @@ function onInlineTextEnter(e: KeyboardEvent) {
 function handleStageMouseDown(e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) {
   if (isEditingText.value) {
     finishEditingText();
+  }
+
+  if (currentTool.value !== "select" && currentTool.value !== "pan") {
+    isCursorInsideCanvas.value = true;
   }
 
   if (e.evt) {
@@ -974,6 +981,10 @@ function handleStageMouseDown(e: Konva.KonvaEventObject<MouseEvent | TouchEvent>
 }
 
 function handleStageMouseMove(e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) {
+  if (currentTool.value !== "select" && currentTool.value !== "pan") {
+    isCursorInsideCanvas.value = true;
+  }
+
   if (e.evt) {
     updateCursorIndicator(
       "clientX" in e.evt ? e.evt.clientX : e.evt.touches[0]?.clientX ?? 0,
@@ -2775,7 +2786,7 @@ defineExpose<WhiteboardExposed>({
     >
       <!-- Dynamic Brush / Eraser Cursor Preview Ring -->
       <div
-        v-if="isCursorInsideCanvas && (currentTool === 'pen' || currentTool === 'brush' || currentTool === 'highlighter' || currentTool === 'eraser' || currentTool === 'laser')"
+        v-show="isCursorInsideCanvas && (currentTool === 'pen' || currentTool === 'brush' || currentTool === 'highlighter' || currentTool === 'eraser' || currentTool === 'laser')"
         ref="cursorIndicatorRef"
         class="pointer-events-none absolute top-0 left-0 z-30 rounded-full transform-gpu transition-opacity duration-100 will-change-transform"
         :style="cursorIndicatorStyle"
