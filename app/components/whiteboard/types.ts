@@ -118,6 +118,7 @@ export interface StickyShape extends BaseShape {
   width: number;
   height: number;
   fontSize: number;
+  fontFamily?: string;
   fill: string;
   textColor?: string;
 }

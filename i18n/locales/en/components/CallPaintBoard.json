@@ -30,6 +30,8 @@
     "addPage": "New page",
     "save": "Save image",
     "erase": "Clear board",
+    "clearConfirmMessage": "Are you sure you want to clear the whiteboard? All drawings and notes on this page will be removed.",
+    "cancel": "Cancel",
     "deleteSelected": "Delete selected",
     "undo": "Undo",
     "redo": "Redo",

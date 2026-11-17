@@ -65,7 +65,20 @@
 
 
 /* PrimeVue teleports overlays (dialogs, menus, popovers, toasts, the image viewer) to <body>,
-   outside the chat root that sets the font; give them the chat's font too. */
-:where(.vue-chat):where(.p-dialog, .p-contextmenu, .p-menu, .p-popover, .p-toast, .p-galleria-mask) {
-  font-family: var(--font-chat-family);
+   outside the chat root; ensure they inherit the main app / chat font too. */
+:where(.vue-chat):where(
+  .p-dialog,
+  .p-drawer,
+  .p-contextmenu,
+  .p-menu,
+  .p-popover,
+  .p-toast,
+  .p-tooltip,
+  .p-galleria-mask,
+  .p-select-overlay,
+  .p-autocomplete-overlay,
+  .p-datepicker-overlay,
+  .p-confirmdialog
+) {
+  font-family: var(--font-chat-family, inherit);
 }

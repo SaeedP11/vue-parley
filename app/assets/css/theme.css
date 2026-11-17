@@ -314,7 +314,7 @@
     radial-gradient(circle at 18% 12%, color-mix(in oklab, var(--color-chat-primary) 8%, transparent) 0, transparent 28rem),
     radial-gradient(circle at 82% 88%, color-mix(in oklab, var(--color-chat-secondary) 6%, transparent) 0, transparent 26rem);
 
-  --font-chat-family: "Vazirmatn", system-ui, sans-serif;
+  --font-chat-family: inherit;
   --text-chat-base: 14px;
   --text-chat-base--line-height: 24px;
   --text-chat-base--font-weight: 400;

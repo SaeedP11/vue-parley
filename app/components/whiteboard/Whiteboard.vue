@@ -207,8 +207,17 @@ const toggleGrid = () => {
 // Properties Island Collapsible State
 const isPropertiesCollapsed = ref(false);
 const showShortcutsModal = ref(false);
+const showClearConfirmModal = ref(false);
 
 // Sticky Notes & Text Settings
+function getDefaultFontFamily(): string {
+  if (typeof window !== "undefined") {
+    const computed = window.getComputedStyle(document.body).fontFamily;
+    if (computed) return computed;
+  }
+  return "system-ui, sans-serif";
+}
+
 const textFontSize = ref<number>(20);
 const stickyColor = ref<string>("#fef08a");
 const stickyColorPresets = [
@@ -312,6 +321,16 @@ function clear() {
   selectedShapeId.value = null;
   detachTransformer();
   markDirty();
+}
+
+function requestClear() {
+  if (currentShapes.value.length === 0) return;
+  showClearConfirmModal.value = true;
+}
+
+function confirmClear() {
+  clear();
+  showClearConfirmModal.value = false;
 }
 
 function addPage() {
@@ -737,7 +756,7 @@ function handleStageMouseDown(e: Konva.KonvaEventObject<MouseEvent | TouchEvent>
         y: pos.y,
         text: t("board.typeHere") || "Text",
         fontSize: textFontSize.value,
-        fontFamily: "Inter, system-ui, sans-serif",
+        fontFamily: getDefaultFontFamily(),
         stroke: strokeColor.value,
         strokeWidth: 1,
         fill: strokeColor.value,
@@ -1646,7 +1665,7 @@ function getTextConfig(item: TextShape) {
     y: item.y,
     text: item.text,
     fontSize: item.fontSize || 18,
-    fontFamily: item.fontFamily || "Inter, system-ui, sans-serif",
+    fontFamily: item.fontFamily || getDefaultFontFamily(),
     fill: item.fill || strokeColor.value || (canvasTheme.value === "dark" ? "#f8fafc" : "#0f172a"),
     draggable: currentTool.value === "select",
     shadowColor: isSelected ? "#3b82f6" : undefined,
@@ -2125,7 +2144,7 @@ const overflowMenuItems = computed<MenuItem[]>(() => {
       label: t("board.erase"),
       phIcon: "PhTrash",
       danger: true,
-      command: () => clear(),
+      command: () => requestClear(),
     },
   ];
 
@@ -2163,7 +2182,7 @@ defineExpose<WhiteboardExposed>({
 
 <template>
   <div
-    class="flex flex-col select-none relative overflow-hidden text-slate-800 dark:text-slate-100 font-sans"
+    class="flex flex-col select-none relative overflow-hidden text-slate-800 dark:text-slate-100 font-chat-family"
     :class="[
       isStandaloneMaximized ? 'fixed inset-0 z-50 w-screen h-screen' : 'h-full w-full',
       canvasTheme === 'dark' ? 'bg-slate-950 text-slate-100' : 'bg-slate-100 text-slate-800',
@@ -2171,14 +2190,14 @@ defineExpose<WhiteboardExposed>({
   >
     <!-- Top Unified Header Bar -->
     <header
-      class="flex items-center justify-between px-3 sm:px-4 py-2 border-b border-gray-200/80 dark:border-gray-800/80 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md z-20 gap-2 shrink-0 select-none cursor-default"
+      class="flex items-center justify-between px-2.5 sm:px-3 md:px-4 py-2 border-b border-gray-200/80 dark:border-gray-800/80 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md z-20 gap-1.5 sm:gap-2 shrink-0 select-none cursor-default"
       @dblclick.self="maximizable && toggleMaximize()"
     >
-      <!-- Left: Title, Live Status, Undo, Redo, Clear -->
-      <div class="flex items-center gap-1 sm:gap-2 min-w-0">
+      <!-- Left: Title, Live Status, Undo, Redo (Safe History) -->
+      <div class="flex items-center gap-1 sm:gap-1.5 md:gap-2 min-w-0 shrink-0">
         <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-chat-primary/10 text-xs font-bold text-chat-primary shrink-0 select-none">
           <BIcon icon="PhPaintBrush" class="size-4 shrink-0" />
-          <span class="truncate max-w-[140px] hidden sm:inline">{{ title || t("board.title") }}</span>
+          <span class="truncate max-w-[100px] md:max-w-[140px] xl:max-w-[180px] hidden sm:inline">{{ title || t("board.title") }}</span>
         </div>
 
         <!-- Live HD Badge if streamActive -->
@@ -2188,13 +2207,13 @@ defineExpose<WhiteboardExposed>({
           :title="t('board.streaming')"
         >
           <span class="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
-          <span>{{ t("board.liveHd") }}</span>
+          <span class="hidden xs:inline">{{ t("board.liveHd") }}</span>
         </div>
 
-        <div class="h-4 w-[1px] bg-gray-200 dark:bg-gray-800 mx-0.5" />
+        <div class="h-4 w-[1px] bg-gray-200 dark:bg-gray-800 mx-0.5 hidden sm:block" />
 
-        <!-- History: Undo & Redo & Clear -->
-        <div class="flex items-center gap-0.5">
+        <!-- History: Undo & Redo (Destructive Clear safely relocated to overflow menu) -->
+        <div class="hidden sm:flex items-center gap-0.5">
           <IconButton
             icon="PhArrowUUpLeft"
             :label="`${t('board.undo')} (Ctrl+Z)`"
@@ -2211,18 +2230,11 @@ defineExpose<WhiteboardExposed>({
             class="hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40"
             @click="redo"
           />
-          <IconButton
-            icon="PhTrash"
-            :label="t('board.erase')"
-            icon-class="size-4 text-slate-500 hover:text-red-500"
-            class="hover:bg-slate-100 dark:hover:bg-slate-800"
-            @click="clear"
-          />
         </div>
       </div>
 
       <!-- Center: Main Drawing Tools Dock (Desktop & Tablet) -->
-      <nav class="hidden md:flex items-center gap-0.5 sm:gap-1 p-1 rounded-2xl bg-slate-100 dark:bg-slate-800 border border-slate-200/70 dark:border-slate-700/70 shadow-xs overflow-x-auto max-w-[50vw]">
+      <nav class="hidden md:flex items-center gap-0.5 sm:gap-1 p-1 rounded-2xl bg-slate-100 dark:bg-slate-800 border border-slate-200/70 dark:border-slate-700/70 shadow-xs shrink-0 select-none">
         <!-- Select (V) -->
         <IconButton
           icon="PhCursor"
@@ -2350,8 +2362,8 @@ defineExpose<WhiteboardExposed>({
 
       <!-- Right: Zoom, Share to Call, Theme, Grid, Copy, Save, Members, FullWindow, Close -->
       <div class="flex items-center gap-1 sm:gap-1.5 shrink-0">
-        <!-- Zoom Controls -->
-        <div class="hidden md:flex items-center bg-slate-100 dark:bg-slate-800 rounded-xl p-0.5 border border-slate-200/80 dark:border-slate-700/80">
+        <!-- Zoom Controls: Shown on lg+ (1024px+); on <lg, canvas floating zoom pill is used -->
+        <div class="hidden lg:flex items-center bg-slate-100 dark:bg-slate-800 rounded-xl p-0.5 border border-slate-200/80 dark:border-slate-700/80">
           <button
             type="button"
             class="size-6 rounded-lg hover:bg-white dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center font-bold text-xs cursor-pointer transition-colors"
@@ -2384,7 +2396,7 @@ defineExpose<WhiteboardExposed>({
         <button
           v-if="allowStream"
           type="button"
-          class="group relative inline-flex items-center justify-center gap-1.5 h-8 px-2.5 sm:px-3 rounded-xl text-xs font-semibold cursor-pointer select-none transition-all duration-200 active:scale-[0.97] focus-visible:outline-2 focus-visible:outline-offset-2 shrink-0"
+          class="group relative inline-flex items-center justify-center gap-1.5 h-8 px-2 sm:px-2.5 lg:px-3 rounded-xl text-xs font-semibold cursor-pointer select-none transition-all duration-200 active:scale-[0.97] focus-visible:outline-2 focus-visible:outline-offset-2 shrink-0"
           :class="
             effectiveStreamActive
               ? 'bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white shadow-xs hover:shadow-md hover:shadow-rose-600/25 border border-rose-500/50 focus-visible:outline-rose-500'
@@ -2409,55 +2421,55 @@ defineExpose<WhiteboardExposed>({
             class="size-4 shrink-0 transition-transform duration-200 group-hover:scale-110"
           />
 
-          <!-- Text Label -->
-          <span class="hidden sm:inline font-medium tracking-tight">
+          <!-- Text Label: Shown on lg+ (1024px+), compact on tablet/mobile -->
+          <span class="hidden lg:inline font-medium tracking-tight">
             {{ effectiveStreamActive ? t('board.stopSharing') : t('board.shareToCall') }}
           </span>
         </button>
 
-        <!-- Canvas Theme Toggle (Light / Dark Chalkboard) -->
+        <!-- Canvas Theme Toggle (Light / Dark Chalkboard) - Shown on XL+ (1280px+) -->
         <IconButton
           :icon="canvasTheme === 'dark' ? 'PhSun' : 'PhMoon'"
           :label="canvasTheme === 'dark' ? t('board.themeLight') : t('board.themeDark')"
           icon-class="size-4 text-slate-600 dark:text-slate-300"
-          class="hidden md:flex hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl"
+          class="hidden xl:flex hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl"
           @click="toggleCanvasTheme"
         />
 
-        <!-- Grid Style Toggle (Dots, Lines, None) -->
+        <!-- Grid Style Toggle (Dots, Lines, None) - Shown on XL+ (1280px+) -->
         <IconButton
           icon="PhGridFour"
           :label="`${t('board.grid')} (${gridStyle})`"
           icon-class="size-4"
-          class="hidden md:flex rounded-xl transition-all"
+          class="hidden xl:flex rounded-xl transition-all"
           :class="gridStyle !== 'none' ? 'bg-slate-100 dark:bg-slate-800 text-chat-primary font-bold' : 'text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800'"
           @click="toggleGrid"
         />
 
-        <!-- Copy Image to Clipboard -->
+        <!-- Copy Image to Clipboard - Shown on XL+ (1280px+) -->
         <IconButton
           icon="PhCopy"
           :label="t('board.copyImage')"
           icon-class="size-4 text-slate-700 dark:text-slate-200"
-          class="hidden md:flex hover:bg-slate-100 dark:hover:bg-slate-800"
+          class="hidden xl:flex hover:bg-slate-100 dark:hover:bg-slate-800"
           @click="copyImageToClipboard"
         />
 
-        <!-- Export PNG -->
+        <!-- Export PNG - Shown on XL+ (1280px+) -->
         <IconButton
           icon="PhDownloadSimple"
           :label="t('board.save')"
           icon-class="size-4 text-slate-700 dark:text-slate-200"
-          class="hidden md:flex hover:bg-slate-100 dark:hover:bg-slate-800"
+          class="hidden xl:flex hover:bg-slate-100 dark:hover:bg-slate-800"
           @click="downloadImage('png')"
         />
 
-        <!-- Keyboard Shortcuts Help (?) -->
+        <!-- Keyboard Shortcuts Help (?) - Shown on XL+ (1280px+) -->
         <IconButton
           icon="PhQuestion"
           :label="t('board.shortcuts')"
           icon-class="size-4 text-slate-500 hover:text-chat-primary"
-          class="hidden md:flex hover:bg-slate-100 dark:hover:bg-slate-800"
+          class="hidden xl:flex hover:bg-slate-100 dark:hover:bg-slate-800"
           @click="showShortcutsModal = true"
         />
 
@@ -2488,12 +2500,12 @@ defineExpose<WhiteboardExposed>({
           @click="toggleMaximize"
         />
 
-        <!-- Mobile Overflow More Options Trigger -->
+        <!-- Overflow More Options Trigger (Visible on all screens < 1280px xl) -->
         <IconButton
           icon="PhDotsThreeVertical"
           :label="t('board.moreOptions')"
           icon-class="size-4 text-slate-700 dark:text-slate-200"
-          class="md:hidden hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl"
+          class="xl:hidden hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl"
           @click="overflowMenuRef?.toggle($event)"
         />
 
@@ -2788,7 +2800,7 @@ defineExpose<WhiteboardExposed>({
         <textarea
           ref="inlineTextareaRef"
           v-model="editingText"
-          class="w-full h-full p-2.5 rounded-xl border-2 border-chat-primary outline-hidden shadow-2xl resize-none font-sans"
+          class="w-full h-full p-2.5 rounded-xl border-2 border-chat-primary outline-hidden shadow-2xl resize-none font-chat-family"
           :style="{
             fontSize: `${editingBox.fontSize}px`,
             color: editingBox.color,
@@ -2946,7 +2958,7 @@ defineExpose<WhiteboardExposed>({
                   height: (item as StickyShape).height - 24,
                   text: (item as StickyShape).text,
                   fontSize: (item as StickyShape).fontSize || 15,
-                  fontFamily: 'Inter, system-ui, sans-serif',
+                  fontFamily: (item as StickyShape).fontFamily || getDefaultFontFamily(),
                   fill: (item as StickyShape).textColor || '#1e293b',
                   wrap: 'word',
                 }"
@@ -3010,6 +3022,26 @@ defineExpose<WhiteboardExposed>({
       class="md:hidden absolute bottom-3 left-1/2 -translate-x-1/2 z-20 flex items-center gap-0.5 sm:gap-1 p-1 rounded-2xl bg-white/95 dark:bg-slate-800/95 backdrop-blur-md shadow-xl border border-slate-200/80 dark:border-slate-700/80 max-w-[calc(100vw-1.5rem)] overflow-x-auto no-scrollbar select-none"
       data-testid="whiteboard-mobile-bottom-dock"
     >
+      <!-- History: Undo & Redo (Thumb Accessible on Mobile) -->
+      <IconButton
+        icon="PhArrowUUpLeft"
+        :label="`${t('board.undo')} (Ctrl+Z)`"
+        :disabled="!canUndo"
+        icon-class="size-4"
+        class="rounded-xl transition-all !p-1.5 shrink-0 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30"
+        @click="undo"
+      />
+      <IconButton
+        icon="PhArrowUUpRight"
+        :label="`${t('board.redo')} (Ctrl+Y)`"
+        :disabled="!canRedo"
+        icon-class="size-4"
+        class="rounded-xl transition-all !p-1.5 shrink-0 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30"
+        @click="redo"
+      />
+
+      <div class="h-4 w-[1px] bg-slate-300 dark:bg-slate-700 mx-0.5 shrink-0" />
+
       <!-- Select (V) -->
       <IconButton
         icon="PhCursor"
@@ -3176,8 +3208,8 @@ defineExpose<WhiteboardExposed>({
       </button>
     </div>
 
-    <!-- Mobile Floating Zoom Pill -->
-    <div class="md:hidden absolute bottom-16 end-3 z-10 flex items-center bg-white/95 dark:bg-slate-800/95 backdrop-blur-md rounded-2xl p-0.5 border border-slate-200/80 dark:border-slate-700/80 shadow-md select-none">
+    <!-- Canvas Floating Zoom Pill: Shown on <lg screens (mobile & tablet) where zoom is not in header -->
+    <div class="lg:hidden absolute bottom-16 md:bottom-4 end-3 md:end-4 z-10 flex items-center bg-white/95 dark:bg-slate-800/95 backdrop-blur-md rounded-2xl p-0.5 border border-slate-200/80 dark:border-slate-700/80 shadow-md select-none">
       <button
         type="button"
         class="size-6 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center justify-center font-bold text-xs cursor-pointer transition-colors"
@@ -3415,6 +3447,48 @@ defineExpose<WhiteboardExposed>({
             <div class="flex justify-between items-center"><span class="font-mono font-semibold">Ctrl+Scroll</span><span>Zoom</span></div>
             <div class="flex justify-between items-center"><span class="font-mono font-semibold">F</span><span>Full Window</span></div>
           </div>
+        </div>
+      </div>
+    </Dialog>
+
+    <!-- Clear Board Confirmation Dialog -->
+    <Dialog
+      v-model:visible="showClearConfirmModal"
+      modal
+      :header="t('board.erase')"
+      :dir="dir"
+      class="vue-chat max-w-sm w-full"
+    >
+      <div class="flex flex-col gap-4 text-xs select-none pt-1">
+        <div class="flex items-start gap-3">
+          <div class="size-9 rounded-full bg-red-100 dark:bg-red-950/60 text-red-600 dark:text-red-400 flex items-center justify-center shrink-0">
+            <BIcon icon="PhTrash" class="size-5" />
+          </div>
+          <div class="flex-1 space-y-1">
+            <div class="font-bold text-slate-800 dark:text-slate-100 text-sm">
+              {{ t("board.erase") }}
+            </div>
+            <p class="text-slate-600 dark:text-slate-300 text-xs leading-relaxed">
+              {{ t("board.clearConfirmMessage") }}
+            </p>
+          </div>
+        </div>
+        <div class="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+          <Button
+            size="small"
+            severity="secondary"
+            text
+            :label="t('board.cancel')"
+            class="text-xs"
+            @click="showClearConfirmModal = false"
+          />
+          <Button
+            size="small"
+            severity="danger"
+            :label="t('board.erase')"
+            class="text-xs"
+            @click="confirmClear"
+          />
         </div>
       </div>
     </Dialog>
