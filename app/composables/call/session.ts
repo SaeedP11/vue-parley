@@ -231,6 +231,15 @@ export function createCallSession(opts: CallSessionOptions) {
   });
   const announceTracks = () => signaling.trackTypes(media.trackTypes.value, mediaState());
 
+  const onVisibilityChange = () => {
+    if (!ended && typeof document !== "undefined") {
+      peers.setBackground(document.visibilityState === "hidden");
+    }
+  };
+  if (typeof document !== "undefined") {
+    document.addEventListener("visibilitychange", onVisibilityChange);
+  }
+
   let credentialRetry: ReturnType<typeof setTimeout> | undefined;
   let presenceTimer: ReturnType<typeof setInterval> | undefined;
   let silenceTimer: ReturnType<typeof setInterval> | undefined;
@@ -459,6 +468,9 @@ export function createCallSession(opts: CallSessionOptions) {
     clearTimeout(capacityCheck);
     clearInterval(presenceTimer);
     clearInterval(silenceTimer);
+    if (typeof document !== "undefined") {
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    }
     if (media.isWhiteboardSharing.value) {
       stopWhiteboardShare();
     }

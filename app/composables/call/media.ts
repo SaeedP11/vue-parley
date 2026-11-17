@@ -7,6 +7,24 @@ export interface MediaOptions {
   isMobile: () => boolean;
 }
 
+/**
+ * Bandwidth-optimized capture constraints:
+ * - 720p/24fps capture ceiling avoids unconstrained 1080p/4K @ 60fps capture, lowering CPU & network load.
+ * - Single-channel (mono) audio for speech cuts audio bandwidth in half compared to stereo.
+ */
+export const DEFAULT_VIDEO_CONSTRAINTS: MediaTrackConstraints = {
+  width: { ideal: 1280, max: 1280 },
+  height: { ideal: 720, max: 720 },
+  frameRate: { ideal: 24, max: 30 },
+};
+
+export const DEFAULT_AUDIO_CONSTRAINTS: MediaTrackConstraints = {
+  channelCount: 1,
+  echoCancellation: true,
+  noiseSuppression: true,
+  autoGainControl: true,
+};
+
 /** Why getUserMedia/getDisplayMedia failed, as a translation key. */
 function deviceError(err: unknown, kind: "mic" | "camera" | "screen", isMobile: boolean) {
   const name = (err as { name?: string })?.name;
@@ -138,7 +156,10 @@ export function useCallMedia({ notify, isMobile }: MediaOptions) {
     if (!video && !audio) return;
 
     try {
-      localStream.value = await navigator.mediaDevices.getUserMedia({ video, audio });
+      localStream.value = await navigator.mediaDevices.getUserMedia({
+        video: video ? DEFAULT_VIDEO_CONSTRAINTS : false,
+        audio: audio ? DEFAULT_AUDIO_CONSTRAINTS : false,
+      });
       announce(localStream.value);
       return;
     } catch (err) {
@@ -154,14 +175,14 @@ export function useCallMedia({ notify, isMobile }: MediaOptions) {
     // Both together failed (often a missing camera): try each on its own.
     const tracks: MediaStreamTrack[] = [];
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: DEFAULT_AUDIO_CONSTRAINTS });
       tracks.push(...stream.getAudioTracks());
     } catch (err) {
       console.error("[vue-chat] Error accessing microphone:", err);
       error(deviceError(err, "mic", isMobile()));
     }
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      const stream = await navigator.mediaDevices.getUserMedia({ video: DEFAULT_VIDEO_CONSTRAINTS });
       tracks.push(...stream.getVideoTracks());
     } catch (err) {
       console.error("[vue-chat] Error accessing camera:", err);
@@ -236,7 +257,9 @@ export function useCallMedia({ notify, isMobile }: MediaOptions) {
     isFlashlightOn.value = false;
 
     const open = async (constraints: MediaTrackConstraints) => {
-      const next = await navigator.mediaDevices.getUserMedia({ video: constraints });
+      const next = await navigator.mediaDevices.getUserMedia({
+        video: { ...DEFAULT_VIDEO_CONSTRAINTS, ...constraints },
+      });
       const track = next.getVideoTracks()[0]!;
       track.enabled = isVideoOn.value;
       stream.addTrack(track);
@@ -284,7 +307,10 @@ export function useCallMedia({ notify, isMobile }: MediaOptions) {
     try {
       const stream = await navigator.mediaDevices.getDisplayMedia({
         // On phones, prefer the whole display when the browser offers a source picker.
-        video: isMobile() ? { displaySurface: "monitor" } : true,
+        // Cap screen share to 15fps max: screen content needs clarity over high frame rate.
+        video: isMobile()
+          ? { displaySurface: "monitor", frameRate: { max: 15 } }
+          : { frameRate: { max: 15 } },
         audio: false,
       });
       if (!stream.getVideoTracks().length) {

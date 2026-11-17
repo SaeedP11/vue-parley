@@ -70,6 +70,7 @@ export function usePeers(opts: PeerOptions) {
   const restarts: Record<string, number> = {};
 
   let relayWarned = false;
+  let isBackground = false;
 
   const isInitiator = (remoteId: string) => selfId > remoteId;
   const has = (remoteId: string) => !!peers.value[remoteId] || !!pending.value[remoteId];
@@ -254,6 +255,7 @@ export function usePeers(opts: PeerOptions) {
 
     peers.value[remoteId] = markRaw(peer);
     peer.setRemoteCount(remoteCount());
+    if (isBackground) peer.setBackground(true);
 
     const queued = pendingSignals[remoteId];
     delete pendingSignals[remoteId];
@@ -374,6 +376,12 @@ export function usePeers(opts: PeerOptions) {
     addTrackToAll,
     removeTrackFromAll,
     replaceVideoTrack,
+    setBackground(hidden: boolean) {
+      isBackground = hidden;
+      for (const peer of Object.values(peers.value)) {
+        peer.setBackground(hidden);
+      }
+    },
     destroyAll,
   };
 }
