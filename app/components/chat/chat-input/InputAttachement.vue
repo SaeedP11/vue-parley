@@ -135,15 +135,19 @@
           </li>
         </ul>
 
-        <!-- The chat bubble shows the compression, then the upload, once it is sent. -->
-        <p
-          v-if="dialogMode !== 'file' && videoCount > 0"
-          class="flex items-center gap-x-2 text-body-sm text-chat-muted"
-          data-testid="chat-attach-compress"
-        >
-          <BIcon icon="PhFilmStrip" class="size-4.5 shrink-0" aria-hidden="true" />
-          {{ canCompress ? t("compress.note", videoCount) : t("compress.unsupported") }}
-        </p>
+        <fieldset v-if="dialogMode !== 'file'" class="flex flex-col gap-2 text-body-sm" data-testid="chat-attach-compress">
+          <legend class="mb-2 text-chat-on-background">{{ t("compress.question") }}</legend>
+          <label class="flex cursor-pointer items-center gap-2">
+            <input v-model="compressionChoice" type="radio" :value="true" name="media-compression" />
+            {{ t("compress.yes") }}
+          </label>
+          <label class="flex cursor-pointer items-center gap-2">
+            <input v-model="compressionChoice" type="radio" :value="false" name="media-compression" />
+            {{ t("compress.no") }}
+          </label>
+          <p class="text-chat-muted">{{ t("compress.hint") }}</p>
+          <p v-if="videoCount > 0 && !canCompress" class="text-chat-muted">{{ t("compress.unsupported") }}</p>
+        </fieldset>
 
         <Textarea
           v-model="caption"
@@ -169,7 +173,7 @@
           <Button
             class="flex-1 md:min-w-28 md:flex-none"
             :label="t('send')"
-            :disabled="itemCount === 0"
+            :disabled="itemCount === 0 || (dialogMode !== 'file' && compressionChoice === null)"
             data-testid="chat-attach-send"
             @click="send"
           >
@@ -252,6 +256,7 @@ const isTouch = useMediaQuery("(pointer: coarse)");
 const dialogOpen = ref(false);
 const dialogMode = ref<DialogMode>("file");
 const caption = ref("");
+const compressionChoice = ref<boolean | null>(null);
 const selectedMedia = ref<PickedMedia[]>([]);
 const selectedFiles = ref<PickedFile[]>([]);
 // Sent object URLs back the optimistic bubbles; only the ones never sent are released.
@@ -265,7 +270,7 @@ watch(
   { immediate: true },
 );
 
-// Videos are compressed after Send, by the messages store, with the progress on the bubble.
+// Compression runs after Send, with progress on the bubble.
 const canCompress = canCompressVideo();
 if (canCompress) preloadCompressor();
 const videoCount = computed(() => selectedMedia.value.filter((m) => m.kind === "video").length);
@@ -332,6 +337,7 @@ const discard = () => {
     selectedFiles.value.forEach((f) => URL.revokeObjectURL(f.path));
   }
   sent = false;
+  compressionChoice.value = null;
   selectedMedia.value = [];
   selectedFiles.value = [];
 };
@@ -446,7 +452,7 @@ const onCaptionEnter = (event: KeyboardEvent) => {
 };
 
 const send = () => {
-  if (itemCount.value === 0) return;
+  if (itemCount.value === 0 || (dialogMode.value !== "file" && compressionChoice.value === null)) return;
   const messagesToEmit: AttachmentData[] = [];
 
   if (caption.value.trim()) {
@@ -459,6 +465,7 @@ const send = () => {
   if (dialogMode.value !== "file" && selectedMedia.value.length > 0) {
     messagesToEmit.push({
       type: "image",
+      compressMedia: compressionChoice.value === true,
       // Hosts that only know photos read `imageUrl`; the rest read the whole album from `media`.
       imageUrl: selectedMedia.value.filter((m) => m.kind === "image").map((m) => m.path),
       media: selectedMedia.value.map((m) => ({ url: m.path, kind: m.kind })),

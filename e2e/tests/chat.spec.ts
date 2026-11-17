@@ -646,6 +646,7 @@ test.describe("images", () => {
     await (await chooser).setFiles(["e2e/harness/public/sample.webm"]);
 
     await expect(page.getByText("Send photos and videos")).toBeVisible();
+    await page.getByLabel("Send original quality").check();
     await page.getByRole("button", { name: "Send", exact: true }).click();
 
     await expect
@@ -658,6 +659,7 @@ test.describe("images", () => {
     });
     // Hosts that only know photos still get the photo.
     expect(call.args[0].imageUrl).toHaveLength(1);
+    expect(call.args[0].compressMedia).toBe(false);
   });
 
   test("offers photo, video and file in a keyboard-friendly attach menu", async ({ page }) => {
@@ -690,9 +692,8 @@ test.describe("images", () => {
 
     const dialog = page.getByTestId("chat-attach-dialog");
     await expect(dialog.getByText("Send video")).toBeVisible();
-    await expect(dialog.getByTestId("chat-attach-compress")).toContainText(
-      "The video is compressed when you send it",
-    );
+    await expect(dialog.getByTestId("chat-attach-send")).toBeDisabled();
+    await dialog.getByLabel("Compress", { exact: true }).check();
     // Sending doesn't wait: the bubble shows the compression, then the upload.
     await dialog.getByTestId("chat-attach-send").click();
     await expect(dialog).toBeHidden();

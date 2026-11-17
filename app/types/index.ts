@@ -58,6 +58,8 @@ export interface Message {
    * `imageUrl`, which senders still fill with just the photos. A round video note is `videoUrl`.
    */
   media?: MediaItem[];
+  /** Local send preference; only explicitly selected media is compressed. */
+  compressMedia?: boolean;
   fileUrl?: string;
   fileName?: string;
   voiceUrl?: string;
