@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [5.6.4] - 2026-11-18
+
+### Added
+
+- Whiteboard shows your own camera in a corner of the board while the members list is hidden or on mobile.
+
 ## [5.6.3] - 2026-11-18
 
 ### Added
