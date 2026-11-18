@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [5.6.4] - 2026-11-18
+
+### Added
+
+- Continuous desktop mouse cursor during whiteboard drawing with tool-specific cursors (pen, brush, highlighter, eraser, laser, sticky note).
+- Remove fake DOM brush indicator to prevent pointer lag and browser layout reflow during canvas drawing.
+
 ## [5.6.0] - 2026-11-17
 
 ### Changed
