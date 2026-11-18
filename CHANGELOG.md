@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [5.6.3] - 2026-11-18
+
+### Added
+
+- Call video animates a 90° turn when the sender rotates their device, so the viewer sees the rotation happen.
+
 ## [5.6.2] - 2026-11-18
 
 ### Added

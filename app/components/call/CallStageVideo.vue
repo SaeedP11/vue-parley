@@ -30,12 +30,24 @@ let video: HTMLVideoElement | null = null;
 const classes = () => `size-full bg-black object-contain${props.mirrored ? " -scale-x-100" : ""}`;
 
 // Fires when the sender rotates their device: the track's frame size flips.
+let last: "landscape" | "portrait" | undefined;
 function onResize() {
-  if (video?.videoWidth) emit("orientation", video.videoWidth > video.videoHeight ? "landscape" : "portrait");
+  if (!video?.videoWidth) return;
+  const value = video.videoWidth > video.videoHeight ? "landscape" : "portrait";
+  // Let the viewer see the turn: spin from the old orientation into the new one.
+  if (last && last !== value) {
+    video.animate([{ rotate: value === "landscape" ? "-90deg" : "90deg", opacity: 0.6 }, { rotate: "0deg", opacity: 1 }], {
+      duration: 450,
+      easing: "ease-out",
+    });
+  }
+  last = value;
+  emit("orientation", value);
 }
 
 function release() {
   video?.removeEventListener("resize", onResize);
+  last = undefined;
   if (video) inUse.delete(video);
   video = null;
 }
