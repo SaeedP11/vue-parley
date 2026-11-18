@@ -466,83 +466,130 @@ let hasErasedAnyShape = false;
 const eraserMode = ref<"stroke" | "pixel">("stroke");
 const eraserWidth = ref<number>(24);
 
-// Dynamic Brush / Eraser Cursor Indicator
-const isCursorInsideCanvas = ref(false);
-const cursorIndicatorRef = useTemplateRef<HTMLDivElement>("cursorIndicatorRef");
-
-function updateCursorIndicator(clientX: number, clientY: number) {
-  if (!containerRef.value || !cursorIndicatorRef.value) return;
-  const rect = containerRef.value.getBoundingClientRect();
-  const x = clientX - rect.left;
-  const y = clientY - rect.top;
-  cursorIndicatorRef.value.style.transform = `translate3d(${x}px, ${y}px, 0) translate(-50%, -50%)`;
+// Tool Cursors for Desktop & Fine Pointer Mode
+function createSvgCursor(svg: string, x: number, y: number, fallback: string): string {
+  const encoded = encodeURIComponent(svg.trim().replace(/\s+/g, " "));
+  return `url("data:image/svg+xml,${encoded}") ${x} ${y}, ${fallback}`;
 }
 
-function onContainerPointerEnter() {
-  if (currentTool.value !== "select" && currentTool.value !== "pan") {
-    isCursorInsideCanvas.value = true;
+const canvasCursor = computed<string>(() => {
+  if (isSpacePressed.value || currentTool.value === "pan") {
+    return isPanning.value ? "grabbing" : "grab";
   }
-}
 
-function onContainerPointerLeave() {
-  isCursorInsideCanvas.value = false;
-}
-
-function onContainerPointerMove(e: PointerEvent) {
-  if (!isCursorInsideCanvas.value && currentTool.value !== "select" && currentTool.value !== "pan") {
-    isCursorInsideCanvas.value = true;
-  }
-  updateCursorIndicator(e.clientX, e.clientY);
-}
-
-const cursorVisualSize = computed(() => {
-  const scale = stageScale.value || 1;
-  if (currentTool.value === "laser") return 18;
-  if (currentTool.value === "eraser") {
-    return Math.max(10, Math.min(180, eraserWidth.value * scale));
-  }
-  if (currentTool.value === "brush") {
-    return Math.max(8, Math.min(180, strokeWidth.value * 2.2 * scale));
-  }
-  if (currentTool.value === "highlighter") {
-    return Math.max(12, Math.min(180, strokeWidth.value * 3.5 * scale));
-  }
-  return Math.max(4, Math.min(180, strokeWidth.value * scale));
-});
-
-const cursorIndicatorStyle = computed(() => {
-  const size = cursorVisualSize.value;
   const tool = currentTool.value;
+  const color = strokeColor.value || "#2563eb";
 
-  if (tool === "laser") {
-    return {
-      width: `${size}px`,
-      height: `${size}px`,
-      borderColor: strokeColor.value || "#ef4444",
-      backgroundColor: "rgba(239, 68, 68, 0.4)",
-      boxShadow: "0 0 10px rgba(239, 68, 68, 0.8)",
-    };
+  if (tool === "select") {
+    return "default";
+  }
+
+  if (tool === "text") {
+    return "text";
+  }
+
+  if (
+    tool === "line" ||
+    tool === "arrow" ||
+    tool === "rect" ||
+    tool === "square" ||
+    tool === "circle" ||
+    tool === "triangle" ||
+    tool === "star"
+  ) {
+    return "crosshair";
+  }
+
+  if (tool === "pen") {
+    return createSvgCursor(
+      `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
+        <path d="M18.7 2.3a2.4 2.4 0 0 1 3.4 3.4L8.3 19.5 2 22l2.5-6.3L18.7 2.3z" fill="#ffffff" stroke="#ffffff" stroke-width="2.5" stroke-linejoin="round"/>
+        <path d="M18.7 2.3a2.4 2.4 0 0 1 3.4 3.4L8.3 19.5 2 22l2.5-6.3L18.7 2.3z" fill="#1e293b" stroke="#0f172a" stroke-width="1.2" stroke-linejoin="round"/>
+        <path d="M15.5 5.5l3 3" stroke="#94a3b8" stroke-width="1.2" stroke-linecap="round"/>
+        <path d="M2 22l4-1.5L4.5 19 2 22z" fill="${color}"/>
+      </svg>`,
+      2,
+      22,
+      "crosshair",
+    );
+  }
+
+  if (tool === "brush") {
+    return createSvgCursor(
+      `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
+        <path d="M20.5 3.5c1-1 2.5.5 1.5 1.5l-8 8-2.5-1 9-8.5z" fill="#ffffff" stroke="#ffffff" stroke-width="2.5" stroke-linejoin="round"/>
+        <path d="M11.5 12l2.5 1c.5 1.5-.5 3-2 4.5L2 22l4.5-10c1.5-1.5 3-2.5 5-2v2z" fill="#ffffff" stroke="#ffffff" stroke-width="2.5" stroke-linejoin="round"/>
+        <path d="M20.5 3.5c1-1 2.5.5 1.5 1.5l-8 8-2.5-1 9-8.5z" fill="#78350f" stroke="#451a03" stroke-width="1" stroke-linejoin="round"/>
+        <path d="M10 11.5l2.5 1-1 1-2.5-1z" fill="#94a3b8"/>
+        <path d="M11.5 12.5c.5 1.5-.5 3-2 4.5L2 22l4.5-10c1.5-1.5 3-2.5 5-2l-.5 2.5z" fill="#1e293b" stroke="#0f172a" stroke-width="1" stroke-linejoin="round"/>
+        <path d="M2 22l3.5-1.5L3.5 18.5 2 22z" fill="${color}"/>
+      </svg>`,
+      2,
+      22,
+      "crosshair",
+    );
+  }
+
+  if (tool === "highlighter") {
+    return createSvgCursor(
+      `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
+        <path d="M18 3l3 3-9 9-4-1 1-4 9-7z" fill="#ffffff" stroke="#ffffff" stroke-width="2.5" stroke-linejoin="round"/>
+        <path d="M8 17l-6 5 2-6 3 3 1-2z" fill="#ffffff" stroke="#ffffff" stroke-width="2.5" stroke-linejoin="round"/>
+        <path d="M18 3l3 3-9 9-3.5-1.5.5-3.5 9-7z" fill="#1e293b" stroke="#0f172a" stroke-width="1.2" stroke-linejoin="round"/>
+        <path d="M8 17l-6 5 2-6 3 3 1-2z" fill="${color}" stroke="#ca8a04" stroke-width="1" stroke-linejoin="round"/>
+        <path d="M2 22l4.5-1.5L3.5 17.5 2 22z" fill="${color}"/>
+      </svg>`,
+      2,
+      22,
+      "crosshair",
+    );
   }
 
   if (tool === "eraser") {
-    return {
-      width: `${size}px`,
-      height: `${size}px`,
-      borderColor: "#ef4444",
-      borderStyle: "dashed",
-      borderWidth: "1.5px",
-      backgroundColor: "rgba(239, 68, 68, 0.12)",
-    };
+    return createSvgCursor(
+      `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
+        <path d="M20 7l-5-5a2.5 2.5 0 0 0-3.5 0L3 10.5a2.5 2.5 0 0 0 0 3.5l4 4a2.5 2.5 0 0 0 3.5 0L19 9.5a2.5 2.5 0 0 0 0-3.5L20 7z" fill="#ffffff" stroke="#ffffff" stroke-width="2.5" stroke-linejoin="round"/>
+        <path d="M18.5 8.5L14 4l-4 4 4.5 4.5 4-4z" fill="#3b82f6" stroke="#1d4ed8" stroke-width="1" stroke-linejoin="round"/>
+        <path d="M10 8l4.5 4.5L10 17 5.5 12.5 10 8z" fill="#f472b6" stroke="#db2777" stroke-width="1" stroke-linejoin="round"/>
+        <path d="M5.5 12.5L10 17l-4.5 4.5-3-3 3-6z" fill="#fbcfe8" stroke="#db2777" stroke-width="1" stroke-linejoin="round"/>
+      </svg>`,
+      3,
+      21,
+      "cell",
+    );
   }
 
-  return {
-    width: `${size}px`,
-    height: `${size}px`,
-    borderColor: strokeColor.value,
-    borderStyle: "solid",
-    borderWidth: "1.5px",
-    backgroundColor: `${strokeColor.value}26`,
-  };
+  if (tool === "laser") {
+    const laserColor = strokeColor.value || "#ef4444";
+    return createSvgCursor(
+      `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
+        <circle cx="12" cy="12" r="10" stroke="${laserColor}" stroke-width="1.5" stroke-dasharray="3 3" opacity="0.6"/>
+        <circle cx="12" cy="12" r="6" fill="${laserColor}" fill-opacity="0.25"/>
+        <circle cx="12" cy="12" r="3.5" fill="${laserColor}" stroke="#ffffff" stroke-width="1.5"/>
+        <circle cx="12" cy="12" r="1.5" fill="#ffffff"/>
+      </svg>`,
+      12,
+      12,
+      "crosshair",
+    );
+  }
+
+  if (tool === "sticky") {
+    const noteColor = stickyColor.value || "#fef08a";
+    return createSvgCursor(
+      `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none">
+        <path d="M4 2h14a2 2 0 0 1 2 2v10l-6 6H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z" fill="#ffffff" stroke="#ffffff" stroke-width="2.5" stroke-linejoin="round"/>
+        <path d="M4 2h14a2 2 0 0 1 2 2v10l-6 6H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z" fill="${noteColor}" stroke="#ca8a04" stroke-width="1.2" stroke-linejoin="round"/>
+        <path d="M14 14h6l-6 6v-6z" fill="#fde047" stroke="#ca8a04" stroke-width="1" stroke-linejoin="round"/>
+        <path d="M6 7h8M6 10h5" stroke="#a16207" stroke-width="1" stroke-linecap="round"/>
+      </svg>`,
+      2,
+      2,
+      "crosshair",
+    );
+  }
+
+  return "crosshair";
 });
 
 // Fast Vector Math for Object / Stroke Eraser Mode
@@ -714,13 +761,6 @@ function onInlineTextEnter(e: KeyboardEvent) {
 function handleStageMouseDown(e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) {
   if (isEditingText.value) {
     finishEditingText();
-  }
-
-  if (e.evt) {
-    updateCursorIndicator(
-      "clientX" in e.evt ? e.evt.clientX : e.evt.touches[0]?.clientX ?? 0,
-      "clientY" in e.evt ? e.evt.clientY : e.evt.touches[0]?.clientY ?? 0,
-    );
   }
 
   // Pan mode (or Spacebar held)
@@ -974,13 +1014,6 @@ function handleStageMouseDown(e: Konva.KonvaEventObject<MouseEvent | TouchEvent>
 }
 
 function handleStageMouseMove(e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) {
-  if (e.evt) {
-    updateCursorIndicator(
-      "clientX" in e.evt ? e.evt.clientX : e.evt.touches[0]?.clientX ?? 0,
-      "clientY" in e.evt ? e.evt.clientY : e.evt.touches[0]?.clientY ?? 0,
-    );
-  }
-
   // Pan in progress
   if (isPanning.value) {
     const stage = stageRef.value?.getStage();
@@ -2756,36 +2789,15 @@ defineExpose<WhiteboardExposed>({
     <!-- Canvas Area -->
     <div
       ref="containerRef"
-      class="flex-1 w-full h-full relative overflow-hidden touch-none"
+      class="whiteboard-canvas-area flex-1 w-full h-full relative overflow-hidden touch-none"
       :class="[
         canvasTheme === 'dark' ? 'bg-slate-950' : 'bg-white',
         gridStyle === 'dots'
           ? (canvasTheme === 'dark' ? 'whiteboard-dot-grid-dark' : 'whiteboard-dot-grid-light')
           : (gridStyle === 'lines' ? (canvasTheme === 'dark' ? 'whiteboard-line-grid-dark' : 'whiteboard-line-grid-light') : ''),
-        isSpacePressed || currentTool === 'pan' ? (isPanning ? 'cursor-grabbing' : 'cursor-grab') : '',
-        currentTool === 'select' ? 'cursor-default' : '',
-        currentTool === 'text' ? 'cursor-text' : '',
-        currentTool === 'sticky' ? 'cursor-crosshair' : '',
-        !isSpacePressed && (currentTool === 'pen' || currentTool === 'brush' || currentTool === 'highlighter' || currentTool === 'eraser' || currentTool === 'laser') ? 'cursor-none' : '',
-        !isSpacePressed && (currentTool === 'line' || currentTool === 'arrow' || currentTool === 'rect' || currentTool === 'square' || currentTool === 'circle' || currentTool === 'triangle' || currentTool === 'star') ? 'cursor-crosshair' : '',
       ]"
-      @pointerenter="onContainerPointerEnter"
-      @pointerleave="onContainerPointerLeave"
-      @pointermove="onContainerPointerMove"
+      :style="{ cursor: canvasCursor }"
     >
-      <!-- Dynamic Brush / Eraser Cursor Preview Ring -->
-      <div
-        v-if="isCursorInsideCanvas && (currentTool === 'pen' || currentTool === 'brush' || currentTool === 'highlighter' || currentTool === 'eraser' || currentTool === 'laser')"
-        ref="cursorIndicatorRef"
-        class="pointer-events-none absolute top-0 left-0 z-30 rounded-full transform-gpu transition-opacity duration-100 will-change-transform"
-        :style="cursorIndicatorStyle"
-      >
-        <div
-          v-if="currentTool === 'pen' || currentTool === 'brush' || currentTool === 'highlighter'"
-          class="size-1 rounded-full bg-slate-900 dark:bg-white absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 shadow-xs"
-        />
-      </div>
-
       <!-- In-Canvas Inline Text & Sticky Editor Overlay -->
       <div
         v-if="isEditingText"
@@ -3496,6 +3508,13 @@ defineExpose<WhiteboardExposed>({
 </template>
 
 <style scoped>
+.whiteboard-canvas-area,
+.whiteboard-canvas-area :deep(canvas) {
+  cursor: inherit;
+}
+.whiteboard-canvas-area :deep(.konvajs-content:not([style*="cursor"])) {
+  cursor: inherit;
+}
 .whiteboard-dot-grid-light {
   background-image: radial-gradient(rgba(148, 163, 184, 0.4) 1.5px, transparent 1.5px);
   background-size: 24px 24px;
