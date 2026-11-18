@@ -4,6 +4,24 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [5.6.4] - 2026-11-18
+
+### Added
+
+- Whiteboard shows your own camera in a corner of the board while the members list is hidden or on mobile.
+
+## [5.6.3] - 2026-11-18
+
+### Added
+
+- Call video animates a 90° turn when the sender rotates their device, so the viewer sees the rotation happen.
+
+## [5.6.2] - 2026-11-18
+
+### Added
+
+- Call stage shows a short notice when the main video turns landscape or portrait (the sender rotated their device), and emits `orientation` from `CallStage`.
+
 ## [5.6.0] - 2026-11-17
 
 ### Changed

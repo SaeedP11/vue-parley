@@ -126,6 +126,8 @@ const displayParticipants = computed<Participant[]>(() => {
   return session.value?.participants.value ?? [];
 });
 
+const selfTile = computed(() => displayParticipants.value.find((tile) => tile.isSelf));
+
 const nameOf = (tile?: Participant) =>
   tile?.name || (tile?.isSelf ? t("chat.call.you") : t("chat.call.stage.participant"));
 
@@ -266,6 +268,21 @@ defineExpose({
               @toggle-sidebar="toggleSidebar"
               @close="close"
             />
+            <!-- Your own camera, while the members list isn't showing it. -->
+            <div
+              v-if="selfTile"
+              class="absolute bottom-3 end-3 z-20 w-28 sm:w-40 aspect-video rounded-xl overflow-hidden bg-gray-950 border border-gray-700/60 shadow-lg pointer-events-none select-none"
+              :class="!isSidebarCollapsed && 'md:hidden'"
+              data-testid="whiteboard-self-view"
+            >
+              <CallStageVideo v-if="cameraOn(selfTile)" :stream="streamOf(selfTile)" :mirrored="isMirrored(selfTile)" />
+              <div v-else class="absolute inset-0 flex items-center justify-center text-gray-400">
+                <CallIcon name="videocamOff" class="size-5" />
+              </div>
+              <span class="absolute bottom-0 inset-x-0 px-2 py-0.5 text-[10px] text-white bg-gradient-to-t from-black/80 to-transparent truncate">
+                {{ t("chat.call.you") }}
+              </span>
+            </div>
           </div>
 
           <!-- Mobile Backdrop Overlay for Members Drawer -->
