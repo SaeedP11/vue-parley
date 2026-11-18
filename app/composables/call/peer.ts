@@ -47,6 +47,8 @@ export interface PeerOptions extends PeerEvents {
   config: RTCConfiguration;
   /** Whether a track we send is our screen share rather than the camera, for its send limits. */
   isScreenTrack?(track: MediaStreamTrack): boolean;
+  /** Whether a track we send is our whiteboard share rather than the camera or screen, for its send limits. */
+  isWhiteboardTrack?(track: MediaStreamTrack): boolean;
 }
 
 // Without trickle ICE, the candidates travel inside the SDP; don't advertise trickle support.
@@ -57,6 +59,8 @@ const withoutTrickle = (sdp: string) => sdp.replace(/a=ice-options:trickle\s*\n/
  * 1. Strips trickle ICE candidates from offer/answer to maintain single-bundle simplicity.
  * 2. Injects Opus DTX (`usedtx=1`) so that audio packet transmission pauses during silence,
  *    reducing voice stream bandwidth by ~50-65% without any quality loss.
+ * 3. Enforces mono VBR and caps Opus average bitrate (`maxaveragebitrate=24000;cbr=0;sprop-stereo=0`)
+ *    to preserve crystal-clear voice while avoiding unnecessary bandwidth bursts.
  */
 function optimizeSdp(sdp: string): string {
   let result = withoutTrickle(sdp);
@@ -64,14 +68,20 @@ function optimizeSdp(sdp: string): string {
   if (opusMatch) {
     const pt = opusMatch[1];
     const fmtpRegex = new RegExp(`(a=fmtp:${pt}\\s+[^\\r\\n]+)`, "i");
+    const appendOpusParams = (fmtp: string) => {
+      let updated = fmtp;
+      if (!updated.includes("usedtx=")) updated += ";usedtx=1";
+      if (!updated.includes("maxaveragebitrate=")) updated += ";maxaveragebitrate=24000";
+      if (!updated.includes("cbr=")) updated += ";cbr=0";
+      if (!updated.includes("sprop-stereo=")) updated += ";sprop-stereo=0";
+      return updated;
+    };
     if (fmtpRegex.test(result)) {
-      result = result.replace(fmtpRegex, (fmtp) =>
-        fmtp.includes("usedtx=1") ? fmtp : `${fmtp};usedtx=1`,
-      );
+      result = result.replace(fmtpRegex, (fmtp) => appendOpusParams(fmtp));
     } else {
       result = result.replace(
         new RegExp(`(a=rtpmap:${pt}\\s+opus\/48000\/2[^\\r\\n]*[\\r\\n]+)`, "i"),
-        `$1a=fmtp:${pt} usedtx=1\r\n`,
+        `$1a=fmtp:${pt} usedtx=1;maxaveragebitrate=24000;cbr=0;sprop-stereo=0\r\n`,
       );
     }
   }
@@ -168,6 +178,7 @@ export function createPeer(opts: PeerOptions) {
   /** How many remote peers the call has, which sets our outgoing video limits. */
   let remoteCount = 1;
   let isBackground = false;
+  let isVideoActive = true;
   let connectTimer: ReturnType<typeof setTimeout> | undefined;
   let disconnectedTimer: ReturnType<typeof setTimeout> | undefined;
   let iceRestartTimer: ReturnType<typeof setTimeout> | undefined;
@@ -399,13 +410,21 @@ export function createPeer(opts: PeerOptions) {
         encoding.maxBitrate = screenBitrate(count);
         encoding.maxFramerate = 10;
         params.degradationPreference = "maintain-resolution";
+      } else if (opts.isWhiteboardTrack?.(track)) {
+        encoding.priority = encoding.networkPriority = "medium";
+        encoding.maxBitrate = Math.min(500_000, screenBitrate(count));
+        encoding.maxFramerate = 10;
+        params.degradationPreference = "maintain-resolution";
       } else {
         encoding.priority = encoding.networkPriority = "low";
         const limits = CAMERA_LIMITS[Math.min(Math.max(count, 1), 3)]!;
         Object.assign(encoding, limits);
+        encoding.active = isVideoActive;
         if (isBackground) {
-          // When the window/tab is in the background, lower framerate to reduce upload & CPU usage
-          encoding.maxFramerate = 10;
+          // When the window/tab is in the background, lower framerate and bitrate to reduce upload & CPU usage
+          encoding.maxFramerate = 5;
+          encoding.maxBitrate = Math.min(encoding.maxBitrate ?? 1_200_000, 200_000);
+          encoding.scaleResolutionDownBy = Math.max(encoding.scaleResolutionDownBy ?? 1, 2);
         }
         params.degradationPreference = "balanced";
       }
@@ -517,7 +536,7 @@ export function createPeer(opts: PeerOptions) {
         sender.track
           ? [{
               kind: sender.track.kind,
-              screen: !!opts.isScreenTrack?.(sender.track),
+              screen: !!opts.isScreenTrack?.(sender.track) || !!opts.isWhiteboardTrack?.(sender.track),
               encodings: sender.getParameters().encodings ?? [],
             }]
           : [],
@@ -530,6 +549,13 @@ export function createPeer(opts: PeerOptions) {
     setBackground: (hidden: boolean) => {
       if (isBackground === hidden) return;
       isBackground = hidden;
+      void applySenderParams();
+    },
+
+    /** Halts or resumes RTP packet generation when camera video is muted or unmuted. */
+    setVideoActive: (active: boolean) => {
+      if (isVideoActive === active) return;
+      isVideoActive = active;
       void applySenderParams();
     },
 

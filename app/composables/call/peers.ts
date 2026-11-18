@@ -71,6 +71,7 @@ export function usePeers(opts: PeerOptions) {
 
   let relayWarned = false;
   let isBackground = false;
+  let isVideoActive = true;
 
   const isInitiator = (remoteId: string) => selfId > remoteId;
   const has = (remoteId: string) => !!peers.value[remoteId] || !!pending.value[remoteId];
@@ -204,9 +205,8 @@ export function usePeers(opts: PeerOptions) {
         log: (...args) => log("peer", remoteId, ...args),
         onSignal: (signal) => void signaling.signal(remoteId, signal),
         onStream: (stream) => onRemoteStream(remoteId, name, stream),
-        isScreenTrack: (track) =>
-          !!screenStream.value?.getTracks().includes(track) ||
-          !!whiteboardStream?.value?.getTracks().includes(track),
+        isScreenTrack: (track) => !!screenStream.value?.getTracks().includes(track),
+        isWhiteboardTrack: (track) => !!whiteboardStream?.value?.getTracks().includes(track),
         // A receive-only remote sends no stream, so the connection itself says it is up.
         onConnectionState(state) {
           if (peers.value[remoteId] !== peer) return;
@@ -256,6 +256,7 @@ export function usePeers(opts: PeerOptions) {
     peers.value[remoteId] = markRaw(peer);
     peer.setRemoteCount(remoteCount());
     if (isBackground) peer.setBackground(true);
+    if (!isVideoActive) peer.setVideoActive(false);
 
     const queued = pendingSignals[remoteId];
     delete pendingSignals[remoteId];
@@ -380,6 +381,13 @@ export function usePeers(opts: PeerOptions) {
       isBackground = hidden;
       for (const peer of Object.values(peers.value)) {
         peer.setBackground(hidden);
+      }
+    },
+    setVideoActive(active: boolean) {
+      if (isVideoActive === active) return;
+      isVideoActive = active;
+      for (const peer of Object.values(peers.value)) {
+        peer.setVideoActive(active);
       }
     },
     destroyAll,

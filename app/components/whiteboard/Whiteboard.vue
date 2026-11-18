@@ -1779,7 +1779,7 @@ let isDirty = true;
 let lastFrameTime = 0;
 let lastHeartbeatTime = 0;
 
-const ACTIVE_FRAME_INTERVAL = 33;
+const ACTIVE_FRAME_INTERVAL = 66; // ~15 fps active drawing: cuts rendering load and bandwidth while keeping pen strokes fluid
 const IDLE_HEARTBEAT_INTERVAL = 1000;
 
 function markDirty() {
@@ -1923,7 +1923,7 @@ watch(
   },
 );
 
-function getStream(fps = 30): MediaStream | null {
+function getStream(fps = 10): MediaStream | null {
   const stage = stageRef.value?.getStage();
   if (!stage) return null;
 

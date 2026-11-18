@@ -203,7 +203,7 @@ useEventListener(window, "keydown", (e: KeyboardEvent) => {
 });
 
 defineExpose({
-  getStream: (fps = 30) => whiteboardRef.value?.getStream(fps) ?? null,
+  getStream: (fps = 10) => whiteboardRef.value?.getStream(fps) ?? null,
   downloadImage: (format?: "png" | "jpeg") => whiteboardRef.value?.downloadImage(format),
   copyImageToClipboard: () => whiteboardRef.value?.copyImageToClipboard(),
   clear: () => whiteboardRef.value?.clear(),

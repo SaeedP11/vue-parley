@@ -47,17 +47,26 @@ export function useChatRecording(
     if (!stream || typeof MediaRecorder === "undefined") return;
     recordedChunks.length = 0;
     const isVideo = stream.getVideoTracks().length > 0;
+    const recorderOptions: MediaRecorderOptions = {
+      mimeType: pickRecorderMime(isVideo),
+      audioBitsPerSecond: 32_000,
+      ...(isVideo ? { videoBitsPerSecond: 800_000 } : {}),
+    };
     let recorder: MediaRecorder;
     try {
-      recorder = new MediaRecorder(stream, {
-        mimeType: pickRecorderMime(isVideo),
-      });
+      recorder = new MediaRecorder(stream, recorderOptions);
     } catch {
       try {
-        recorder = new MediaRecorder(stream);
-      } catch (err) {
-        console.error("Failed to create MediaRecorder:", err);
-        return;
+        recorder = new MediaRecorder(stream, {
+          mimeType: pickRecorderMime(isVideo),
+        });
+      } catch {
+        try {
+          recorder = new MediaRecorder(stream);
+        } catch (err) {
+          console.error("Failed to create MediaRecorder:", err);
+          return;
+        }
       }
     }
     recorder.ondataavailable = (event) => {
