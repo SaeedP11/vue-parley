@@ -3,7 +3,7 @@ import { useCallStore } from "~/stores/callStore";
 import { formatDuration } from "~/utils/format";
 import useLocalI18n, { useDirection } from "~/composables/useLocalI18n";
 import { chat } from "@i18n/locales";
-import { computed, ref, watch } from "vue";
+import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { onClickOutside, onKeyStroke, useFullscreen } from "@vueuse/core";
 import CallIcon from "./CallIcon.vue";
 import CallStageVideo from "./CallStageVideo.vue";
@@ -45,7 +45,27 @@ const props = defineProps<{
   beforeEnd?: () => unknown;
   whiteboardOpen?: boolean;
 }>();
-const emit = defineEmits<{ action: []; enableSound: []; people: []; whiteboard: [] }>();
+const emit = defineEmits<{
+  action: [];
+  enableSound: [];
+  people: [];
+  whiteboard: [];
+  orientation: [value: "landscape" | "portrait"];
+}>();
+
+const orientation = ref<"landscape" | "portrait">();
+const orientationNotice = ref<"landscape" | "portrait">();
+let orientationTimer: ReturnType<typeof setTimeout> | undefined;
+function onOrientation(value: "landscape" | "portrait") {
+  const changed = orientation.value && orientation.value !== value;
+  orientation.value = value;
+  if (!changed) return;
+  emit("orientation", value);
+  orientationNotice.value = value;
+  clearTimeout(orientationTimer);
+  orientationTimer = setTimeout(() => (orientationNotice.value = undefined), 3000);
+}
+onBeforeUnmount(() => clearTimeout(orientationTimer));
 
 const { t, n, locale } = useLocalI18n(chat);
 const { dir } = useDirection();
@@ -64,6 +84,8 @@ const presenters = main.presenters;
 const screenOwner = main.screenOwner;
 const showScreen = computed(() => !!screenOwner.value);
 const mainTile = computed(() => screenOwner.value ?? main.person.value ?? selfTile.value);
+// A different video on the main card isn't a rotation.
+watch([mainTile, () => showScreen.value], () => (orientation.value = undefined));
 
 // Transform only the video, leaving the call controls stationary. Translation is in screen pixels.
 const scale = ref(1);
@@ -304,12 +326,15 @@ const onExtraClick = (event: MouseEvent) => {
 
     <div ref="mainCard" class="call-main" :class="{ 'call-main--expanded': isExpanded }" @pointerdown="pointerDown" @pointermove="pointerMove" @pointerup="pointerUp" @pointercancel="pointerUp">
       <div class="call-video-zoom" :style="{ transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})` }" :data-scale="scale" :data-offset-x="offset.x" :data-offset-y="offset.y">
-      <CallStageVideo v-if="showScreen" :stream="screenOwner?.screen" data-testid="call-stage-screen" />
-      <CallStageVideo v-else-if="cameraOn(mainTile)" :stream="streamOf(mainTile)" :mirrored="isMirrored(mainTile)" />
+      <CallStageVideo v-if="showScreen" :stream="screenOwner?.screen" data-testid="call-stage-screen" @orientation="onOrientation" />
+      <CallStageVideo v-else-if="cameraOn(mainTile)" :stream="streamOf(mainTile)" :mirrored="isMirrored(mainTile)" @orientation="onOrientation" />
       <div v-else class="call-avatar call-avatar--large">{{ nameOf(mainTile).charAt(0) }}</div>
       </div>
       <div class="call-shade" />
       <span v-if="showScreen || cameraOn(mainTile)" class="call-gesture-hint">{{ t("chat.call.stage.gestureHint") }}</span>
+      <span v-if="orientationNotice" class="call-orientation-notice" role="status" data-testid="call-stage-orientation">
+        {{ t(`chat.call.stage.${orientationNotice}`) }}
+      </span>
       <div class="call-view-controls">
         <button v-if="scale > 1" type="button" :aria-label="t('chat.call.controls.resetZoom')" data-testid="call-stage-zoom-reset" @click="resetZoom">↺</button>
         <button type="button" class="call-zoom-step" :aria-label="t('chat.call.stage.zoomOut')" :disabled="scale <= 1" data-testid="call-stage-zoom-out" @click="setScale(scale / 1.25)">−</button>
@@ -832,6 +857,7 @@ const onExtraClick = (event: MouseEvent) => {
 .call-video-zoom { width: 100%; height: 100%; transform-origin: center; }
 .call-main { touch-action: none; user-select: none; }
 .call-gesture-hint { display: none; }
+.call-orientation-notice { position: absolute; top: 4.5rem; left: 50%; transform: translateX(-50%); z-index: 4; padding: 0.4rem 0.75rem; border-radius: 0.6rem; background: rgb(6 20 27 / 0.75); color: #fff; font-size: 0.8rem; pointer-events: none; white-space: nowrap; }
 @media (max-width: 767.98px) { .call-gesture-hint { position: absolute; bottom: 4.25rem; inset-inline-start: 1rem; z-index: 3; display: block; max-width: 48%; padding: 0.35rem 0.55rem; border-radius: 0.6rem; background: rgb(6 20 27 / 0.7); color: #fff; font-size: 0.7rem; pointer-events: none; } }
 .call-screen .call-view-controls { position: absolute; bottom: 4rem; inset-inline-end: 1rem; display: flex; gap: 0.4rem; z-index: 4; }
 .call-screen .call-view-controls button { display: grid; place-items: center; width: 2.5rem; height: 2.5rem; border: 1px solid rgb(255 255 255 / 0.28); border-radius: 12px; background: rgb(6 20 27 / 0.75); color: white; font-size: 1.4rem; }

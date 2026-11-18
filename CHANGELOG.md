@@ -11,6 +11,18 @@ All notable changes to this project will be documented in this file.
 - Continuous desktop mouse cursor during whiteboard drawing with tool-specific cursors (pen, brush, highlighter, eraser, laser, sticky note).
 - Remove fake DOM brush indicator to prevent pointer lag and browser layout reflow during canvas drawing.
 
+## [5.6.3] - 2026-11-18
+
+### Added
+
+- Call video animates a 90° turn when the sender rotates their device, so the viewer sees the rotation happen.
+
+## [5.6.2] - 2026-11-18
+
+### Added
+
+- Call stage shows a short notice when the main video turns landscape or portrait (the sender rotated their device), and emits `orientation` from `CallStage`.
+
 ## [5.6.0] - 2026-11-17
 
 ### Changed

@@ -22,13 +22,32 @@ function take(stream: MediaStream) {
 import { onBeforeUnmount, onMounted, ref, watch } from "vue";
 /** A muted view of a stream the call already holds: the call's own elements play the sound. */
 const props = defineProps<{ stream?: MediaStream | null; mirrored?: boolean }>();
+const emit = defineEmits<{ orientation: [value: "landscape" | "portrait"] }>();
 
 const host = ref<HTMLElement>();
 let video: HTMLVideoElement | null = null;
 
 const classes = () => `size-full bg-black object-contain${props.mirrored ? " -scale-x-100" : ""}`;
 
+// Fires when the sender rotates their device: the track's frame size flips.
+let last: "landscape" | "portrait" | undefined;
+function onResize() {
+  if (!video?.videoWidth) return;
+  const value = video.videoWidth > video.videoHeight ? "landscape" : "portrait";
+  // Let the viewer see the turn: spin from the old orientation into the new one.
+  if (last && last !== value) {
+    video.animate([{ rotate: value === "landscape" ? "-90deg" : "90deg", opacity: 0.6 }, { rotate: "0deg", opacity: 1 }], {
+      duration: 450,
+      easing: "ease-out",
+    });
+  }
+  last = value;
+  emit("orientation", value);
+}
+
 function release() {
+  video?.removeEventListener("resize", onResize);
+  last = undefined;
   if (video) inUse.delete(video);
   video = null;
 }
@@ -37,6 +56,8 @@ function show() {
   if (!host.value || !props.stream) return;
   video = take(props.stream);
   inUse.add(video);
+  video.addEventListener("resize", onResize);
+  onResize();
   video.className = classes();
   host.value.append(video);
   if (video.paused) video.play().catch(() => undefined);
