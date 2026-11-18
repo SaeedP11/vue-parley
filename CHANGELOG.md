@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [5.6.2] - 2026-11-18
+
+### Added
+
+- Call stage shows a short notice when the main video turns landscape or portrait (the sender rotated their device), and emits `orientation` from `CallStage`.
+
 ## [5.6.0] - 2026-11-17
 
 ### Changed

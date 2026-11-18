@@ -207,7 +207,9 @@
         "showInMini": "Show {name}",
         "zoomIn": "Zoom in video",
         "zoomOut": "Zoom out video",
-        "gestureHint": "Pinch to zoom; drag to move"
+        "gestureHint": "Pinch to zoom; drag to move",
+        "landscape": "The video turned landscape",
+        "portrait": "The video turned portrait"
       },
       "controls": {
         "enableSound": "Tap to turn on sound",
