@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [5.7.0] - 2026-11-21
+
+### Added
+
+- Call:
+  - Dedicate distinct medias for each channel member (whiteboard, screen, camera).
+  - Disable camera and mic button actions when devices are unavailable.
+- Whiteboard:
+  - Reorganize tools into a floating bottom toolbar for responsive viewports.
+  - Add tooltips to whiteboard buttons and controls.
+  - Improve responsive UI/UX with fit-to-content, contextual HUD, declutter mode, and haptics.
+
 ## [5.6.5] - 2026-11-18
 
 ### Changed
