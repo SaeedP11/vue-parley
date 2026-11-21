@@ -22,24 +22,36 @@ const participants = computed(() => session.participants.value);
 // The same main view as the stage's, so a pick carries over both ways.
 const mainView = useCallMain(session, () => props.featuredId);
 const screenOwner = mainView.screenOwner;
-const main = computed(() => screenOwner.value ?? mainView.person.value ?? participants.value[0]);
+const whiteboardOwner = mainView.whiteboardOwner;
+const presentationOwner = computed(() => whiteboardOwner.value ?? screenOwner.value);
+const main = computed(() => presentationOwner.value ?? mainView.person.value ?? participants.value[0]);
 const pick = mainView.pick;
 const nameOf = (person: (typeof participants.value)[number]) =>
   person.isSelf ? t("chat.call.you") : person.name || t("chat.call.stage.participant");
 const stream = computed(() =>
-  screenOwner.value ? screenOwner.value.screen : main.value?.isSelf ? media.localStream.value : main.value?.camera,
+  whiteboardOwner.value
+    ? whiteboardOwner.value.whiteboard
+    : screenOwner.value
+      ? screenOwner.value.screen
+      : main.value?.isSelf
+        ? media.localStream.value
+        : main.value?.camera,
 );
 const cameraOn = computed(() =>
-  !!screenOwner.value ||
+  !!presentationOwner.value ||
   (main.value?.isSelf ? media.isVideoOn.value : main.value?.media?.video !== false && !!main.value?.camera?.getVideoTracks().length),
 );
 const personName = computed(() => (main.value ? nameOf(main.value) : t("chat.call.stage.participant")));
 const name = computed(() =>
-  !screenOwner.value
-    ? personName.value
-    : screenOwner.value.isSelf
-      ? t("chat.call.stage.youArePresenting")
-      : t("chat.call.stage.screenTile", { name: personName.value }),
+  whiteboardOwner.value
+    ? whiteboardOwner.value.isSelf
+      ? t("chat.call.stage.youAreSharingWhiteboard")
+      : t("chat.call.stage.whiteboardTile", { name: personName.value })
+    : !screenOwner.value
+      ? personName.value
+      : screenOwner.value.isSelf
+        ? t("chat.call.stage.youArePresenting")
+        : t("chat.call.stage.screenTile", { name: personName.value }),
 );
 const duration = computed(() => formatDuration(Math.max(0, Math.floor(callStore.elapsedTime))));
 

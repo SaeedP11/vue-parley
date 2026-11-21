@@ -6,6 +6,7 @@ export interface CallUiOptions {
   screenStream: Ref<MediaStream | null>;
   remoteVideos: Ref<Record<string, RemoteStream>>;
   remoteScreens: Ref<Record<string, RemoteStream>>;
+  remoteWhiteboards?: Ref<Record<string, RemoteStream>>;
   /** Re-attach streams when this changes: minimizing swaps the <video> elements. */
   isMinimized: () => boolean;
   /** Re-attach streams when this changes: tiles moving between grid, stage and strip remount. */
@@ -23,6 +24,7 @@ export function useCallUi(opts: CallUiOptions) {
   const localScreen = ref<HTMLVideoElement | null>(null);
   const remoteRefs = ref<Record<string, HTMLVideoElement | null>>({});
   const remoteScreenRefs = ref<Record<string, HTMLVideoElement | undefined>>({});
+  const remoteWhiteboardRefs = ref<Record<string, HTMLVideoElement | undefined>>({});
   const remoteParents = ref<Record<string, HTMLElement>>({});
 
   // --- Controls fade out after a few seconds without input ---
@@ -122,6 +124,10 @@ export function useCallUi(opts: CallUiOptions) {
       attach(remoteRefs.value[id], stream);
     for (const [id, { stream }] of Object.entries(remoteScreens.value))
       attach(remoteScreenRefs.value[id], stream);
+    if (opts.remoteWhiteboards?.value) {
+      for (const [id, { stream }] of Object.entries(opts.remoteWhiteboards.value))
+        attach(remoteWhiteboardRefs.value[id], stream);
+    }
   }
 
   watch(
@@ -130,6 +136,7 @@ export function useCallUi(opts: CallUiOptions) {
       screenStream,
       () => ({ ...remoteVideos.value }),
       () => ({ ...remoteScreens.value }),
+      () => ({ ...opts.remoteWhiteboards?.value }),
       opts.isMinimized,
       () => opts.layoutKey?.(),
     ],
@@ -144,6 +151,7 @@ export function useCallUi(opts: CallUiOptions) {
       localScreen.value,
       ...Object.values(remoteRefs.value),
       ...Object.values(remoteScreenRefs.value),
+      ...Object.values(remoteWhiteboardRefs.value),
     ];
     for (const el of all) if (el) el.srcObject = null;
   }
@@ -153,6 +161,7 @@ export function useCallUi(opts: CallUiOptions) {
     localScreen,
     remoteRefs,
     remoteScreenRefs,
+    remoteWhiteboardRefs,
     remoteParents,
     showControls,
     resetControlsTimeout,

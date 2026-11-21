@@ -393,6 +393,20 @@ defineExpose({
                     <span v-if="tile.isSelf" class="text-[10px] text-gray-300 shrink-0 font-normal">
                       ({{ t("chat.call.you") }})
                     </span>
+                    <span
+                      v-if="tile.screen?.getVideoTracks().length || (tile.isSelf && session?.media.isScreenSharing.value)"
+                      class="text-emerald-400 shrink-0"
+                      :title="t('chat.call.stage.screenTile', { name: nameOf(tile) })"
+                    >
+                      <CallIcon name="presentToAll" class="size-3.5" />
+                    </span>
+                    <span
+                      v-if="tile.whiteboard?.getVideoTracks().length || (tile.isSelf && session?.media.isWhiteboardSharing.value)"
+                      class="text-indigo-400 shrink-0"
+                      :title="t('chat.call.stage.whiteboardTile', { name: nameOf(tile) })"
+                    >
+                      <CallIcon name="whiteboard" class="size-3.5" />
+                    </span>
                   </div>
 
                   <div

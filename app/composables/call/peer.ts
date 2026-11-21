@@ -520,7 +520,9 @@ export function createPeer(opts: PeerOptions) {
     /** Swaps the outgoing video track in place (no renegotiation), or adds it if none is sent. */
     replaceVideoTrack(track: MediaStreamTrack, stream: MediaStream) {
       if (destroyed) return;
-      const sender = pc.getSenders().find((s) => s.track?.kind === "video");
+      const sender = pc
+        .getSenders()
+        .find((s) => s.track?.kind === "video" && !opts.isScreenTrack?.(s.track) && !opts.isWhiteboardTrack?.(s.track));
       if (sender) void sender.replaceTrack(track);
       else this.addTrack(track, stream);
     },
@@ -536,7 +538,8 @@ export function createPeer(opts: PeerOptions) {
         sender.track
           ? [{
               kind: sender.track.kind,
-              screen: !!opts.isScreenTrack?.(sender.track) || !!opts.isWhiteboardTrack?.(sender.track),
+              screen: !!opts.isScreenTrack?.(sender.track),
+              whiteboard: !!opts.isWhiteboardTrack?.(sender.track),
               encodings: sender.getParameters().encodings ?? [],
             }]
           : [],

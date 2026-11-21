@@ -8,7 +8,7 @@ import { onClickOutside, onKeyStroke, useFullscreen } from "@vueuse/core";
 import CallIcon from "./CallIcon.vue";
 import CallStageVideo from "./CallStageVideo.vue";
 import WhiteboardDialog from "~/components/whiteboard/WhiteboardDialog.vue";
-import { screenKey, useCallMain } from "~/composables/call/useCallMain";
+import { screenKey, whiteboardKey, useCallMain } from "~/composables/call/useCallMain";
 import { useCallNotices } from "~/composables/call/useCallNotices";
 
 /** A host's own button for one participant: it shows beside their name and in the control bar. */
@@ -81,9 +81,20 @@ const selfTile = computed(() => participants.value.find((person) => person.isSel
 // Whoever is in the main view stays there until someone else is picked.
 const main = useCallMain(session, () => props.featuredId);
 const presenters = main.presenters;
+const whiteboardPresenters = main.whiteboardPresenters;
 const screenOwner = main.screenOwner;
-const showScreen = computed(() => !!screenOwner.value);
-const mainTile = computed(() => screenOwner.value ?? main.person.value ?? selfTile.value);
+const whiteboardOwner = main.whiteboardOwner;
+const isWhiteboard = computed(() => !!whiteboardOwner.value);
+const presentationOwner = computed(() => whiteboardOwner.value ?? screenOwner.value);
+const showScreen = computed(() => !!presentationOwner.value);
+const mainTile = computed(() => presentationOwner.value ?? main.person.value ?? selfTile.value);
+const mainStream = computed(() =>
+  whiteboardOwner.value
+    ? whiteboardOwner.value.whiteboard
+    : screenOwner.value
+      ? screenOwner.value.screen
+      : streamOf(mainTile.value),
+);
 // A different video on the main card isn't a rotation.
 watch([mainTile, () => showScreen.value], () => (orientation.value = undefined));
 
@@ -139,8 +150,19 @@ const pointerUp = (event: PointerEvent) => {
   pinch = undefined;
 };
 
-// --- Screen share: each shared screen is its own tile; one may take the main view --------------
-const screenTiles = computed(() => presenters.value.filter((person) => person.id !== screenOwner.value?.id));
+// --- Screen share & Whiteboard: each shared media is its own tile; one may take the main view ---
+const screenTiles = computed(() =>
+  presenters.value.filter(
+    (person) => !(screenOwner.value && person.id === screenOwner.value.id) && !!person.screen?.getVideoTracks().length,
+  ),
+);
+const whiteboardTiles = computed(() =>
+  whiteboardPresenters.value.filter(
+    (person) =>
+      !(whiteboardOwner.value && person.id === whiteboardOwner.value.id) &&
+      !!person.whiteboard?.getVideoTracks().length,
+  ),
+);
 watch(main.key, resetZoom);
 
 const thumbnails = computed(() => {
@@ -231,11 +253,8 @@ const runAction = () => {
 const isTileWhiteboard = (tile?: Tile) => {
   if (!tile) return false;
   if (tile.isSelf) return media.isWhiteboardSharing.value;
-  const types = session.peers.remoteStreamTypes.value[tile.id] ?? [];
-  return types.some((t) => t.type === "whiteboard");
+  return !!tile.whiteboard?.getVideoTracks().length;
 };
-
-const isWhiteboard = computed(() => isTileWhiteboard(screenOwner.value));
 
 const internalWhiteboardOpen = ref(false);
 const isParentHandlingWhiteboard = computed(() => props.whiteboardOpen !== undefined);
@@ -326,7 +345,7 @@ const onExtraClick = (event: MouseEvent) => {
 
     <div ref="mainCard" class="call-main" :class="{ 'call-main--expanded': isExpanded }" @pointerdown="pointerDown" @pointermove="pointerMove" @pointerup="pointerUp" @pointercancel="pointerUp">
       <div class="call-video-zoom" :style="{ transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})` }" :data-scale="scale" :data-offset-x="offset.x" :data-offset-y="offset.y">
-      <CallStageVideo v-if="showScreen" :stream="screenOwner?.screen" data-testid="call-stage-screen" @orientation="onOrientation" />
+      <CallStageVideo v-if="showScreen" :stream="mainStream" data-testid="call-stage-screen" @orientation="onOrientation" />
       <CallStageVideo v-else-if="cameraOn(mainTile)" :stream="streamOf(mainTile)" :mirrored="isMirrored(mainTile)" @orientation="onOrientation" />
       <div v-else class="call-avatar call-avatar--large">{{ nameOf(mainTile).charAt(0) }}</div>
       </div>
@@ -345,15 +364,15 @@ const onExtraClick = (event: MouseEvent) => {
         <CallIcon :name="isWhiteboard ? 'whiteboard' : 'presentToAll'" class="size-4" />
         {{
           isWhiteboard
-            ? screenOwner?.isSelf
+            ? presentationOwner?.isSelf
               ? t("chat.call.stage.youAreSharingWhiteboard")
-              : t("chat.call.stage.sharingWhiteboard", { name: nameOf(screenOwner) })
-            : screenOwner?.isSelf
+              : t("chat.call.stage.sharingWhiteboard", { name: nameOf(presentationOwner) })
+            : presentationOwner?.isSelf
               ? t("chat.call.stage.youArePresenting")
-              : t("chat.call.stage.presenting", { name: nameOf(screenOwner) })
+              : t("chat.call.stage.presenting", { name: nameOf(presentationOwner) })
         }}
         <button
-          v-if="isWhiteboard && screenOwner?.isSelf"
+          v-if="isWhiteboard && presentationOwner?.isSelf"
           type="button"
           class="ml-2 font-normal underline hover:text-white transition-colors cursor-pointer text-xs"
           @click.stop="session.stopWhiteboardShare()"
@@ -407,8 +426,8 @@ const onExtraClick = (event: MouseEvent) => {
           <strong>{{
             showScreen
               ? isWhiteboard
-                ? t("chat.call.stage.whiteboardTile", { name: nameOf(screenOwner) })
-                : t("chat.call.stage.screenTile", { name: nameOf(screenOwner) })
+                ? t("chat.call.stage.whiteboardTile", { name: nameOf(presentationOwner) })
+                : t("chat.call.stage.screenTile", { name: nameOf(presentationOwner) })
               : nameOf(mainTile)
           }}</strong>
           <span v-if="action?.note && isFeatured(mainTile) && !showScreen" class="call-torch-note" :class="isLit && 'call-torch-note--on'" role="status">
@@ -435,27 +454,35 @@ const onExtraClick = (event: MouseEvent) => {
       </div>
     </div>
 
-    <template v-if="thumbnails.length || screenTiles.length">
+    <template v-if="thumbnails.length || screenTiles.length || whiteboardTiles.length">
       <div v-if="thumbnails.length" class="call-others-title">
         <h2>{{ t("chat.call.stage.others") }}</h2>
         <span>{{ t("chat.call.stage.peopleCount", { count: n(thumbnails.length) }) }}</span>
       </div>
 
-      <div class="call-others" :class="thumbnails.length + screenTiles.length > 2 && 'call-others--scroll'">
+      <div class="call-others" :class="thumbnails.length + screenTiles.length + whiteboardTiles.length > 2 && 'call-others--scroll'">
         <article v-for="tile in screenTiles" :key="screenKey(tile.id)" :data-id="tile.id" class="call-tile" data-testid="call-stage-screen-tile">
           <CallStageVideo :stream="tile.screen" />
           <div class="call-tile-footer">
-            <span class="call-name">{{
-              isTileWhiteboard(tile)
-                ? t("chat.call.stage.whiteboardTile", { name: nameOf(tile) })
-                : t("chat.call.stage.screenTile", { name: nameOf(tile) })
-            }}</span>
+            <span class="call-name">{{ t("chat.call.stage.screenTile", { name: nameOf(tile) }) }}</span>
           </div>
           <button
             type="button"
             class="call-tile-pick"
             :aria-label="t('chat.call.stage.showScreenInMain', { name: nameOf(tile) })"
             @click="pickMain(screenKey(tile.id))"
+          />
+        </article>
+        <article v-for="tile in whiteboardTiles" :key="whiteboardKey(tile.id)" :data-id="tile.id" class="call-tile" data-testid="call-stage-whiteboard-tile">
+          <CallStageVideo :stream="tile.whiteboard" />
+          <div class="call-tile-footer">
+            <span class="call-name">{{ t("chat.call.stage.whiteboardTile", { name: nameOf(tile) }) }}</span>
+          </div>
+          <button
+            type="button"
+            class="call-tile-pick"
+            :aria-label="t('chat.call.stage.showWhiteboardInMain', { name: nameOf(tile) })"
+            @click="pickMain(whiteboardKey(tile.id))"
           />
         </article>
         <article v-for="tile in thumbnails" :key="tile.id" :data-id="tile.id" class="call-tile" :class="!cameraOn(tile) && 'call-tile--off'">

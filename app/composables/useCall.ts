@@ -19,6 +19,7 @@ export default function useCall({ layoutKey }: { layoutKey?: () => string } = {}
     screenStream: media.screenStream,
     remoteVideos: peers.remoteVideos,
     remoteScreens: peers.remoteScreens,
+    remoteWhiteboards: peers.remoteWhiteboards,
     isMinimized: () => callStore.isMinimized,
     layoutKey,
   });
@@ -56,6 +57,7 @@ export default function useCall({ layoutKey }: { layoutKey?: () => string } = {}
     localStream: media.localStream,
     remoteVideos: peers.remoteVideos,
     remoteScreens: peers.remoteScreens,
+    remoteWhiteboards: peers.remoteWhiteboards,
     // Local media
     cameras: media.cameras,
     facingMode: media.facingMode,
@@ -94,6 +96,7 @@ export default function useCall({ layoutKey }: { layoutKey?: () => string } = {}
     localScreen: ui.localScreen,
     remoteRefs: ui.remoteRefs,
     remoteScreenRefs: ui.remoteScreenRefs,
+    remoteWhiteboardRefs: ui.remoteWhiteboardRefs,
     remoteParents: ui.remoteParents,
     reattach: ui.reattach,
     retryPeer: session.retryPeer,

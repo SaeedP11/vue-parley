@@ -33,6 +33,7 @@ export interface Participant {
   media?: CallMediaState;
   camera?: MediaStream;
   screen?: MediaStream;
+  whiteboard?: MediaStream;
   status: ParticipantStatus;
 }
 
@@ -145,7 +146,8 @@ export function createCallSession(opts: CallSessionOptions) {
         joinedAt: joinedAt.value,
         media: { audio: media.isAudioOn.value, video: media.isVideoOn.value },
         camera: media.localStream.value ?? undefined,
-        screen: (media.screenStream.value ?? media.whiteboardStream.value) ?? undefined,
+        screen: media.screenStream.value ?? undefined,
+        whiteboard: media.whiteboardStream.value ?? undefined,
         status: "connected",
       };
       const remotes = Object.entries(peers.remoteNames.value).map(
@@ -158,6 +160,7 @@ export function createCallSession(opts: CallSessionOptions) {
           media: peers.remoteMedia.value[id],
           camera: peers.remoteVideos.value[id]?.stream,
           screen: peers.remoteScreens.value[id]?.stream,
+          whiteboard: peers.remoteWhiteboards.value[id]?.stream,
           status: peers.peerStatus.value[id] ?? "connecting",
         }),
       );
@@ -167,9 +170,11 @@ export function createCallSession(opts: CallSessionOptions) {
     const participantCount = computed(() => participants.value.length);
     const tileCount = computed(
       () =>
-        (media.screenStream.value || media.whiteboardStream.value ? 1 : 0) +
+        (media.screenStream.value ? 1 : 0) +
+        (media.whiteboardStream.value ? 1 : 0) +
         Object.keys(peers.remoteVideos.value).length +
-        Object.keys(peers.remoteScreens.value).length,
+        Object.keys(peers.remoteScreens.value).length +
+        Object.keys(peers.remoteWhiteboards.value).length,
     );
 
     /** Set when the call is over, or we were turned away from it; otherwise `phase` follows the peers. */
@@ -410,7 +415,6 @@ export function createCallSession(opts: CallSessionOptions) {
   async function toggleScreenShare() {
     if (media.isScreenShareStarting.value) return;
     if (media.isScreenSharing.value) return stopScreenShare();
-    if (media.isWhiteboardSharing.value) stopWhiteboardShare();
     const stream = await media.startScreenShare(stopScreenShare);
     if (!stream) return;
     if (ended) {
@@ -425,7 +429,6 @@ export function createCallSession(opts: CallSessionOptions) {
 
   async function startWhiteboardShare(stream: MediaStream) {
     if (ended) return;
-    if (media.isScreenSharing.value) stopScreenShare();
     const shared = media.startWhiteboardShare(stream, () => {
       stopWhiteboardShare();
     });

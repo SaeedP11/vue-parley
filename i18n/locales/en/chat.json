@@ -180,6 +180,7 @@
         "showInMain": "Show in main view",
         "showNameInMain": "Show {name} in the main view",
         "showScreenInMain": "Show {name}'s screen in the main view",
+        "showWhiteboardInMain": "Show {name}'s whiteboard in the main view",
         "flipCamera": "Flip",
         "frontCamera": "Switch to front camera",
         "backCamera": "Switch to back camera",

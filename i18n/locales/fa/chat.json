@@ -180,6 +180,7 @@
         "showInMain": "نمایش در تصویر اصلی",
         "showNameInMain": "نمایش {name} در تصویر اصلی",
         "showScreenInMain": "نمایش صفحه {name} در تصویر اصلی",
+        "showWhiteboardInMain": "نمایش تخته سفید {name} در تصویر اصلی",
         "flipCamera": "چرخش دوربین",
         "frontCamera": "دوربین جلو",
         "backCamera": "دوربین پشت",

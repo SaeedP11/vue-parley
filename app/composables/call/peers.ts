@@ -16,6 +16,7 @@ export interface RemoteStream {
 
 interface ReceivedStream extends RemoteStream {
   screen: boolean;
+  whiteboard: boolean;
 }
 
 export interface PeerOptions {
@@ -49,6 +50,7 @@ export function usePeers(opts: PeerOptions) {
   const peers = ref<Record<string, PeerConnection>>({});
   const remoteVideos = ref<Record<string, RemoteStream>>({});
   const remoteScreens = ref<Record<string, RemoteStream>>({});
+  const remoteWhiteboards = ref<Record<string, RemoteStream>>({});
   const remoteStreamTypes = ref<Record<string, TrackTypes>>({});
   /** Every stream each remote sent us, so it can be sorted again once its type is announced. */
   const received: Record<string, ReceivedStream[]> = {};
@@ -83,6 +85,7 @@ export function usePeers(opts: PeerOptions) {
     peer?.destroy();
     delete remoteVideos.value[remoteId];
     delete remoteScreens.value[remoteId];
+    delete remoteWhiteboards.value[remoteId];
     delete received[remoteId];
     delete pending.value[remoteId];
     delete pendingSignals[remoteId];
@@ -116,13 +119,31 @@ export function usePeers(opts: PeerOptions) {
     if (joinedAt !== undefined) remoteJoinedAt.value[remoteId] = joinedAt;
   }
 
-  /** Whether `stream` is the remote's screen share or whiteboard, going by what they announced. */
-  function isScreen(remoteId: string, stream: MediaStream) {
+  /** What kind of media `stream` is (camera, screen share, or whiteboard), from what was announced. */
+  function getStreamType(remoteId: string, stream: MediaStream): "camera" | "screen" | "whiteboard" {
     const announced = remoteStreamTypes.value[remoteId] ?? [];
     const match = announced.find((t) => t.id === stream.id);
-    if (match) return match.type === "screen" || match.type === "whiteboard";
-    // Stream ids didn't survive the trip: fall back to "they announced a screen or whiteboard".
-    return announced.some((t) => t.type === "screen" || t.type === "whiteboard");
+    if (match) {
+      if (match.type === "whiteboard") return "whiteboard";
+      if (match.type === "screen") return "screen";
+      return "camera";
+    }
+    // Stream ids didn't survive the trip: fall back to types announced
+    if (announced.some((t) => t.type === "whiteboard") && !announced.some((t) => t.type === "screen")) {
+      return "whiteboard";
+    }
+    if (announced.some((t) => t.type === "screen") && !announced.some((t) => t.type === "whiteboard")) {
+      return "screen";
+    }
+    return "camera";
+  }
+
+  function isScreen(remoteId: string, stream: MediaStream) {
+    return getStreamType(remoteId, stream) === "screen";
+  }
+
+  function isWhiteboard(remoteId: string, stream: MediaStream) {
+    return getStreamType(remoteId, stream) === "whiteboard";
   }
 
   function put(target: Ref<Record<string, RemoteStream>>, remoteId: string, entry?: ReceivedStream) {
@@ -131,23 +152,32 @@ export function usePeers(opts: PeerOptions) {
       target.value[remoteId] = { name: entry.name, stream: entry.stream };
   }
 
-  /** Shows each remote's newest live camera and screen stream. */
+  /** Shows each remote's newest live camera, screen and whiteboard stream. */
   function place(remoteId: string) {
     const live = (received[remoteId] ?? []).filter((r) => r.stream.getTracks().length > 0);
     received[remoteId] = live;
     let camera: ReceivedStream | undefined;
     let screen: ReceivedStream | undefined;
+    let whiteboard: ReceivedStream | undefined;
     for (const r of live) {
-      if (r.screen && r.stream.getVideoTracks().length > 0) screen = r;
+      if (r.whiteboard && r.stream.getVideoTracks().length > 0) whiteboard = r;
+      else if (r.screen && r.stream.getVideoTracks().length > 0) screen = r;
       else camera = r;
     }
     put(remoteVideos, remoteId, camera);
     put(remoteScreens, remoteId, screen);
+    put(remoteWhiteboards, remoteId, whiteboard);
   }
 
   function onRemoteStream(remoteId: string, name: string, stream: MediaStream) {
     log("stream from", remoteId, stream.getTracks().map((t) => t.kind));
-    (received[remoteId] ??= []).push({ name, stream, screen: isScreen(remoteId, stream) });
+    const type = getStreamType(remoteId, stream);
+    (received[remoteId] ??= []).push({
+      name,
+      stream,
+      screen: type === "screen",
+      whiteboard: type === "whiteboard",
+    });
     place(remoteId);
     markConnected(remoteId);
 
@@ -164,8 +194,9 @@ export function usePeers(opts: PeerOptions) {
   function setStreamTypes(remoteId: string, types: TrackTypes) {
     remoteStreamTypes.value[remoteId] = types;
     for (const r of received[remoteId] ?? []) {
-      const match = types.find((t) => t.id === r.stream.id);
-      if (match) r.screen = match.type === "screen" || match.type === "whiteboard";
+      const type = getStreamType(remoteId, r.stream);
+      r.screen = type === "screen";
+      r.whiteboard = type === "whiteboard";
     }
     place(remoteId);
   }
@@ -250,8 +281,10 @@ export function usePeers(opts: PeerOptions) {
     }
     log("created peer", remoteId, "initiator:", initiator);
 
-    const screen = screenStream.value ?? whiteboardStream?.value;
+    const screen = screenStream.value;
     screen?.getVideoTracks().forEach((track) => peer.addTrack(track, screen));
+    const whiteboard = whiteboardStream?.value;
+    whiteboard?.getVideoTracks().forEach((track) => peer.addTrack(track, whiteboard));
 
     peers.value[remoteId] = markRaw(peer);
     peer.setRemoteCount(remoteCount());
@@ -358,6 +391,7 @@ export function usePeers(opts: PeerOptions) {
     peers,
     remoteVideos,
     remoteScreens,
+    remoteWhiteboards,
     remoteStreamTypes,
     remoteNames,
     remoteJoinedAt,

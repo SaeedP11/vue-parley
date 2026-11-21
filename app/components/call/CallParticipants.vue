@@ -35,6 +35,9 @@ const statusOf = (p: Participant) =>
         : p.status === "connecting"
           ? t("chat.call.connecting")
           : "";
+
+const hasScreen = (p: Participant) => !!p.screen?.getVideoTracks().length;
+const hasWhiteboard = (p: Participant) => !!p.whiteboard?.getVideoTracks().length;
 </script>
 
 <template>
@@ -96,22 +99,42 @@ const statusOf = (p: Participant) =>
             {{ statusOf(p) }}
           </p>
         </div>
-        <!-- Unknown for clients too old to say: no icon rather than a wrong one. -->
-        <span v-if="p.media" class="flex shrink-0 items-center gap-x-1.5 text-neutral-300">
+        <!-- Dedicated media indicators -->
+        <span class="flex shrink-0 items-center gap-x-1.5 text-neutral-300">
           <span
+            v-if="hasScreen(p)"
             role="img"
-            :aria-label="p.media.audio ? t('chat.call.micOn') : t('chat.call.muted')"
-            :class="!p.media.audio && 'text-red-400'"
+            :aria-label="t('chat.call.stage.screenTile', { name: nameOf(p) })"
+            class="text-emerald-400"
+            data-testid="call-participant-screen"
           >
-            <CallIcon :name="p.media.audio ? 'mic' : 'micOff'" class="size-5" />
+            <CallIcon name="presentToAll" class="size-5" />
           </span>
           <span
+            v-if="hasWhiteboard(p)"
             role="img"
-            :aria-label="p.media.video ? t('chat.call.cameraOn') : t('chat.call.cameraOff')"
-            :class="!p.media.video && 'text-red-400'"
+            :aria-label="t('chat.call.stage.whiteboardTile', { name: nameOf(p) })"
+            class="text-indigo-400"
+            data-testid="call-participant-whiteboard"
           >
-            <CallIcon :name="p.media.video ? 'videocam' : 'videocamOff'" class="size-5" />
+            <CallIcon name="whiteboard" class="size-5" />
           </span>
+          <template v-if="p.media">
+            <span
+              role="img"
+              :aria-label="p.media.audio ? t('chat.call.micOn') : t('chat.call.muted')"
+              :class="!p.media.audio && 'text-red-400'"
+            >
+              <CallIcon :name="p.media.audio ? 'mic' : 'micOff'" class="size-5" />
+            </span>
+            <span
+              role="img"
+              :aria-label="p.media.video ? t('chat.call.cameraOn') : t('chat.call.cameraOff')"
+              :class="!p.media.video && 'text-red-400'"
+            >
+              <CallIcon :name="p.media.video ? 'videocam' : 'videocamOff'" class="size-5" />
+            </span>
+          </template>
         </span>
       </li>
     </ul>
