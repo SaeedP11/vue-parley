@@ -4,10 +4,22 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [5.6.5] - 2026-11-18
+
+### Changed
+
+- Optimize call media streaming bandwidth, framerate, and codecs:
+  - Stop transmitting black video frames over RTP when camera is disabled (`encoding.active = false`).
+  - Cap whiteboard canvas stream to 10 fps and 500 kbps (`maintain-resolution`).
+  - Throttle camera stream to 5 fps, 200 kbps, and 2x downscaling when the tab is in the background.
+  - Inject Opus DTX, 24 kbps average bitrate ceiling, and mono VBR parameters into SDP.
+  - Constrain chat video message recordings to 800 kbps and audio to 32 kbps (~70–80% smaller files).
+
 ## [5.6.4] - 2026-11-18
 
 ### Added
 
+- Whiteboard shows your own camera in a corner of the board while the members list is hidden or on mobile.
 - Continuous desktop mouse cursor during whiteboard drawing with tool-specific cursors (pen, brush, highlighter, eraser, laser, sticky note).
 - Remove fake DOM brush indicator to prevent pointer lag and browser layout reflow during canvas drawing.
 

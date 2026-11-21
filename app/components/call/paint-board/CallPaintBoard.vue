@@ -32,7 +32,7 @@ const emit = defineEmits<{
 const whiteboardRef = ref<WhiteboardExposed | null>(null);
 
 defineExpose({
-  getStream: (fps = 30) => whiteboardRef.value?.getStream(fps) ?? null,
+  getStream: (fps = 10) => whiteboardRef.value?.getStream(fps) ?? null,
   downloadImage: (format?: "png" | "jpeg") => whiteboardRef.value?.downloadImage(format),
   clear: () => whiteboardRef.value?.clear(),
   undo: () => whiteboardRef.value?.undo(),

@@ -206,9 +206,11 @@ export function createCallSession(opts: CallSessionOptions) {
 
     // The others learn about a mute or a camera turned off from the same message that describes
     // our streams, so their tiles can show it (an old client just ignores the field).
+    // Halts or resumes RTP video transmission to completely drop video bandwidth while camera is off.
     watch([media.isAudioOn, media.isVideoOn], () => {
+      peers.setVideoActive(media.isVideoOn.value);
       if (joined.value) void signaling.trackTypes(media.trackTypes.value, mediaState());
-    });
+    }, { immediate: true });
 
     return {
       signaling,
