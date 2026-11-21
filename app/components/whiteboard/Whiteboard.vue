@@ -33,6 +33,7 @@ import Dialog from "primevue/dialog";
 import type { MenuItem } from "primevue/menuitem";
 import Slider from "primevue/slider";
 import ToggleSwitch from "primevue/toggleswitch";
+import Tooltip from "primevue/tooltip";
 
 import BIcon from "~/components/global/BIcon.vue";
 import IconButton from "~/components/general/IconButton.vue";
@@ -134,6 +135,13 @@ const emit = defineEmits<{
 const { t } = useLocalI18n(callPaintBoard);
 const { dir } = useDirection();
 const { openToast } = useAppToast();
+
+const vTooltip = Tooltip;
+const tt = (text: string, showDelay = 300) => ({
+  value: text,
+  class: "vue-chat font-chat-family",
+  showDelay,
+});
 
 const containerRef = useTemplateRef<HTMLDivElement>("containerRef");
 const stageRef = ref<VueKonvaRef<Konva.Stage> | null>(null);
@@ -2506,8 +2514,8 @@ defineExpose<WhiteboardExposed>({
         <!-- Live HD Badge if streamActive -->
         <div
           v-if="effectiveStreamActive"
+          v-tooltip.bottom="tt(t('board.streaming'))"
           class="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-600 dark:text-emerald-400 text-[11px] font-bold select-none shrink-0"
-          :title="t('board.streaming')"
         >
           <span class="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
           <span class="hidden sm:inline">{{ t("board.liveHd") }}</span>
@@ -2517,22 +2525,26 @@ defineExpose<WhiteboardExposed>({
 
         <!-- History: Undo & Redo (Destructive Clear safely relocated to overflow menu) -->
         <div class="hidden sm:flex items-center gap-0.5">
-          <IconButton
-            icon="PhArrowUUpLeft"
-            :label="`${t('board.undo')} (Ctrl+Z)`"
-            :disabled="!canUndo"
-            icon-class="size-4"
-            class="hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40"
-            @click="undo"
-          />
-          <IconButton
-            icon="PhArrowUUpRight"
-            :label="`${t('board.redo')} (Ctrl+Y)`"
-            :disabled="!canRedo"
-            icon-class="size-4"
-            class="hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40"
-            @click="redo"
-          />
+          <span v-tooltip.bottom="tt(`${t('board.undo')} (Ctrl+Z)`)" class="inline-flex">
+            <IconButton
+              icon="PhArrowUUpLeft"
+              :label="`${t('board.undo')} (Ctrl+Z)`"
+              :disabled="!canUndo"
+              icon-class="size-4"
+              class="hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40"
+              @click="undo"
+            />
+          </span>
+          <span v-tooltip.bottom="tt(`${t('board.redo')} (Ctrl+Y)`)" class="inline-flex">
+            <IconButton
+              icon="PhArrowUUpRight"
+              :label="`${t('board.redo')} (Ctrl+Y)`"
+              :disabled="!canRedo"
+              icon-class="size-4"
+              class="hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40"
+              @click="redo"
+            />
+          </span>
         </div>
       </div>
 
@@ -2540,36 +2552,42 @@ defineExpose<WhiteboardExposed>({
       <div class="flex items-center gap-1 sm:gap-1.5 shrink-0">
         <!-- Zoom Controls: Shown on lg+ (1024px+); on <lg, canvas floating zoom pill is used -->
         <div class="hidden lg:flex items-center bg-slate-100 dark:bg-slate-800 rounded-xl p-0.5 border border-slate-200/80 dark:border-slate-700/80">
+          <span v-tooltip.bottom="tt(t('board.zoomOut'))" class="inline-flex">
+            <button
+              type="button"
+              class="size-6 rounded-lg hover:bg-white dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center font-bold text-xs cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              :aria-label="t('board.zoomOut')"
+              :disabled="stageScale <= 0.25"
+              @click="zoomOut"
+            >
+              −
+            </button>
+          </span>
           <button
-            type="button"
-            class="size-6 rounded-lg hover:bg-white dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center font-bold text-xs cursor-pointer transition-colors"
-            :title="t('board.zoomOut')"
-            :disabled="stageScale <= 0.25"
-            @click="zoomOut"
-          >
-            −
-          </button>
-          <button
+            v-tooltip.bottom="tt(t('board.resetZoom'))"
             type="button"
             class="px-1.5 h-6 rounded-lg hover:bg-white dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 font-mono text-[11px] font-medium flex items-center justify-center cursor-pointer transition-colors"
-            :title="t('board.resetZoom')"
+            :aria-label="t('board.resetZoom')"
             @click="resetZoom"
           >
             {{ Math.round(stageScale * 100) }}%
           </button>
+          <span v-tooltip.bottom="tt(t('board.zoomIn'))" class="inline-flex">
+            <button
+              type="button"
+              class="size-6 rounded-lg hover:bg-white dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center font-bold text-xs cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              :aria-label="t('board.zoomIn')"
+              :disabled="stageScale >= 4"
+              @click="zoomIn"
+            >
+              +
+            </button>
+          </span>
           <button
-            type="button"
-            class="size-6 rounded-lg hover:bg-white dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center font-bold text-xs cursor-pointer transition-colors"
-            :title="t('board.zoomIn')"
-            :disabled="stageScale >= 4"
-            @click="zoomIn"
-          >
-            +
-          </button>
-          <button
+            v-tooltip.bottom="tt(t('board.fitToContent'))"
             type="button"
             class="size-6 rounded-lg hover:bg-white dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center text-xs cursor-pointer transition-colors"
-            :title="t('board.fitToContent')"
+            :aria-label="t('board.fitToContent')"
             @click="fitToContent"
           >
             <BIcon icon="PhFrameCorners" class="size-3.5" />
@@ -2579,6 +2597,7 @@ defineExpose<WhiteboardExposed>({
         <!-- Stream / Share to Call Button -->
         <button
           v-if="allowStream"
+          v-tooltip.bottom="tt(effectiveStreamActive ? t('board.stopSharing') : t('board.shareToCall'))"
           type="button"
           class="group relative inline-flex items-center justify-center gap-1.5 h-8 px-2 sm:px-2.5 lg:px-3 rounded-xl text-xs font-semibold cursor-pointer select-none transition-all duration-200 active:scale-[0.97] focus-visible:outline-2 focus-visible:outline-offset-2 shrink-0"
           :class="
@@ -2586,7 +2605,6 @@ defineExpose<WhiteboardExposed>({
               ? 'bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white shadow-xs hover:shadow-md hover:shadow-rose-600/25 border border-rose-500/50 focus-visible:outline-rose-500'
               : 'bg-chat-primary hover:bg-chat-primary/90 text-white shadow-xs hover:shadow-md hover:shadow-chat-primary/25 border border-white/20 dark:border-white/10 focus-visible:outline-chat-primary'
           "
-          :title="effectiveStreamActive ? t('board.stopSharing') : t('board.shareToCall')"
           :aria-label="effectiveStreamActive ? t('board.stopSharing') : t('board.shareToCall')"
           :aria-pressed="effectiveStreamActive"
           data-testid="whiteboard-stream-btn"
@@ -2614,6 +2632,7 @@ defineExpose<WhiteboardExposed>({
         <!-- Desktop Quick Actions (2XL+ only): Theme, Grid, Copy, Save, Shortcuts -->
         <div class="hidden 2xl:flex items-center gap-1">
           <IconButton
+            v-tooltip.bottom="tt(canvasTheme === 'dark' ? t('board.themeLight') : t('board.themeDark'))"
             :icon="canvasTheme === 'dark' ? 'PhSun' : 'PhMoon'"
             :label="canvasTheme === 'dark' ? t('board.themeLight') : t('board.themeDark')"
             icon-class="size-4 text-slate-600 dark:text-slate-300"
@@ -2623,6 +2642,7 @@ defineExpose<WhiteboardExposed>({
 
           <!-- Grid Style Toggle (Dots, Lines, None) -->
           <IconButton
+            v-tooltip.bottom="tt(`${t('board.grid')} (${gridStyle})`)"
             icon="PhGridFour"
             :label="`${t('board.grid')} (${gridStyle})`"
             icon-class="size-4"
@@ -2633,6 +2653,7 @@ defineExpose<WhiteboardExposed>({
 
           <!-- Copy Image to Clipboard -->
           <IconButton
+            v-tooltip.bottom="tt(t('board.copyImage'))"
             icon="PhCopy"
             :label="t('board.copyImage')"
             icon-class="size-4 text-slate-700 dark:text-slate-200"
@@ -2642,6 +2663,7 @@ defineExpose<WhiteboardExposed>({
 
           <!-- Export PNG -->
           <IconButton
+            v-tooltip.bottom="tt(t('board.save'))"
             icon="PhDownloadSimple"
             :label="t('board.save')"
             icon-class="size-4 text-slate-700 dark:text-slate-200"
@@ -2651,6 +2673,7 @@ defineExpose<WhiteboardExposed>({
 
           <!-- Keyboard Shortcuts Help (?) -->
           <IconButton
+            v-tooltip.bottom="tt(t('board.shortcuts'))"
             icon="PhQuestion"
             :label="t('board.shortcuts')"
             icon-class="size-4 text-slate-500 hover:text-chat-primary"
@@ -2662,6 +2685,7 @@ defineExpose<WhiteboardExposed>({
         <!-- Call Members Sidebar Toggle -->
         <button
           v-if="hasParticipants"
+          v-tooltip.bottom="tt(isSidebarOpen ? t('board.collapseMembers') : t('board.expandMembers'))"
           type="button"
           class="flex items-center gap-1.5 px-2 sm:px-2.5 py-1 rounded-xl text-xs font-semibold transition-all cursor-pointer border shrink-0"
           :class="
@@ -2669,7 +2693,7 @@ defineExpose<WhiteboardExposed>({
               ? 'bg-chat-primary/10 border-chat-primary/30 text-chat-primary'
               : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:border-chat-primary/40'
           "
-          :title="isSidebarOpen ? t('board.collapseMembers') : t('board.expandMembers')"
+          :aria-label="isSidebarOpen ? t('board.collapseMembers') : t('board.expandMembers')"
           @click="emit('toggleSidebar')"
         >
           <CallIcon name="group" class="size-3.5" />
@@ -2679,6 +2703,7 @@ defineExpose<WhiteboardExposed>({
         <!-- Full Window / Restore Button: Tablet & Desktop only -->
         <div v-if="maximizable" class="hidden sm:inline-flex shrink-0">
           <IconButton
+            v-tooltip.bottom="tt(effectiveFullWindow ? t('board.exitFullWindow') : t('board.fullWindow'))"
             :icon="effectiveFullWindow ? 'PhCornersIn' : 'PhCornersOut'"
             :label="effectiveFullWindow ? t('board.exitFullWindow') : t('board.fullWindow')"
             icon-class="size-4 text-slate-700 dark:text-slate-200"
@@ -2690,6 +2715,7 @@ defineExpose<WhiteboardExposed>({
         <!-- Overflow More Options Trigger (Visible on all screens < 1536px 2xl) -->
         <div class="2xl:hidden inline-flex shrink-0">
           <IconButton
+            v-tooltip.bottom="tt(t('board.moreOptions'))"
             icon="PhDotsThreeVertical"
             :label="t('board.moreOptions')"
             icon-class="size-4 text-slate-700 dark:text-slate-200"
@@ -2701,6 +2727,7 @@ defineExpose<WhiteboardExposed>({
         <!-- Close Button: Always visible, never hidden, prominent on mobile -->
         <IconButton
           v-if="showClose"
+          v-tooltip.bottom="tt(t('board.close'))"
           icon="PhX"
           :label="t('board.close')"
           icon-class="size-4.5"
@@ -2719,6 +2746,7 @@ defineExpose<WhiteboardExposed>({
       <!-- Collapsed State: Micro Pill -->
       <div
         v-if="isPropertiesCollapsed"
+        v-tooltip.bottom="tt(t('board.expandProperties'))"
         class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/95 dark:bg-slate-800/95 backdrop-blur-md shadow-md border border-slate-200/80 dark:border-slate-700/80 text-xs cursor-pointer hover:border-chat-primary transition-all"
         @click="isPropertiesCollapsed = false"
       >
@@ -2794,8 +2822,9 @@ defineExpose<WhiteboardExposed>({
 
           <!-- Text Color Swatch & Popover -->
           <button
+            v-tooltip.bottom="tt(t('board.strokeColor'))"
             type="button"
-            :title="t('board.strokeColor')"
+            :aria-label="t('board.strokeColor')"
             class="size-6 rounded-full border-2 border-white dark:border-slate-800 ring-2 ring-chat-primary/40 shadow-xs flex items-center justify-center cursor-pointer transition-transform hover:scale-105"
             :style="{ backgroundColor: strokeColor }"
             @click="colorPopoverRef?.toggle($event)"
@@ -2817,9 +2846,9 @@ defineExpose<WhiteboardExposed>({
           <!-- Selection Actions: Bring to front, Send to back, Duplicate, Delete -->
           <template v-if="selectedShapeId">
             <div class="h-4 w-[1px] bg-slate-200 dark:bg-slate-700 mx-0.5" />
-            <IconButton icon="PhStackSimple" :label="t('board.bringToFront')" icon-class="size-3.5" class="!p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700" @click="bringToFront" />
-            <IconButton icon="PhCopy" :label="t('board.duplicate')" icon-class="size-3.5" class="!p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700" @click="duplicateSelected" />
-            <IconButton icon="PhTrash" :label="t('board.deleteSelected')" icon-class="size-3.5 text-red-500" class="!p-1 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/40" @click="deleteSelected" />
+            <IconButton v-tooltip.bottom="tt(t('board.bringToFront'))" icon="PhStackSimple" :label="t('board.bringToFront')" icon-class="size-3.5" class="!p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700" @click="bringToFront" />
+            <IconButton v-tooltip.bottom="tt(t('board.duplicate'))" icon="PhCopy" :label="t('board.duplicate')" icon-class="size-3.5" class="!p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700" @click="duplicateSelected" />
+            <IconButton v-tooltip.bottom="tt(t('board.deleteSelected'))" icon="PhTrash" :label="t('board.deleteSelected')" icon-class="size-3.5 text-red-500" class="!p-1 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/40" @click="deleteSelected" />
           </template>
         </template>
 
@@ -2840,9 +2869,9 @@ defineExpose<WhiteboardExposed>({
 
           <template v-if="selectedShapeId">
             <div class="h-4 w-[1px] bg-slate-200 dark:bg-slate-700 mx-0.5" />
-            <IconButton icon="PhStackSimple" :label="t('board.bringToFront')" icon-class="size-3.5" class="!p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700" @click="bringToFront" />
-            <IconButton icon="PhCopy" :label="t('board.duplicate')" icon-class="size-3.5" class="!p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700" @click="duplicateSelected" />
-            <IconButton icon="PhTrash" :label="t('board.deleteSelected')" icon-class="size-3.5 text-red-500" class="!p-1 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/40" @click="deleteSelected" />
+            <IconButton v-tooltip.bottom="tt(t('board.bringToFront'))" icon="PhStackSimple" :label="t('board.bringToFront')" icon-class="size-3.5" class="!p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700" @click="bringToFront" />
+            <IconButton v-tooltip.bottom="tt(t('board.duplicate'))" icon="PhCopy" :label="t('board.duplicate')" icon-class="size-3.5" class="!p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700" @click="duplicateSelected" />
+            <IconButton v-tooltip.bottom="tt(t('board.deleteSelected'))" icon="PhTrash" :label="t('board.deleteSelected')" icon-class="size-3.5 text-red-500" class="!p-1 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/40" @click="deleteSelected" />
           </template>
         </template>
 
@@ -2851,8 +2880,9 @@ defineExpose<WhiteboardExposed>({
           <!-- Stroke Color: Active Swatch + Popover trigger -->
           <div class="flex items-center gap-1.5">
             <button
+              v-tooltip.bottom="tt(t('board.strokeColor'))"
               type="button"
-              :title="t('board.strokeColor')"
+              :aria-label="t('board.strokeColor')"
               class="size-6 rounded-full border-2 border-white dark:border-slate-800 ring-2 ring-chat-primary/40 shadow-xs flex items-center justify-center cursor-pointer transition-transform hover:scale-105"
               :style="{ backgroundColor: strokeColor }"
               @click="colorPopoverRef?.toggle($event)"
@@ -2888,6 +2918,7 @@ defineExpose<WhiteboardExposed>({
             </button>
 
             <IconButton
+              v-tooltip.bottom="tt(t('board.brushSize'))"
               icon="PhPencilLine"
               :label="t('board.brushSize')"
               icon-class="size-4"
@@ -2906,8 +2937,9 @@ defineExpose<WhiteboardExposed>({
 
               <button
                 v-if="isShapeFilled"
+                v-tooltip.bottom="tt(t('board.fillColor'))"
                 type="button"
-                :title="t('board.fillColor')"
+                :aria-label="t('board.fillColor')"
                 class="size-5 rounded-full border-2 border-white dark:border-slate-800 ring-1 ring-slate-300 dark:ring-slate-600 shadow-xs cursor-pointer ml-1"
                 :style="{ backgroundColor: fillColor }"
                 @click="fillColorPopoverRef?.toggle($event)"
@@ -2918,11 +2950,13 @@ defineExpose<WhiteboardExposed>({
           <!-- Shape Actions when selected: Bring to Front, Send to Back, Duplicate, Delete -->
           <template v-if="selectedShapeId">
             <div class="h-4 w-[1px] bg-slate-200 dark:bg-slate-700 mx-0.5" />
-            <IconButton icon="PhStackSimple" :label="t('board.bringToFront')" icon-class="size-3.5" class="!p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700" @click="bringToFront" />
-            <IconButton icon="PhCopy" :label="t('board.duplicate')" icon-class="size-3.5" class="!p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700" @click="duplicateSelected" />
+            <IconButton v-tooltip.bottom="tt(t('board.bringToFront'))" icon="PhStackSimple" :label="t('board.bringToFront')" icon-class="size-3.5" class="!p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700" @click="bringToFront" />
+            <IconButton v-tooltip.bottom="tt(t('board.duplicate'))" icon="PhCopy" :label="t('board.duplicate')" icon-class="size-3.5" class="!p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700" @click="duplicateSelected" />
             <button
+              v-tooltip.bottom="tt(t('board.deleteSelected'))"
               type="button"
               class="flex items-center gap-1 text-red-500 hover:text-red-600 font-medium px-2 py-0.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-950/40 transition-colors cursor-pointer"
+              :aria-label="t('board.deleteSelected')"
               @click="deleteSelected"
             >
               <BIcon icon="PhTrash" class="size-3.5" />
@@ -2933,9 +2967,10 @@ defineExpose<WhiteboardExposed>({
 
         <!-- Collapse Island Button -->
         <button
+          v-tooltip.bottom="tt(t('board.collapseProperties'))"
           type="button"
           class="size-5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 flex items-center justify-center cursor-pointer ml-0.5 transition-colors"
-          :title="t('board.collapseProperties')"
+          :aria-label="t('board.collapseProperties')"
           @click="isPropertiesCollapsed = true"
         >
           <BIcon icon="PhCaretUp" class="size-3.5" />
@@ -2994,9 +3029,10 @@ defineExpose<WhiteboardExposed>({
       >
         <!-- Bring to front -->
         <button
+          v-tooltip.top="tt(t('board.bringToFront'))"
           type="button"
           class="p-1 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer"
-          :title="t('board.bringToFront')"
+          :aria-label="t('board.bringToFront')"
           @click.stop="bringToFront"
         >
           <BIcon icon="PhStackSimple" class="size-3.5" />
@@ -3004,9 +3040,10 @@ defineExpose<WhiteboardExposed>({
 
         <!-- Duplicate -->
         <button
+          v-tooltip.top="tt(t('board.duplicate'))"
           type="button"
           class="p-1 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer"
-          :title="t('board.duplicate')"
+          :aria-label="t('board.duplicate')"
           @click.stop="duplicateSelected"
         >
           <BIcon icon="PhCopy" class="size-3.5" />
@@ -3016,9 +3053,10 @@ defineExpose<WhiteboardExposed>({
 
         <!-- Delete -->
         <button
+          v-tooltip.top="tt(t('board.deleteSelected'))"
           type="button"
           class="p-1 rounded-lg text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 cursor-pointer"
-          :title="t('board.deleteSelected')"
+          :aria-label="t('board.deleteSelected')"
           @click.stop="deleteSelected"
         >
           <BIcon icon="PhTrash" class="size-3.5" />
@@ -3239,27 +3277,32 @@ defineExpose<WhiteboardExposed>({
     >
       <!-- History: Undo & Redo (Visible on mobile <sm for thumbs accessibility; header has them on sm+) -->
       <div class="sm:hidden flex items-center gap-0.5 shrink-0">
-        <IconButton
-          icon="PhArrowUUpLeft"
-          :label="`${t('board.undo')} (Ctrl+Z)`"
-          :disabled="!canUndo"
-          icon-class="size-4"
-          class="rounded-xl transition-all !p-1.5 shrink-0 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30"
-          @click="undo"
-        />
-        <IconButton
-          icon="PhArrowUUpRight"
-          :label="`${t('board.redo')} (Ctrl+Y)`"
-          :disabled="!canRedo"
-          icon-class="size-4"
-          class="rounded-xl transition-all !p-1.5 shrink-0 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30"
-          @click="redo"
-        />
+        <span v-tooltip.top="tt(`${t('board.undo')} (Ctrl+Z)`)" class="inline-flex">
+          <IconButton
+            icon="PhArrowUUpLeft"
+            :label="`${t('board.undo')} (Ctrl+Z)`"
+            :disabled="!canUndo"
+            icon-class="size-4"
+            class="rounded-xl transition-all !p-1.5 shrink-0 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30"
+            @click="undo"
+          />
+        </span>
+        <span v-tooltip.top="tt(`${t('board.redo')} (Ctrl+Y)`)" class="inline-flex">
+          <IconButton
+            icon="PhArrowUUpRight"
+            :label="`${t('board.redo')} (Ctrl+Y)`"
+            :disabled="!canRedo"
+            icon-class="size-4"
+            class="rounded-xl transition-all !p-1.5 shrink-0 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30"
+            @click="redo"
+          />
+        </span>
         <div class="h-4 w-[1px] bg-slate-300 dark:bg-slate-700 mx-0.5 shrink-0" />
       </div>
 
       <!-- Navigation Group: Select & Pan -->
       <IconButton
+        v-tooltip.top="tt(`${t('board.select')} (V)`)"
         icon="PhCursor"
         :label="`${t('board.select')} (V)`"
         icon-class="size-4"
@@ -3269,6 +3312,7 @@ defineExpose<WhiteboardExposed>({
       />
 
       <IconButton
+        v-tooltip.top="tt(`${t('board.pan')} (Space / M)`)"
         icon="PhHandPalm"
         :label="`${t('board.pan')} (Space / M)`"
         icon-class="size-4"
@@ -3281,6 +3325,7 @@ defineExpose<WhiteboardExposed>({
 
       <!-- Freehand Drawing Group: Pen, Brush, Highlighter, Eraser -->
       <IconButton
+        v-tooltip.top="tt(`${t('board.pen')} (P)`)"
         icon="PhPencilSimple"
         :label="`${t('board.pen')} (P)`"
         icon-class="size-4"
@@ -3290,6 +3335,7 @@ defineExpose<WhiteboardExposed>({
       />
 
       <IconButton
+        v-tooltip.top="tt(`${t('board.brush')} (B)`)"
         icon="PhPaintBrush"
         :label="`${t('board.brush')} (B)`"
         icon-class="size-4"
@@ -3299,6 +3345,7 @@ defineExpose<WhiteboardExposed>({
       />
 
       <IconButton
+        v-tooltip.top="tt(`${t('board.highlighter')} (H)`)"
         icon="PhHighlighterCircle"
         :label="`${t('board.highlighter')} (H)`"
         icon-class="size-4"
@@ -3308,6 +3355,7 @@ defineExpose<WhiteboardExposed>({
       />
 
       <IconButton
+        v-tooltip.top="tt(`${t('board.eraser')} (E)`)"
         icon="PhEraser"
         :label="`${t('board.eraser')} (E)`"
         icon-class="size-4"
@@ -3320,6 +3368,7 @@ defineExpose<WhiteboardExposed>({
 
       <!-- Creation Group: Shapes Popover, Text, Sticky Note -->
       <Button
+        v-tooltip.top="tt(t('board.shapes'))"
         rounded
         text
         size="small"
@@ -3351,6 +3400,7 @@ defineExpose<WhiteboardExposed>({
       </Button>
 
       <IconButton
+        v-tooltip.top="tt(`${t('board.text')} (T)`)"
         icon="PhTextT"
         :label="`${t('board.text')} (T)`"
         icon-class="size-4"
@@ -3360,6 +3410,7 @@ defineExpose<WhiteboardExposed>({
       />
 
       <IconButton
+        v-tooltip.top="tt(`${t('board.sticky')} (S)`)"
         icon="PhNote"
         :label="`${t('board.sticky')} (S)`"
         icon-class="size-4"
@@ -3372,6 +3423,7 @@ defineExpose<WhiteboardExposed>({
 
       <!-- Presentation Group: Laser Pointer -->
       <IconButton
+        v-tooltip.top="tt(`${t('board.laser')} (L)`)"
         icon="PhCrosshairSimple"
         :label="`${t('board.laser')} (L)`"
         icon-class="size-4"
@@ -3386,38 +3438,46 @@ defineExpose<WhiteboardExposed>({
       class="absolute bottom-16 sm:bottom-4 start-3 sm:start-4 z-10 flex items-center gap-1.5 px-2.5 py-1.5 rounded-2xl bg-white/95 dark:bg-slate-800/95 backdrop-blur-md shadow-md border border-slate-200/80 dark:border-slate-700/80 text-xs select-none transition-opacity duration-300"
       :class="isActivelyInteracting && 'opacity-20 pointer-events-none'"
     >
-      <IconButton
-        icon="PhCaretLeft"
-        :label="t('board.prevPage')"
-        :disabled="currentPageIndex === 0"
-        icon-class="size-3.5"
-        class="hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30"
-        @click="currentPageIndex--"
-      />
+      <span v-tooltip.top="tt(t('board.prevPage'))" class="inline-flex">
+        <IconButton
+          icon="PhCaretLeft"
+          :label="t('board.prevPage')"
+          :disabled="currentPageIndex === 0"
+          icon-class="size-3.5"
+          class="hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30"
+          @click="currentPageIndex--"
+        />
+      </span>
 
       <button
+        v-tooltip.top="tt(t('board.pages'))"
         type="button"
         class="px-2 py-0.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 font-semibold cursor-pointer text-slate-700 dark:text-slate-200 flex items-center gap-1"
+        :aria-label="t('board.pages')"
         @click="pagesMenuRef?.toggle($event)"
       >
         <BIcon icon="PhFiles" class="size-3.5 text-chat-primary" />
         <span>{{ currentPageIndex + 1 }} / {{ pages.length }}</span>
       </button>
 
-      <IconButton
-        icon="PhCaretRight"
-        :label="t('board.nextPage')"
-        :disabled="currentPageIndex === pages.length - 1"
-        icon-class="size-3.5"
-        class="hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30"
-        @click="currentPageIndex++"
-      />
+      <span v-tooltip.top="tt(t('board.nextPage'))" class="inline-flex">
+        <IconButton
+          icon="PhCaretRight"
+          :label="t('board.nextPage')"
+          :disabled="currentPageIndex === pages.length - 1"
+          icon-class="size-3.5"
+          class="hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30"
+          @click="currentPageIndex++"
+        />
+      </span>
 
       <div class="h-4 w-[1px] bg-slate-200 dark:bg-slate-700 mx-0.5" />
 
       <button
+        v-tooltip.top="tt(t('board.addPage'))"
         type="button"
         class="flex items-center gap-1 px-2 py-0.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-chat-primary font-semibold cursor-pointer"
+        :aria-label="t('board.addPage')"
         @click="addPage"
       >
         <BIcon icon="PhPlus" class="size-3.5" />
@@ -3430,36 +3490,42 @@ defineExpose<WhiteboardExposed>({
       class="lg:hidden absolute bottom-16 sm:bottom-4 end-3 sm:end-4 z-10 flex items-center bg-white/95 dark:bg-slate-800/95 backdrop-blur-md rounded-2xl p-0.5 border border-slate-200/80 dark:border-slate-700/80 shadow-md select-none transition-opacity duration-300"
       :class="isActivelyInteracting && 'opacity-20 pointer-events-none'"
     >
+      <span v-tooltip.top="tt(t('board.zoomOut'))" class="inline-flex">
+        <button
+          type="button"
+          class="size-6 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center justify-center font-bold text-xs cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          :aria-label="t('board.zoomOut')"
+          :disabled="stageScale <= 0.25"
+          @click="zoomOut"
+        >
+          −
+        </button>
+      </span>
       <button
-        type="button"
-        class="size-6 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center justify-center font-bold text-xs cursor-pointer transition-colors"
-        :title="t('board.zoomOut')"
-        :disabled="stageScale <= 0.25"
-        @click="zoomOut"
-      >
-        −
-      </button>
-      <button
+        v-tooltip.top="tt(t('board.resetZoom'))"
         type="button"
         class="px-1.5 h-6 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 font-mono text-[11px] font-semibold flex items-center justify-center cursor-pointer transition-colors"
-        :title="t('board.resetZoom')"
+        :aria-label="t('board.resetZoom')"
         @click="resetZoom"
       >
         {{ Math.round(stageScale * 100) }}%
       </button>
+      <span v-tooltip.top="tt(t('board.zoomIn'))" class="inline-flex">
+        <button
+          type="button"
+          class="size-6 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center justify-center font-bold text-xs cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          :aria-label="t('board.zoomIn')"
+          :disabled="stageScale >= 4"
+          @click="zoomIn"
+        >
+          +
+        </button>
+      </span>
       <button
-        type="button"
-        class="size-6 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center justify-center font-bold text-xs cursor-pointer transition-colors"
-        :title="t('board.zoomIn')"
-        :disabled="stageScale >= 4"
-        @click="zoomIn"
-      >
-        +
-      </button>
-      <button
+        v-tooltip.top="tt(t('board.fitToContent'))"
         type="button"
         class="size-6 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center justify-center text-xs cursor-pointer transition-colors"
-        :title="t('board.fitToContent')"
+        :aria-label="t('board.fitToContent')"
         @click="fitToContent"
       >
         <BIcon icon="PhFrameCorners" class="size-3.5" />

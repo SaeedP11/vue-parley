@@ -11,6 +11,14 @@ import type { Participant } from "~/composables/call/session";
 import { nameInitials } from "~/utils/avatar";
 import useLocalI18n, { useDirection } from "~/composables/useLocalI18n";
 import { callPaintBoard, chat } from "@i18n/locales";
+import Tooltip from "primevue/tooltip";
+
+const vTooltip = Tooltip;
+const tt = (text: string, showDelay = 300) => ({
+  value: text,
+  class: "vue-chat font-chat-family",
+  showDelay,
+});
 
 const props = withDefaults(
   defineProps<{
@@ -319,9 +327,10 @@ defineExpose({
                 </span>
               </div>
               <button
+                v-tooltip.bottom="tt(t('board.collapseMembers'))"
                 type="button"
                 class="size-7 p-0 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors flex items-center justify-center cursor-pointer"
-                :title="t('board.collapseMembers')"
+                :aria-label="t('board.collapseMembers')"
                 @click="toggleSidebar"
               >
                 <BIcon icon="PhSidebarSimple" class="size-4" />
