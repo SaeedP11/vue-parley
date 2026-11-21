@@ -209,6 +209,10 @@ defineExpose({
   clear: () => whiteboardRef.value?.clear(),
   undo: () => whiteboardRef.value?.undo(),
   redo: () => whiteboardRef.value?.redo(),
+  zoomIn: () => whiteboardRef.value?.zoomIn(),
+  zoomOut: () => whiteboardRef.value?.zoomOut(),
+  resetZoom: () => whiteboardRef.value?.resetZoom(),
+  fitToContent: () => whiteboardRef.value?.fitToContent(),
   visible: isVisible,
   isFullWindow,
   isMaximized,
@@ -271,7 +275,7 @@ defineExpose({
             <!-- Your own camera, while the members list isn't showing it. -->
             <div
               v-if="selfTile"
-              class="absolute bottom-3 end-3 z-20 w-28 sm:w-40 aspect-video rounded-xl overflow-hidden bg-gray-950 border border-gray-700/60 shadow-lg pointer-events-none select-none"
+              class="absolute top-14 end-3 md:top-auto md:bottom-4 md:end-4 z-20 w-24 sm:w-32 md:w-40 aspect-video rounded-xl overflow-hidden bg-gray-950 border border-gray-700/60 shadow-lg pointer-events-none select-none transition-all"
               :class="!isSidebarCollapsed && 'md:hidden'"
               data-testid="whiteboard-self-view"
             >

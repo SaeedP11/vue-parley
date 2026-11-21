@@ -58,6 +58,8 @@
     "zoomIn": "بزرگ‌نمایی",
     "zoomOut": "کوچک‌نمایی",
     "resetZoom": "اندازه اصلی",
+    "fitToContent": "تنظیم با محتوا",
+    "zoomToFit": "تنظیم اندازه با محتوا",
     "shareToCall": "اشتراک در تماس",
     "stopSharing": "توقف اشتراک",
     "streaming": "در حال پخش",

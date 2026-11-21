@@ -58,6 +58,8 @@
     "zoomIn": "Zoom in",
     "zoomOut": "Zoom out",
     "resetZoom": "Reset zoom",
+    "fitToContent": "Fit to content",
+    "zoomToFit": "Zoom to fit",
     "shareToCall": "Share to Call",
     "stopSharing": "Stop sharing",
     "streaming": "Streaming",

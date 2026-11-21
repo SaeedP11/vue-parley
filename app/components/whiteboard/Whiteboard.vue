@@ -85,6 +85,7 @@ export interface WhiteboardExposed {
   zoomIn: () => void;
   zoomOut: () => void;
   resetZoom: () => void;
+  fitToContent: () => void;
 }
 
 const props = withDefaults(
@@ -152,6 +153,11 @@ const overflowMenuRef = useTemplateRef<InstanceType<typeof Menu>>("overflowMenu"
 const stageSize = reactive({
   width: 800,
   height: 600,
+});
+
+const clampedDpr = computed(() => {
+  if (typeof window === "undefined") return 1;
+  return Math.min(window.devicePixelRatio || 1, 2);
 });
 
 // Canvas Pan & Zoom State
@@ -287,6 +293,30 @@ function pushHistory() {
   markDirty();
 }
 
+function triggerHaptic(style: "light" | "medium" | "heavy" = "light") {
+  if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+    try {
+      if (style === "light") {
+        navigator.vibrate(8);
+      } else if (style === "medium") {
+        navigator.vibrate(15);
+      } else if (style === "heavy") {
+        navigator.vibrate([20, 30, 20]);
+      }
+    } catch {
+      // Ignore vibration errors if not supported
+    }
+  }
+}
+
+watch(currentTool, () => {
+  triggerHaptic("light");
+});
+
+watch(currentPageIndex, () => {
+  triggerHaptic("light");
+});
+
 function undo() {
   if (!canUndo.value) return;
   const current = currentPage.value.history.pop();
@@ -300,6 +330,7 @@ function undo() {
   selectedShapeId.value = null;
   detachTransformer();
   markDirty();
+  triggerHaptic("light");
 }
 
 function redo() {
@@ -312,6 +343,7 @@ function redo() {
   selectedShapeId.value = null;
   detachTransformer();
   markDirty();
+  triggerHaptic("light");
 }
 
 function clear() {
@@ -321,6 +353,7 @@ function clear() {
   selectedShapeId.value = null;
   detachTransformer();
   markDirty();
+  triggerHaptic("heavy");
 }
 
 function requestClear() {
@@ -340,6 +373,7 @@ function addPage() {
   selectedShapeId.value = null;
   detachTransformer();
   markDirty();
+  triggerHaptic("light");
 }
 
 function removePage(index: number) {
@@ -407,6 +441,7 @@ function deleteSelected() {
   selectedShapeId.value = null;
   detachTransformer();
   pushHistory();
+  triggerHaptic("medium");
 }
 
 // Z-Index Ordering & Duplication
@@ -458,6 +493,96 @@ function duplicateSelected() {
 
 // Drawing & Scratch States
 const isDrawing = ref(false);
+const isActivelyInteracting = computed(() => isDrawing.value || isPanning.value);
+
+const selectionHudPosition = computed(() => {
+  if (!selectedShapeId.value || isEditingText.value || isDrawing.value || isPanning.value) return null;
+  const s = currentShapes.value.find((item) => item.id === selectedShapeId.value);
+  if (!s) return null;
+
+  const scale = stageScale.value || 1;
+  let sx = 0;
+  let sy = 0;
+  let sw = 0;
+  let sh = 0;
+
+  if (s.type === "rect" || s.type === "square") {
+    const r = s as RectShape;
+    sx = r.x;
+    sy = r.y;
+    sw = r.width;
+    sh = r.height;
+  } else if (s.type === "circle" || s.type === "triangle") {
+    const c = s as CircleShape;
+    const rad = c.radius || 30;
+    sx = c.x - rad;
+    sy = c.y - rad;
+    sw = rad * 2;
+    sh = rad * 2;
+  } else if (s.type === "text") {
+    const tx = s as TextShape;
+    sx = tx.x;
+    sy = tx.y;
+    sw = Math.max(80, (tx.text?.length || 4) * (tx.fontSize || 16) * 0.6);
+    sh = (tx.fontSize || 16) * 1.5;
+  } else if (s.type === "sticky") {
+    const st = s as StickyShape;
+    sx = st.x;
+    sy = st.y;
+    sw = st.width || 140;
+    sh = st.height || 140;
+  } else if (s.type === "star") {
+    const st = s as StarShape;
+    const rad = st.outerRadius || 35;
+    sx = st.x - rad;
+    sy = st.y - rad;
+    sw = rad * 2;
+    sh = rad * 2;
+  } else {
+    const l = s as LineShape;
+    const pts = l.points || [];
+    const ox = l.x || 0;
+    const oy = l.y || 0;
+    if (pts.length >= 2) {
+      let minX = Infinity;
+      let maxX = -Infinity;
+      let minY = Infinity;
+      let maxY = -Infinity;
+      for (let i = 0; i < pts.length; i += 2) {
+        const px = pts[i] + ox;
+        const py = pts[i + 1] + oy;
+        if (px < minX) minX = px;
+        if (px > maxX) maxX = px;
+        if (py < minY) minY = py;
+        if (py > maxY) maxY = py;
+      }
+      sx = minX;
+      sy = minY;
+      sw = Math.max(20, maxX - minX);
+      sh = Math.max(20, maxY - minY);
+    } else {
+      sx = ox;
+      sy = oy;
+      sw = 60;
+      sh = 30;
+    }
+  }
+
+  const screenLeft = sx * scale + stagePos.x;
+  const screenTop = sy * scale + stagePos.y;
+  const screenWidth = sw * scale;
+
+  const hudX = screenLeft + screenWidth / 2;
+  const placedBelow = screenTop < 55;
+  const hudY = placedBelow ? screenTop + sh * scale + 10 : screenTop - 10;
+
+  return {
+    x: Math.max(60, Math.min(stageSize.width - 60, hudX)),
+    y: Math.max(50, Math.min(stageSize.height - 50, hudY)),
+    placedBelow,
+  };
+});
+
 const startPos = reactive({ x: 0, y: 0 });
 
 let activeNativeNode: Konva.Shape | null = null;
@@ -716,7 +841,16 @@ function startEditingText(shape: TextShape | StickyShape) {
 
   const scale = stageScale.value || 1;
   const screenX = shape.x * scale + stagePos.x;
-  const screenY = shape.y * scale + stagePos.y;
+  let screenY = shape.y * scale + stagePos.y;
+
+  // Virtual keyboard / mobile adaptation: pan stage up so text field remains visible
+  const targetMaxY = stageSize.height * 0.4;
+  if (screenY > targetMaxY) {
+    const deltaY = screenY - targetMaxY;
+    stagePos.y -= deltaY;
+    screenY -= deltaY;
+    markDirty();
+  }
 
   editingBox.left = screenX;
   editingBox.top = screenY;
@@ -884,6 +1018,10 @@ function handleStageMouseDown(e: Konva.KonvaEventObject<MouseEvent | TouchEvent>
   if (tool === "pen" || tool === "brush" || tool === "highlighter" || tool === "eraser") {
     const isEraser = tool === "eraser";
     let strokeW = strokeWidth.value;
+    const rawEvt = e.evt as unknown as Record<string, unknown>;
+    if (typeof rawEvt?.pressure === "number" && rawEvt.pressure > 0 && rawEvt?.pointerType === "pen") {
+      strokeW = Math.max(1, Math.round(strokeW * (0.6 + (rawEvt.pressure as number) * 0.8)));
+    }
     let strokeC = strokeColor.value;
     let opacity = 1;
     let tension = 0.4;
@@ -1154,6 +1292,10 @@ function handleStageMouseUp() {
     if (tool === "pen" || tool === "brush" || tool === "highlighter" || tool === "eraser") {
       const isEraser = tool === "eraser";
       let strokeW = strokeWidth.value;
+      const nativeW = activeNativeNode.getAttr("strokeWidth");
+      if (typeof nativeW === "number" && nativeW > 0) {
+        strokeW = nativeW;
+      }
       let strokeC = strokeColor.value;
       let opacity = 1;
       let tension = 0.4;
@@ -1400,6 +1542,117 @@ const resetZoom = () => {
   stageScale.value = 1;
   stagePos.x = 0;
   stagePos.y = 0;
+  markDirty();
+};
+
+function getContentBounds(): { minX: number; minY: number; maxX: number; maxY: number } | null {
+  const shapes = currentShapes.value;
+  if (!shapes || shapes.length === 0) return null;
+
+  let minX = Infinity;
+  let minY = Infinity;
+  let maxX = -Infinity;
+  let maxY = -Infinity;
+
+  for (const s of shapes) {
+    if (s.type === "pen" || s.type === "brush" || s.type === "highlighter" || s.type === "eraser" || s.type === "line") {
+      const line = s as LineShape;
+      const pts = line.points;
+      const ox = line.x || 0;
+      const oy = line.y || 0;
+      for (let i = 0; i < pts.length; i += 2) {
+        const px = pts[i] + ox;
+        const py = pts[i + 1] + oy;
+        if (px < minX) minX = px;
+        if (px > maxX) maxX = px;
+        if (py < minY) minY = py;
+        if (py > maxY) maxY = py;
+      }
+    } else if (s.type === "rect" || s.type === "square") {
+      const r = s as RectShape;
+      const x1 = r.x;
+      const y1 = r.y;
+      const x2 = r.x + r.width;
+      const y2 = r.y + r.height;
+      minX = Math.min(minX, Math.min(x1, x2));
+      maxX = Math.max(maxX, Math.max(x1, x2));
+      minY = Math.min(minY, Math.min(y1, y2));
+      maxY = Math.max(maxY, Math.max(y1, y2));
+    } else if (s.type === "circle" || s.type === "triangle") {
+      const c = s as CircleShape;
+      const rad = c.radius || 30;
+      minX = Math.min(minX, c.x - rad);
+      maxX = Math.max(maxX, c.x + rad);
+      minY = Math.min(minY, c.y - rad);
+      maxY = Math.max(maxY, c.y + rad);
+    } else if (s.type === "arrow") {
+      const a = s as ArrowShape;
+      const pts = a.points;
+      const ox = a.x || 0;
+      const oy = a.y || 0;
+      for (let i = 0; i < pts.length; i += 2) {
+        const px = pts[i] + ox;
+        const py = pts[i + 1] + oy;
+        minX = Math.min(minX, px);
+        maxX = Math.max(maxX, px);
+        minY = Math.min(minY, py);
+        maxY = Math.max(maxY, py);
+      }
+    } else if (s.type === "star") {
+      const st = s as StarShape;
+      const rad = st.outerRadius || 35;
+      minX = Math.min(minX, st.x - rad);
+      maxX = Math.max(maxX, st.x + rad);
+      minY = Math.min(minY, st.y - rad);
+      maxY = Math.max(maxY, st.y + rad);
+    } else if (s.type === "text") {
+      const tx = s as TextShape;
+      const w = Math.max(80, (tx.text?.length || 4) * (tx.fontSize || 16) * 0.65);
+      const h = (tx.fontSize || 16) * 1.5;
+      minX = Math.min(minX, tx.x);
+      maxX = Math.max(maxX, tx.x + w);
+      minY = Math.min(minY, tx.y);
+      maxY = Math.max(maxY, tx.y + h);
+    } else if (s.type === "sticky") {
+      const st = s as StickyShape;
+      minX = Math.min(minX, st.x);
+      maxX = Math.max(maxX, st.x + (st.width || 140));
+      minY = Math.min(minY, st.y);
+      maxY = Math.max(maxY, st.y + (st.height || 140));
+    }
+  }
+
+  if (minX === Infinity || minY === Infinity || maxX === -Infinity || maxY === -Infinity) {
+    return null;
+  }
+  return { minX, minY, maxX, maxY };
+}
+
+const fitToContent = () => {
+  const bounds = getContentBounds();
+  if (!bounds) {
+    resetZoom();
+    return;
+  }
+
+  const padding = 50;
+  const contentW = Math.max(40, bounds.maxX - bounds.minX);
+  const contentH = Math.max(40, bounds.maxY - bounds.minY);
+
+  const availableW = Math.max(100, stageSize.width - padding * 2);
+  const availableH = Math.max(100, stageSize.height - padding * 2);
+
+  const targetScale = Math.min(
+    2.5,
+    Math.max(0.25, Math.min(availableW / contentW, availableH / contentH))
+  );
+
+  const midX = (bounds.minX + bounds.maxX) / 2;
+  const midY = (bounds.minY + bounds.maxY) / 2;
+
+  stageScale.value = targetScale;
+  stagePos.x = stageSize.width / 2 - midX * targetScale;
+  stagePos.y = stageSize.height / 2 - midY * targetScale;
   markDirty();
 };
 const setZoom = (nextScale: number) => {
@@ -2171,6 +2424,11 @@ const overflowMenuItems = computed<MenuItem[]>(() => {
       command: () => downloadImage("png"),
     },
     {
+      label: t("board.fitToContent"),
+      phIcon: "PhFrameCorners",
+      command: () => fitToContent(),
+    },
+    {
       separator: true,
     },
     {
@@ -2210,6 +2468,7 @@ defineExpose<WhiteboardExposed>({
   zoomIn,
   zoomOut,
   resetZoom,
+  fitToContent,
 });
 </script>
 
@@ -2423,6 +2682,14 @@ defineExpose<WhiteboardExposed>({
           >
             +
           </button>
+          <button
+            type="button"
+            class="size-6 rounded-lg hover:bg-white dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center text-xs cursor-pointer transition-colors"
+            :title="t('board.fitToContent')"
+            @click="fitToContent"
+          >
+            <BIcon icon="PhFrameCorners" class="size-3.5" />
+          </button>
         </div>
 
         <!-- Stream / Share to Call Button -->
@@ -2557,7 +2824,8 @@ defineExpose<WhiteboardExposed>({
     <!-- Contextual Floating Properties Bar (Properties Island) -->
     <div
       v-if="currentTool !== 'pan'"
-      class="absolute top-14 left-1/2 -translate-x-1/2 z-10 transition-all max-w-[calc(100vw-1rem)] select-none"
+      class="absolute top-14 left-1/2 -translate-x-1/2 z-10 transition-all duration-300 max-w-[calc(100vw-1rem)] select-none"
+      :class="isActivelyInteracting && 'opacity-20 pointer-events-none'"
     >
       <!-- Collapsed State: Micro Pill -->
       <div
@@ -2825,6 +3093,49 @@ defineExpose<WhiteboardExposed>({
         />
       </div>
 
+      <!-- In-Canvas Selection Contextual HUD -->
+      <div
+        v-if="selectionHudPosition"
+        class="absolute z-30 flex items-center gap-1 px-1.5 py-1 rounded-xl bg-white/95 dark:bg-slate-800/95 backdrop-blur-md shadow-lg border border-slate-200/90 dark:border-slate-700/90 select-none pointer-events-auto transition-all duration-150"
+        :style="{
+          left: `${selectionHudPosition.x}px`,
+          top: `${selectionHudPosition.y}px`,
+          transform: selectionHudPosition.placedBelow ? 'translate(-50%, 0)' : 'translate(-50%, -100%)',
+        }"
+      >
+        <!-- Bring to front -->
+        <button
+          type="button"
+          class="p-1 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer"
+          :title="t('board.bringToFront')"
+          @click.stop="bringToFront"
+        >
+          <BIcon icon="PhStackSimple" class="size-3.5" />
+        </button>
+
+        <!-- Duplicate -->
+        <button
+          type="button"
+          class="p-1 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer"
+          :title="t('board.duplicate')"
+          @click.stop="duplicateSelected"
+        >
+          <BIcon icon="PhCopy" class="size-3.5" />
+        </button>
+
+        <div class="h-3 w-[1px] bg-slate-200 dark:bg-slate-700 mx-0.5" />
+
+        <!-- Delete -->
+        <button
+          type="button"
+          class="p-1 rounded-lg text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/40 cursor-pointer"
+          :title="t('board.deleteSelected')"
+          @click.stop="deleteSelected"
+        >
+          <BIcon icon="PhTrash" class="size-3.5" />
+        </button>
+      </div>
+
       <Stage
         ref="stageRef"
         :config="{
@@ -2834,6 +3145,7 @@ defineExpose<WhiteboardExposed>({
           y: stagePos.y,
           scaleX: stageScale,
           scaleY: stageScale,
+          pixelRatio: clampedDpr,
         }"
         @mousedown="handleStageMouseDown"
         @mousemove="handleStageMouseMove"
@@ -3031,7 +3343,8 @@ defineExpose<WhiteboardExposed>({
 
     <!-- Mobile Bottom Drawing Dock (Thumbs Ergonomic Zone) -->
     <nav
-      class="md:hidden absolute bottom-3 left-1/2 -translate-x-1/2 z-20 flex items-center gap-0.5 sm:gap-1 p-1 rounded-2xl bg-white/95 dark:bg-slate-800/95 backdrop-blur-md shadow-xl border border-slate-200/80 dark:border-slate-700/80 max-w-[calc(100vw-1.5rem)] overflow-x-auto no-scrollbar select-none"
+      class="md:hidden absolute bottom-3 left-1/2 -translate-x-1/2 z-20 flex items-center gap-0.5 sm:gap-1 p-1 rounded-2xl bg-white/95 dark:bg-slate-800/95 backdrop-blur-md shadow-xl border border-slate-200/80 dark:border-slate-700/80 max-w-[calc(100vw-1.5rem)] overflow-x-auto no-scrollbar select-none transition-opacity duration-300"
+      :class="isActivelyInteracting && 'opacity-20 pointer-events-none'"
       data-testid="whiteboard-mobile-bottom-dock"
     >
       <!-- History: Undo & Redo (Thumb Accessible on Mobile) -->
@@ -3180,7 +3493,10 @@ defineExpose<WhiteboardExposed>({
     </nav>
 
     <!-- Bottom Floating Navigation & Status Bar -->
-    <div class="absolute bottom-16 md:bottom-4 start-3 md:start-4 z-10 flex items-center gap-1.5 px-2.5 py-1.5 rounded-2xl bg-white/95 dark:bg-slate-800/95 backdrop-blur-md shadow-md border border-slate-200/80 dark:border-slate-700/80 text-xs select-none">
+    <div
+      class="absolute bottom-16 md:bottom-4 start-3 md:start-4 z-10 flex items-center gap-1.5 px-2.5 py-1.5 rounded-2xl bg-white/95 dark:bg-slate-800/95 backdrop-blur-md shadow-md border border-slate-200/80 dark:border-slate-700/80 text-xs select-none transition-opacity duration-300"
+      :class="isActivelyInteracting && 'opacity-20 pointer-events-none'"
+    >
       <IconButton
         icon="PhCaretLeft"
         :label="t('board.prevPage')"
@@ -3221,7 +3537,10 @@ defineExpose<WhiteboardExposed>({
     </div>
 
     <!-- Canvas Floating Zoom Pill: Shown on <lg screens (mobile & tablet) where zoom is not in header -->
-    <div class="lg:hidden absolute bottom-16 md:bottom-4 end-3 md:end-4 z-10 flex items-center bg-white/95 dark:bg-slate-800/95 backdrop-blur-md rounded-2xl p-0.5 border border-slate-200/80 dark:border-slate-700/80 shadow-md select-none">
+    <div
+      class="lg:hidden absolute bottom-16 md:bottom-4 end-3 md:end-4 z-10 flex items-center bg-white/95 dark:bg-slate-800/95 backdrop-blur-md rounded-2xl p-0.5 border border-slate-200/80 dark:border-slate-700/80 shadow-md select-none transition-opacity duration-300"
+      :class="isActivelyInteracting && 'opacity-20 pointer-events-none'"
+    >
       <button
         type="button"
         class="size-6 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center justify-center font-bold text-xs cursor-pointer transition-colors"
@@ -3247,6 +3566,14 @@ defineExpose<WhiteboardExposed>({
         @click="zoomIn"
       >
         +
+      </button>
+      <button
+        type="button"
+        class="size-6 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 flex items-center justify-center text-xs cursor-pointer transition-colors"
+        :title="t('board.fitToContent')"
+        @click="fitToContent"
+      >
+        <BIcon icon="PhFrameCorners" class="size-3.5" />
       </button>
     </div>
 
