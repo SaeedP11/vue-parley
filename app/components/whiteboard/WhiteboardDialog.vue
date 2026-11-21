@@ -110,7 +110,7 @@ const isMaximized = computed({
   },
 });
 
-const isSidebarCollapsed = ref(false);
+const isSidebarCollapsed = ref(typeof window !== "undefined" ? window.innerWidth < 1024 : false);
 
 const { t } = useLocalI18n(callPaintBoard, chat);
 const { dir } = useDirection();
@@ -167,6 +167,9 @@ const whiteboardRef = ref<WhiteboardExposed | null>(null);
 
 watch(isVisible, async (open) => {
   if (open) {
+    if (typeof window !== "undefined" && window.innerWidth < 1024) {
+      isSidebarCollapsed.value = true;
+    }
     await nextTick();
     window.dispatchEvent(new Event("resize"));
   }
@@ -275,7 +278,7 @@ defineExpose({
             <!-- Your own camera, while the members list isn't showing it. -->
             <div
               v-if="selfTile"
-              class="absolute top-14 end-3 md:top-auto md:bottom-4 md:end-4 z-20 w-24 sm:w-32 md:w-40 aspect-video rounded-xl overflow-hidden bg-gray-950 border border-gray-700/60 shadow-lg pointer-events-none select-none transition-all"
+              class="absolute top-[calc(3.5rem+env(safe-area-inset-top,0px))] end-3 md:top-auto md:bottom-4 md:end-4 z-20 w-24 sm:w-32 md:w-40 aspect-video rounded-xl overflow-hidden bg-gray-950 border border-gray-700/60 shadow-lg pointer-events-none select-none transition-all"
               :class="!isSidebarCollapsed && 'md:hidden'"
               data-testid="whiteboard-self-view"
             >
