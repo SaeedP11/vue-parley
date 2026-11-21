@@ -36,8 +36,18 @@ const callTitle = computed(() => {
 });
 const stage = computed(() => props.stage ?? {});
 
-const { participants, remoteVideos, remoteRefs, reattach, soundBlocked, enableSound, toggleAudio, toggleVideo } =
-  useCall();
+const {
+  participants,
+  remoteVideos,
+  remoteRefs,
+  reattach,
+  soundBlocked,
+  enableSound,
+  toggleAudio,
+  toggleVideo,
+  isCameraAvailable,
+  isMicrophoneAvailable,
+} = useCall();
 
 // The stage's videos are muted views; the others' sound plays from these, whatever is on screen.
 const bindSound = (id: string, el: unknown) => {
@@ -55,8 +65,11 @@ useEventListener(window, "keydown", (event: KeyboardEvent) => {
   const key = event.key.toLowerCase();
   if (key !== "d" && key !== "e") return;
   event.preventDefault();
-  if (key === "d") toggleAudio();
-  else toggleVideo();
+  if (key === "d") {
+    if (isMicrophoneAvailable.value) toggleAudio();
+  } else {
+    if (isCameraAvailable.value) toggleVideo();
+  }
 });
 
 const peopleOpen = ref(false);

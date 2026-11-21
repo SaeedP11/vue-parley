@@ -60,6 +60,9 @@ export default function useCall({ layoutKey }: { layoutKey?: () => string } = {}
     remoteWhiteboards: peers.remoteWhiteboards,
     // Local media
     cameras: media.cameras,
+    microphones: media.microphones,
+    isCameraAvailable: media.isCameraAvailable,
+    isMicrophoneAvailable: media.isMicrophoneAvailable,
     facingMode: media.facingMode,
     canFlipCamera: media.canFlipCamera,
     isAudioOn: media.isAudioOn,

@@ -366,6 +366,11 @@ export function usePeers(opts: PeerOptions) {
     Object.values(peers.value).forEach((peer) => peer.replaceVideoTrack(track, stream));
   }
 
+  /** Swaps the outgoing microphone track on every peer. */
+  function replaceAudioTrack(track: MediaStreamTrack, stream: MediaStream) {
+    Object.values(peers.value).forEach((peer) => peer.replaceAudioTrack(track, stream));
+  }
+
   function destroyAll() {
     const all = Object.values(peers.value);
     peers.value = {};
@@ -411,6 +416,7 @@ export function usePeers(opts: PeerOptions) {
     addTrackToAll,
     removeTrackFromAll,
     replaceVideoTrack,
+    replaceAudioTrack,
     setBackground(hidden: boolean) {
       isBackground = hidden;
       for (const peer of Object.values(peers.value)) {

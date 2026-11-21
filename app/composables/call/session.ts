@@ -112,7 +112,15 @@ export function createCallSession(opts: CallSessionOptions) {
       name: opts.self.name,
       joinedAt: () => joinedAt.value,
     });
-    const media = useCallMedia({ notify: opts.notify, isMobile });
+    const media = useCallMedia({
+      notify: opts.notify,
+      isMobile,
+      onTrackAdded: (track, kind) => {
+        if (kind === "video") sendCamera(track);
+        else sendMicrophone(track);
+        void announceTracks();
+      },
+    });
     const peers = usePeers({
       selfId,
       signaling,
@@ -449,6 +457,13 @@ export function createCallSession(opts: CallSessionOptions) {
   function sendCamera(track: MediaStreamTrack | null) {
     const stream = media.localStream.value;
     if (track && stream) peers.replaceVideoTrack(track, stream);
+    return stream;
+  }
+
+  /** Sends a microphone the media layer swapped in; returns the local stream. */
+  function sendMicrophone(track: MediaStreamTrack | null) {
+    const stream = media.localStream.value;
+    if (track && stream) peers.replaceAudioTrack(track, stream);
     return stream;
   }
 

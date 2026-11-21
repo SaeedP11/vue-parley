@@ -527,6 +527,14 @@ export function createPeer(opts: PeerOptions) {
       else this.addTrack(track, stream);
     },
 
+    /** Swaps the outgoing audio track in place, or adds it if none is sent. */
+    replaceAudioTrack(track: MediaStreamTrack, stream: MediaStream) {
+      if (destroyed) return;
+      const sender = pc.getSenders().find((s) => s.track?.kind === "audio");
+      if (sender) void sender.replaceTrack(track);
+      else this.addTrack(track, stream);
+    },
+
     /** Whether we currently send this track. */
     isSending(track: MediaStreamTrack) {
       return pc.getSenders().some((s) => s.track === track);

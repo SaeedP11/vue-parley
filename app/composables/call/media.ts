@@ -5,6 +5,7 @@ export interface MediaOptions {
   /** Shows an error; `key` is a `chat.call.errors.*` translation key. */
   notify: (key: string) => void;
   isMobile: () => boolean;
+  onTrackAdded?: (track: MediaStreamTrack, kind: "video" | "audio") => void;
 }
 
 /**
@@ -40,7 +41,7 @@ function deviceError(err: unknown, kind: "mic" | "camera" | "screen", isMobile: 
 }
 
 /** This participant's camera, microphone and screen share. */
-export function useCallMedia({ notify, isMobile }: MediaOptions) {
+export function useCallMedia({ notify, isMobile, onTrackAdded }: MediaOptions) {
   const error = (key: string) => notify(`chat.call.errors.${key}`);
 
   const localStream = ref<MediaStream | null>(null);
@@ -50,6 +51,7 @@ export function useCallMedia({ notify, isMobile }: MediaOptions) {
   const trackTypes = ref<TrackTypes>([]);
   const videoTrack = ref<MediaStreamTrack | null>(null);
   const cameras = ref<MediaDeviceInfo[]>([]);
+  const microphones = ref<MediaDeviceInfo[]>([]);
 
   const isAudioOn = ref(true);
   const isVideoOn = ref(true);
@@ -64,6 +66,22 @@ export function useCallMedia({ notify, isMobile }: MediaOptions) {
     camera: PermissionState | null;
     microphone: PermissionState | null;
   }>({ camera: null, microphone: null });
+
+  const isCameraAvailable = computed(() => {
+    if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) return false;
+    if (permissions.value.camera === "denied") return false;
+    const track = localStream.value?.getVideoTracks()[0];
+    if (track && track.readyState !== "ended") return true;
+    return cameras.value.length > 0;
+  });
+
+  const isMicrophoneAvailable = computed(() => {
+    if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) return false;
+    if (permissions.value.microphone === "denied") return false;
+    const track = localStream.value?.getAudioTracks()[0];
+    if (track && track.readyState !== "ended") return true;
+    return microphones.value.length > 0;
+  });
 
   const isFlashlightSupported = computed(() => {
     const capabilities = videoTrack.value?.getCapabilities?.() as
@@ -84,13 +102,46 @@ export function useCallMedia({ notify, isMobile }: MediaOptions) {
     return isMobile() ? "user" : null;
   });
   /** A phone with a camera on each side: offer a flip instead of a list. */
-  const canFlipCamera = computed(() => isMobile() && cameras.value.length > 1);
+  const canFlipCamera = computed(() => isMobile() && isCameraAvailable.value && cameras.value.length > 1);
 
   /**
    * Set once `start()` has finished, whether or not it got any media. Peers wait for this rather
    * than for a stream: a participant without a camera or mic still has to receive the others.
    */
   const ready = ref(false);
+
+  async function updateDevices() {
+    if (!navigator.mediaDevices?.enumerateDevices) return;
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const prevCameras = cameras.value.length;
+      const prevMics = microphones.value.length;
+
+      cameras.value = devices.filter((d) => d.kind === "videoinput");
+      microphones.value = devices.filter((d) => d.kind === "audioinput");
+
+      if (prevCameras > 0 && cameras.value.length === 0) {
+        const track = localStream.value?.getVideoTracks()[0];
+        if (track) {
+          localStream.value?.removeTrack(track);
+          track.stop();
+        }
+        videoTrack.value = null;
+        isVideoOn.value = false;
+      }
+
+      if (prevMics > 0 && microphones.value.length === 0) {
+        const track = localStream.value?.getAudioTracks()[0];
+        if (track) {
+          localStream.value?.removeTrack(track);
+          track.stop();
+        }
+        isAudioOn.value = false;
+      }
+    } catch (err) {
+      console.error("[vue-chat] Error updating media devices:", err);
+    }
+  }
 
   async function checkPermissions() {
     // Browsers only expose media devices on a secure origin (https, or localhost on the same
@@ -100,7 +151,8 @@ export function useCallMedia({ notify, isMobile }: MediaOptions) {
     try {
       const devices = await navigator.mediaDevices.enumerateDevices();
       cameras.value = devices.filter((d) => d.kind === "videoinput");
-      if (!devices.some((d) => d.kind === "audioinput")) {
+      microphones.value = devices.filter((d) => d.kind === "audioinput");
+      if (!microphones.value.length) {
         error("noMicDevice");
         isAudioOn.value = false;
       }
@@ -118,13 +170,24 @@ export function useCallMedia({ notify, isMobile }: MediaOptions) {
       try {
         const status = await navigator.permissions.query({ name: name as PermissionName });
         permissions.value[name] = status.state;
+        status.onchange = () => {
+          permissions.value[name] = status.state;
+          if (status.state === "denied") {
+            if (name === "camera") isVideoOn.value = false;
+            if (name === "microphone") isAudioOn.value = false;
+          }
+        };
       } catch {
         permissions.value[name] = null;
       }
     };
-    if (navigator.permissions) await Promise.all([query("camera"), query("microphone")]);
+    if (typeof navigator !== "undefined" && navigator.permissions) await Promise.all([query("camera"), query("microphone")]);
     if (permissions.value.camera === "denied") isVideoOn.value = false;
     if (permissions.value.microphone === "denied") isAudioOn.value = false;
+  }
+
+  if (typeof navigator !== "undefined" && navigator.mediaDevices?.addEventListener) {
+    navigator.mediaDevices.addEventListener("devicechange", updateDevices);
   }
 
   /** Gets camera and mic together, or whichever of the two is available. */
@@ -160,12 +223,30 @@ export function useCallMedia({ notify, isMobile }: MediaOptions) {
         video: video ? DEFAULT_VIDEO_CONSTRAINTS : false,
         audio: audio ? DEFAULT_AUDIO_CONSTRAINTS : false,
       });
+      if (video) permissions.value.camera = "granted";
+      if (audio) permissions.value.microphone = "granted";
+      localStream.value.getVideoTracks().forEach((t) => {
+        t.onended = () => {
+          isVideoOn.value = false;
+          videoTrack.value = null;
+          void updateDevices();
+        };
+      });
+      localStream.value.getAudioTracks().forEach((t) => {
+        t.onended = () => {
+          isAudioOn.value = false;
+          void updateDevices();
+        };
+      });
       announce(localStream.value);
       return;
     } catch (err) {
       if (!video || !audio) {
         const kind = video ? "camera" : "mic";
         console.error(`[vue-chat] Error accessing ${kind}:`, err);
+        if ((err as { name?: string })?.name === "NotAllowedError") {
+          permissions.value[kind === "camera" ? "camera" : "microphone"] = "denied";
+        }
         error(deviceError(err, kind, isMobile()));
         isAudioOn.value = isVideoOn.value = false;
         return;
@@ -176,16 +257,39 @@ export function useCallMedia({ notify, isMobile }: MediaOptions) {
     const tracks: MediaStreamTrack[] = [];
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: DEFAULT_AUDIO_CONSTRAINTS });
-      tracks.push(...stream.getAudioTracks());
+      const aTracks = stream.getAudioTracks();
+      tracks.push(...aTracks);
+      permissions.value.microphone = "granted";
+      aTracks.forEach((t) => {
+        t.onended = () => {
+          isAudioOn.value = false;
+          void updateDevices();
+        };
+      });
     } catch (err) {
       console.error("[vue-chat] Error accessing microphone:", err);
+      if ((err as { name?: string })?.name === "NotAllowedError") {
+        permissions.value.microphone = "denied";
+      }
       error(deviceError(err, "mic", isMobile()));
     }
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: DEFAULT_VIDEO_CONSTRAINTS });
-      tracks.push(...stream.getVideoTracks());
+      const vTracks = stream.getVideoTracks();
+      tracks.push(...vTracks);
+      permissions.value.camera = "granted";
+      vTracks.forEach((t) => {
+        t.onended = () => {
+          isVideoOn.value = false;
+          videoTrack.value = null;
+          void updateDevices();
+        };
+      });
     } catch (err) {
       console.error("[vue-chat] Error accessing camera:", err);
+      if ((err as { name?: string })?.name === "NotAllowedError") {
+        permissions.value.camera = "denied";
+      }
       error(deviceError(err, "camera", isMobile()));
     }
     if (!tracks.length) {
@@ -201,21 +305,92 @@ export function useCallMedia({ notify, isMobile }: MediaOptions) {
     const hasAudio = stream.getAudioTracks().length > 0;
     const hasVideo = stream.getVideoTracks().length > 0;
     const type = hasAudio && hasVideo ? "webcam_audio" : hasVideo ? "webcam" : "audio";
-    trackTypes.value = [...trackTypes.value, { id: stream.id, type }];
+    const existingIndex = trackTypes.value.findIndex((t) => t.id === stream.id);
+    if (existingIndex >= 0) {
+      trackTypes.value[existingIndex] = { id: stream.id, type };
+      trackTypes.value = [...trackTypes.value];
+    } else {
+      trackTypes.value = [...trackTypes.value, { id: stream.id, type }];
+    }
     if (!hasAudio) isAudioOn.value = false;
     if (!hasVideo) isVideoOn.value = false;
   }
 
-  function toggleAudio() {
+  async function toggleAudio() {
+    if (!isMicrophoneAvailable.value) return;
+
+    let track = localStream.value?.getAudioTracks()[0];
+    if (!track || track.readyState === "ended") {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: DEFAULT_AUDIO_CONSTRAINTS });
+        track = stream.getAudioTracks()[0];
+        if (!track) return;
+        track.onended = () => {
+          isAudioOn.value = false;
+          void updateDevices();
+        };
+        if (!localStream.value) {
+          localStream.value = new MediaStream([track]);
+        } else {
+          localStream.value.addTrack(track);
+        }
+        isAudioOn.value = true;
+        track.enabled = true;
+        permissions.value.microphone = "granted";
+        announce(localStream.value);
+        onTrackAdded?.(track, "audio");
+      } catch (err) {
+        console.error("[vue-chat] Error starting microphone:", err);
+        if ((err as { name?: string })?.name === "NotAllowedError") {
+          permissions.value.microphone = "denied";
+        }
+        error(deviceError(err, "mic", isMobile()));
+      }
+      return;
+    }
+
     isAudioOn.value = !isAudioOn.value;
-    const track = localStream.value?.getAudioTracks()[0];
-    if (track) track.enabled = isAudioOn.value;
+    track.enabled = isAudioOn.value;
   }
 
-  function toggleVideo() {
+  async function toggleVideo() {
+    if (!isCameraAvailable.value) return;
+
+    let track = localStream.value?.getVideoTracks()[0];
+    if (!track || track.readyState === "ended") {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: DEFAULT_VIDEO_CONSTRAINTS });
+        track = stream.getVideoTracks()[0];
+        if (!track) return;
+        track.onended = () => {
+          isVideoOn.value = false;
+          videoTrack.value = null;
+          void updateDevices();
+        };
+        if (!localStream.value) {
+          localStream.value = new MediaStream([track]);
+        } else {
+          localStream.value.addTrack(track);
+        }
+        videoTrack.value = track;
+        isVideoOn.value = true;
+        track.enabled = true;
+        permissions.value.camera = "granted";
+        announce(localStream.value);
+        await listCameras();
+        onTrackAdded?.(track, "video");
+      } catch (err) {
+        console.error("[vue-chat] Error starting camera:", err);
+        if ((err as { name?: string })?.name === "NotAllowedError") {
+          permissions.value.camera = "denied";
+        }
+        error(deviceError(err, "camera", isMobile()));
+      }
+      return;
+    }
+
     isVideoOn.value = !isVideoOn.value;
-    const track = localStream.value?.getVideoTracks()[0];
-    if (track) track.enabled = isVideoOn.value;
+    track.enabled = isVideoOn.value;
   }
 
   /**
@@ -262,6 +437,11 @@ export function useCallMedia({ notify, isMobile }: MediaOptions) {
       });
       const track = next.getVideoTracks()[0]!;
       track.enabled = isVideoOn.value;
+      track.onended = () => {
+        isVideoOn.value = false;
+        videoTrack.value = null;
+        void updateDevices();
+      };
       stream.addTrack(track);
       videoTrack.value = track;
       return track;
@@ -401,6 +581,9 @@ export function useCallMedia({ notify, isMobile }: MediaOptions) {
 
   /** Releases camera, mic and screen. */
   function stopAll() {
+    if (typeof navigator !== "undefined" && navigator.mediaDevices?.removeEventListener) {
+      navigator.mediaDevices.removeEventListener("devicechange", updateDevices);
+    }
     if (isFlashlightOn.value && videoTrack.value) {
       void videoTrack.value
         .applyConstraints({ advanced: [{ torch: false } as MediaTrackConstraintSet] })
@@ -427,6 +610,9 @@ export function useCallMedia({ notify, isMobile }: MediaOptions) {
     trackTypes,
     videoTrack,
     cameras,
+    microphones,
+    isCameraAvailable,
+    isMicrophoneAvailable,
     facingMode,
     canFlipCamera,
     isAudioOn,

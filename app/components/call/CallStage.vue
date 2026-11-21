@@ -623,13 +623,29 @@ const onExtraClick = (event: MouseEvent) => {
         <slot name="controls" />
       </div>
       <div class="call-control">
-        <button type="button" class="call-control-button" :aria-label="t('chat.call.stage.camera')" :aria-pressed="!media.isVideoOn.value" data-testid="call-stage-camera" @click="media.toggleVideo()">
+        <button
+          type="button"
+          class="call-control-button"
+          :aria-label="t('chat.call.stage.camera')"
+          :aria-pressed="!media.isVideoOn.value"
+          :disabled="!media.isCameraAvailable.value"
+          data-testid="call-stage-camera"
+          @click="media.toggleVideo()"
+        >
           <CallIcon :name="media.isVideoOn.value ? 'videocam' : 'videocamOff'" class="size-6" />
         </button>
         <span>{{ t("chat.call.stage.camera") }}</span>
       </div>
       <div class="call-control">
-        <button type="button" class="call-control-button" :aria-label="t('chat.call.stage.microphone')" :aria-pressed="!media.isAudioOn.value" data-testid="call-stage-mic" @click="media.toggleAudio()">
+        <button
+          type="button"
+          class="call-control-button"
+          :aria-label="t('chat.call.stage.microphone')"
+          :aria-pressed="!media.isAudioOn.value"
+          :disabled="!media.isMicrophoneAvailable.value"
+          data-testid="call-stage-mic"
+          @click="media.toggleAudio()"
+        >
           <CallIcon :name="media.isAudioOn.value ? 'mic' : 'micOff'" class="size-6" />
         </button>
         <span>{{ t("chat.call.stage.microphone") }}</span>
@@ -1433,6 +1449,12 @@ const onExtraClick = (event: MouseEvent) => {
   background: var(--background-control) !important;
   opacity: 1 !important;
   transition: transform 0.12s;
+}
+
+.call-screen .call-control-button:disabled {
+  opacity: 0.4 !important;
+  cursor: not-allowed !important;
+  transform: none !important;
 }
 
 /* Keep the glyph centred independently of the host application's SVG and RTL rules. */

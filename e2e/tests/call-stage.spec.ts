@@ -88,3 +88,39 @@ test("the stage shows names, a host action and the other participants", async ({
     }
   }
 });
+
+test("disables camera and mic button actions when no accessible and connected device, and activates them when connected and recognized", async ({ context }) => {
+  const [alice] = await openCallers(context, [{ user: "alice", name: "Alice" }], "&stage=1");
+
+  await alice!.evaluate(() => {
+    (window as any).__devices = [];
+    navigator.mediaDevices.enumerateDevices = async () => (window as any).__devices;
+    navigator.mediaDevices.getUserMedia = async () => {
+      throw new DOMException("Requested device not found", "NotFoundError");
+    };
+  });
+
+  await openConversation(alice!, "c1");
+  await alice!.getByTestId("chat-start-call").click();
+  const stage = alice!.getByTestId("call-stage");
+  await expect(stage).toBeVisible();
+
+  const camBtn = stage.getByTestId("call-stage-camera");
+  const micBtn = stage.getByTestId("call-stage-mic");
+
+  await expect(camBtn).toBeDisabled();
+  await expect(micBtn).toBeDisabled();
+
+  // Simulate connecting camera and microphone
+  await alice!.evaluate(() => {
+    (window as any).__devices = [
+      { kind: "videoinput", deviceId: "cam-1", label: "Camera 1", toJSON: () => ({}) },
+      { kind: "audioinput", deviceId: "mic-1", label: "Mic 1", toJSON: () => ({}) },
+    ];
+    navigator.mediaDevices.dispatchEvent(new Event("devicechange"));
+  });
+
+  // Both actions become active
+  await expect(camBtn).toBeEnabled();
+  await expect(micBtn).toBeEnabled();
+});
