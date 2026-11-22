@@ -86,16 +86,6 @@ export async function compressVideo(
 
     if (!codec) return null;
 
-    // Prefer hardware acceleration if supported for 10x-30x faster encoding
-    const hwSupported = await mb
-      .canEncodeVideo(codec, {
-        width,
-        height,
-        hardwareAcceleration: "prefer-hardware",
-      })
-      .catch(() => false);
-    const hwAccel: "prefer-hardware" | "no-preference" = hwSupported ? "prefer-hardware" : "no-preference";
-
     const packetRate = await getPacketRate();
     // Phones record at 60 fps; only ever resample down, never add frames.
     const frameRate = packetRate > MAX_FPS + 2 ? MAX_FPS : undefined;
@@ -106,11 +96,14 @@ export async function compressVideo(
     const inputAudioTracks = await input.getAudioTracks();
     const hasAudio = inputAudioTracks.length > 0;
 
-    // Helper to initialize conversion with fresh Output and target
-    const createConversion = async (accel: "prefer-hardware" | "no-preference") => {
+    // Helper to run conversion with fresh Output and target
+    const runConversion = async (
+      accel: "prefer-hardware" | "no-preference",
+    ): Promise<ArrayBuffer | null> => {
+      const target = new mb.BufferTarget();
       const out = new mb.Output({
         format: new mb.Mp4OutputFormat({ fastStart: "in-memory" }),
-        target: new mb.BufferTarget(),
+        target,
       });
       const supportedAudioCodecs = out.format.getSupportedAudioCodecs();
 
@@ -124,7 +117,7 @@ export async function compressVideo(
           height,
           fit: "fill",
           frameRate,
-          codec,
+          codec: codec as any,
           quality: mb.QUALITY_MEDIUM,
           hardwareAcceleration: accel,
           forceTranscode: true,
@@ -152,28 +145,35 @@ export async function compressVideo(
         outputVideoTracks.length > 0 &&
         (!hasAudio || outputAudioTracks.length > 0);
 
-      return { conversion: conv, output: out, isValid };
+      if (!isValid) return null;
+
+      const abort = () => void conv.cancel();
+      signal?.addEventListener("abort", abort, { once: true });
+      if (onProgress) conv.onProgress = (progress: number) => onProgress(progress);
+
+      try {
+        await conv.execute();
+        return target.buffer;
+      } finally {
+        signal?.removeEventListener("abort", abort);
+      }
     };
 
-    let result = await createConversion(hwAccel);
-    if (!result.isValid && hwAccel === "prefer-hardware") {
-      result = await createConversion("no-preference");
-    }
-
-    if (!result.isValid) return null;
-    const { conversion, output } = result;
-
-    const abort = () => void conversion.cancel();
-    signal?.addEventListener("abort", abort, { once: true });
-    if (onProgress) conversion.onProgress = (progress) => onProgress(progress);
-
+    // Prefer hardware-accelerated encoding for all browsers and mobile devices.
+    // If hardware acceleration throws or is unsupported in the current environment,
+    // seamlessly fall back to software encoding.
+    let buffer: ArrayBuffer | null = null;
     try {
-      await conversion.execute();
-    } finally {
-      signal?.removeEventListener("abort", abort);
+      buffer = await runConversion("prefer-hardware");
+    } catch {
+      buffer = null;
     }
 
-    const buffer = output.target.buffer;
+    if (!buffer) {
+      signal?.throwIfAborted();
+      buffer = await runConversion("no-preference");
+    }
+
     if (!buffer || buffer.byteLength > file.size * (1 - MIN_SAVING)) return null;
 
     const name = file.name.replace(/\.[^.]*$/, "") + ".mp4";
