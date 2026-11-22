@@ -210,7 +210,16 @@
         "zoomOut": "Zoom out video",
         "gestureHint": "Pinch to zoom; drag to move",
         "landscape": "The video turned landscape",
-        "portrait": "The video turned portrait"
+        "portrait": "The video turned portrait",
+        "presentations": "Presentations",
+        "activePresentations": "Active Presentations",
+        "members": "Members",
+        "allMedia": "All Streams",
+        "speakerCamera": "Camera",
+        "viewScreen": "View screen",
+        "viewWhiteboard": "View whiteboard",
+        "viewCamera": "View camera",
+        "alsoSharingWhiteboard": "{name} is also sharing a whiteboard"
       },
       "controls": {
         "enableSound": "Tap to turn on sound",

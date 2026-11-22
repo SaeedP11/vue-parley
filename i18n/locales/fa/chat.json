@@ -210,7 +210,16 @@
         "zoomOut": "کوچک‌نمایی تصویر",
         "gestureHint": "برای زوم دو انگشت را باز کنید؛ برای جابه‌جایی بکشید",
         "landscape": "تصویر افقی (landscape) شد",
-        "portrait": "تصویر عمودی (portrait) شد"
+        "portrait": "تصویر عمودی (portrait) شد",
+        "presentations": "ارائه‌ها",
+        "activePresentations": "ارائه‌های فعال",
+        "members": "اعضا",
+        "allMedia": "همه رسانه‌ها",
+        "speakerCamera": "دوربین",
+        "viewScreen": "مشاهده صفحه",
+        "viewWhiteboard": "مشاهده تخته سفید",
+        "viewCamera": "مشاهده دوربین",
+        "alsoSharingWhiteboard": "{name} نیز در حال اشتراک تخته سفید است"
       },
       "controls": {
         "enableSound": "برای روشن کردن صدا ضربه بزنید",

@@ -82,12 +82,18 @@ const selfTile = computed(() => participants.value.find((person) => person.isSel
 const main = useCallMain(session, () => props.featuredId);
 const presenters = main.presenters;
 const whiteboardPresenters = main.whiteboardPresenters;
+const activePresentations = main.activePresentations;
 const screenOwner = main.screenOwner;
 const whiteboardOwner = main.whiteboardOwner;
 const isWhiteboard = computed(() => !!whiteboardOwner.value);
 const presentationOwner = computed(() => whiteboardOwner.value ?? screenOwner.value);
 const showScreen = computed(() => !!presentationOwner.value);
 const mainTile = computed(() => presentationOwner.value ?? main.person.value ?? selfTile.value);
+const counterpartId = computed(
+  () =>
+    participants.value.find((person) => person.id === props.featuredId)?.id ??
+    participants.value.find((person) => !person.isSelf)?.id,
+);
 const mainStream = computed(() =>
   whiteboardOwner.value
     ? whiteboardOwner.value.whiteboard
@@ -171,6 +177,26 @@ const thumbnails = computed(() => {
     : participants.value.filter((person) => person.id !== mainTile.value?.id);
   return [...others].sort((a, b) => Number(b.isSelf) - Number(a.isSelf));
 });
+
+const mediaFilter = ref<"all" | "presentations" | "members">("all");
+const hasTileScreen = (tile?: Tile) =>
+  tile ? (tile.isSelf ? media.isScreenSharing.value : !!tile.screen?.getVideoTracks().length) : false;
+const hasTileWhiteboard = (tile?: Tile) =>
+  tile ? (tile.isSelf ? media.isWhiteboardSharing.value : !!tile.whiteboard?.getVideoTracks().length) : false;
+const hasTileCamera = (tile?: Tile) => cameraOn(tile);
+const isTileScreenInMain = (tile?: Tile) => !!(screenOwner.value && tile && screenOwner.value.id === tile.id);
+const isTileWhiteboardInMain = (tile?: Tile) => !!(whiteboardOwner.value && tile && whiteboardOwner.value.id === tile.id);
+const isTileCameraInMain = (tile?: Tile) => !showScreen.value && mainTile.value?.id === tile?.id;
+
+const displayedScreenTiles = computed(() =>
+  mediaFilter.value === "members" ? [] : screenTiles.value,
+);
+const displayedWhiteboardTiles = computed(() =>
+  mediaFilter.value === "members" ? [] : whiteboardTiles.value,
+);
+const displayedThumbnails = computed(() =>
+  mediaFilter.value === "presentations" ? [] : thumbnails.value,
+);
 
 // One flip at a time: a second tap mid-flip would race the first for the camera.
 const isFlipping = ref(false);
@@ -355,6 +381,58 @@ const onExtraClick = (event: MouseEvent) => {
     </header>
 
     <div ref="mainCard" class="call-main" :class="{ 'call-main--expanded': isExpanded }" @pointerdown="pointerDown" @pointermove="pointerMove" @pointerup="pointerUp" @pointercancel="pointerUp">
+      <!-- Parallel Active Presentations Dock -->
+      <div
+        v-if="activePresentations.length > 0"
+        class="call-presentation-dock"
+        data-testid="call-stage-presentation-dock"
+      >
+        <div class="call-presentation-tabs">
+          <button
+            v-for="p in activePresentations"
+            :key="p.key"
+            type="button"
+            class="call-presentation-tab"
+            :class="{
+              'call-presentation-tab--active': main.key.value === p.key,
+              'call-presentation-tab--screen': p.type === 'screen',
+              'call-presentation-tab--whiteboard': p.type === 'whiteboard',
+            }"
+            :data-testid="`call-stage-tab-${p.key}`"
+            @click.stop="pickMain(p.key)"
+          >
+            <CallIcon :name="p.type === 'screen' ? 'presentToAll' : 'whiteboard'" class="size-4 shrink-0" />
+            <span class="truncate">
+              {{
+                p.type === "screen"
+                  ? t("chat.call.stage.screenTile", { name: nameOf(p.participant) })
+                  : t("chat.call.stage.whiteboardTile", { name: nameOf(p.participant) })
+              }}
+            </span>
+            <span
+              v-if="p.isSelf"
+              class="call-presentation-tab-stop"
+              :title="t('chat.call.stage.stopSharing')"
+              :aria-label="t('chat.call.stage.stopSharing')"
+              @click.stop="p.type === 'screen' ? session.toggleScreenShare() : session.stopWhiteboardShare()"
+            >
+              ×
+            </span>
+          </button>
+          <button
+            v-if="showScreen"
+            type="button"
+            class="call-presentation-tab call-presentation-tab--camera"
+            :class="{ 'call-presentation-tab--active': !showScreen }"
+            :title="t('chat.call.stage.speakerCamera')"
+            @click.stop="pickMain(presentationOwner?.id ?? counterpartId ?? selfTile?.id ?? '')"
+          >
+            <CallIcon name="videocam" class="size-4 shrink-0" />
+            <span>{{ t("chat.call.stage.speakerCamera") }}</span>
+          </button>
+        </div>
+      </div>
+
       <div class="call-video-zoom" :style="{ transform: `translate(${offset.x}px, ${offset.y}px) scale(${scale})` }" :data-scale="scale" :data-offset-x="offset.x" :data-offset-y="offset.y">
       <CallStageVideo v-if="showScreen" :stream="mainStream" data-testid="call-stage-screen" @orientation="onOrientation" />
       <CallStageVideo v-else-if="cameraOn(mainTile)" :stream="streamOf(mainTile)" :mirrored="isMirrored(mainTile)" @orientation="onOrientation" />
@@ -467,13 +545,55 @@ const onExtraClick = (event: MouseEvent) => {
 
     <template v-if="thumbnails.length || screenTiles.length || whiteboardTiles.length">
       <div v-if="thumbnails.length" class="call-others-title">
-        <h2>{{ t("chat.call.stage.others") }}</h2>
-        <span>{{ t("chat.call.stage.peopleCount", { count: n(thumbnails.length) }) }}</span>
+        <div class="call-others-title-main">
+          <h2>{{ t("chat.call.stage.others") }}</h2>
+          <span>{{ t("chat.call.stage.peopleCount", { count: n(thumbnails.length) }) }}</span>
+        </div>
+        <!-- Media stream filter tabs when presentations exist -->
+        <div v-if="screenTiles.length || whiteboardTiles.length" class="call-media-filter" role="tablist">
+          <button
+            type="button"
+            class="call-media-filter-btn"
+            :class="{ 'call-media-filter-btn--active': mediaFilter === 'all' }"
+            @click="mediaFilter = 'all'"
+          >
+            {{ t("chat.call.stage.allMedia") }} ({{ screenTiles.length + whiteboardTiles.length + thumbnails.length }})
+          </button>
+          <button
+            type="button"
+            class="call-media-filter-btn"
+            :class="{ 'call-media-filter-btn--active': mediaFilter === 'presentations' }"
+            @click="mediaFilter = 'presentations'"
+          >
+            <CallIcon name="presentToAll" class="size-3 text-emerald-400" />
+            {{ t("chat.call.stage.presentations") }} ({{ screenTiles.length + whiteboardTiles.length }})
+          </button>
+          <button
+            type="button"
+            class="call-media-filter-btn"
+            :class="{ 'call-media-filter-btn--active': mediaFilter === 'members' }"
+            @click="mediaFilter = 'members'"
+          >
+            <CallIcon name="group" class="size-3" />
+            {{ t("chat.call.stage.members") }} ({{ thumbnails.length }})
+          </button>
+        </div>
       </div>
 
-      <div class="call-others" :class="thumbnails.length + screenTiles.length + whiteboardTiles.length > 2 && 'call-others--scroll'">
-        <article v-for="tile in screenTiles" :key="screenKey(tile.id)" :data-id="tile.id" class="call-tile" data-testid="call-stage-screen-tile">
+      <div class="call-others" :class="displayedThumbnails.length + displayedScreenTiles.length + displayedWhiteboardTiles.length > 2 && 'call-others--scroll'">
+        <!-- Screen Tiles -->
+        <article
+          v-for="tile in displayedScreenTiles"
+          :key="screenKey(tile.id)"
+          :data-id="tile.id"
+          class="call-tile call-tile--screen"
+          data-testid="call-stage-screen-tile"
+        >
           <CallStageVideo :stream="tile.screen" />
+          <span class="call-tile-type-badge call-tile-type-badge--screen">
+            <CallIcon name="presentToAll" class="size-3.5" />
+            {{ t("chat.call.stage.shareScreen") }}
+          </span>
           <div class="call-tile-footer">
             <span class="call-name">{{ t("chat.call.stage.screenTile", { name: nameOf(tile) }) }}</span>
           </div>
@@ -484,8 +604,20 @@ const onExtraClick = (event: MouseEvent) => {
             @click="pickMain(screenKey(tile.id))"
           />
         </article>
-        <article v-for="tile in whiteboardTiles" :key="whiteboardKey(tile.id)" :data-id="tile.id" class="call-tile" data-testid="call-stage-whiteboard-tile">
+
+        <!-- Whiteboard Tiles -->
+        <article
+          v-for="tile in displayedWhiteboardTiles"
+          :key="whiteboardKey(tile.id)"
+          :data-id="tile.id"
+          class="call-tile call-tile--whiteboard"
+          data-testid="call-stage-whiteboard-tile"
+        >
           <CallStageVideo :stream="tile.whiteboard" />
+          <span class="call-tile-type-badge call-tile-type-badge--whiteboard">
+            <CallIcon name="whiteboard" class="size-3.5" />
+            {{ t("chat.call.stage.whiteboard") }}
+          </span>
           <div class="call-tile-footer">
             <span class="call-name">{{ t("chat.call.stage.whiteboardTile", { name: nameOf(tile) }) }}</span>
           </div>
@@ -496,7 +628,15 @@ const onExtraClick = (event: MouseEvent) => {
             @click="pickMain(whiteboardKey(tile.id))"
           />
         </article>
-        <article v-for="tile in thumbnails" :key="tile.id" :data-id="tile.id" class="call-tile" :class="!cameraOn(tile) && 'call-tile--off'">
+
+        <!-- Participant Member Tiles with Multi-Stream Switchers -->
+        <article
+          v-for="tile in displayedThumbnails"
+          :key="tile.id"
+          :data-id="tile.id"
+          class="call-tile"
+          :class="!cameraOn(tile) && 'call-tile--off'"
+        >
           <CallStageVideo v-if="cameraOn(tile)" :stream="streamOf(tile)" :mirrored="isMirrored(tile)" />
           <template v-else>
             <div class="call-avatar">{{ nameOf(tile).charAt(0) }}</div>
@@ -517,6 +657,43 @@ const onExtraClick = (event: MouseEvent) => {
               <CallIcon name="refresh" class="size-4" />
             </button>
           </div>
+
+          <!-- Multi-media quick switchers on member card -->
+          <div v-if="hasTileScreen(tile) || hasTileWhiteboard(tile)" class="call-tile-media-dock">
+            <button
+              type="button"
+              class="call-tile-media-btn call-tile-media-btn--camera"
+              :class="{ 'call-tile-media-btn--active': isTileCameraInMain(tile) }"
+              :title="t('chat.call.stage.viewCamera')"
+              :aria-label="t('chat.call.stage.viewCamera')"
+              @click.stop="pickMain(tile.id)"
+            >
+              <CallIcon name="videocam" class="size-3.5" />
+            </button>
+            <button
+              v-if="hasTileScreen(tile)"
+              type="button"
+              class="call-tile-media-btn call-tile-media-btn--screen"
+              :class="{ 'call-tile-media-btn--active': isTileScreenInMain(tile) }"
+              :title="t('chat.call.stage.viewScreen')"
+              :aria-label="t('chat.call.stage.viewScreen')"
+              @click.stop="pickMain(screenKey(tile.id))"
+            >
+              <CallIcon name="presentToAll" class="size-3.5" />
+            </button>
+            <button
+              v-if="hasTileWhiteboard(tile)"
+              type="button"
+              class="call-tile-media-btn call-tile-media-btn--whiteboard"
+              :class="{ 'call-tile-media-btn--active': isTileWhiteboardInMain(tile) }"
+              :title="t('chat.call.stage.viewWhiteboard')"
+              :aria-label="t('chat.call.stage.viewWhiteboard')"
+              @click.stop="pickMain(whiteboardKey(tile.id))"
+            >
+              <CallIcon name="whiteboard" class="size-3.5" />
+            </button>
+          </div>
+
           <div class="call-tile-footer">
             <span class="call-name">{{ nameOf(tile) }}</span>
             <span class="call-mic" :class="!micOn(tile) && 'call-mic--off'">
@@ -1087,12 +1264,222 @@ const onExtraClick = (event: MouseEvent) => {
   background: var(--accent-yellow) !important;
 }
 
+.call-presentation-dock {
+  position: absolute;
+  top: 0.75rem;
+  inset-inline: 0.75rem;
+  z-index: 10;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.call-presentation-tabs {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  max-width: 100%;
+  padding: 0.375rem;
+  overflow-x: auto;
+  border-radius: 9999px;
+  background: rgba(13, 21, 39, 0.85);
+  backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  pointer-events: auto;
+}
+
+.call-presentation-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #c6d4e1;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.call-presentation-tab:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+}
+
+.call-presentation-tab--active {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.22);
+  border-color: rgba(255, 255, 255, 0.35);
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.15);
+}
+
+.call-presentation-tab--screen {
+  color: #a7f3d0;
+}
+.call-presentation-tab--screen.call-presentation-tab--active {
+  border-color: #34d399;
+  background: rgba(16, 185, 129, 0.25);
+  color: #ecfdf5;
+}
+
+.call-presentation-tab--whiteboard {
+  color: #c7d2fe;
+}
+.call-presentation-tab--whiteboard.call-presentation-tab--active {
+  border-color: #818cf8;
+  background: rgba(99, 102, 241, 0.25);
+  color: #eef2ff;
+}
+
+.call-presentation-tab-stop {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.1rem;
+  height: 1.1rem;
+  margin-inline-start: 0.25rem;
+  font-size: 0.875rem;
+  line-height: 1;
+  border-radius: 50%;
+  background: rgba(239, 68, 68, 0.35);
+  color: #fca5a5;
+  transition: all 0.15s ease;
+}
+.call-presentation-tab-stop:hover {
+  background: #ef4444;
+  color: #fff;
+}
+
 .call-others-title {
   display: flex;
   flex-shrink: 0;
   align-items: center;
   justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
   margin: clamp(0.375rem, 1.7dvh, 1.125rem) calc(var(--gutter) + 2px) clamp(0.25rem, 1dvh, 0.6875rem);
+}
+
+.call-others-title-main {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.call-media-filter {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: rgba(255, 255, 255, 0.06);
+  padding: 0.2rem;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.call-media-filter-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.5rem;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  border-radius: 0.375rem;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.call-media-filter-btn:hover {
+  color: #fff;
+}
+
+.call-media-filter-btn--active {
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  font-weight: 600;
+}
+
+.call-tile-type-badge {
+  position: absolute;
+  top: 0.5rem;
+  inset-inline-start: 0.5rem;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  border-radius: 0.375rem;
+  backdrop-filter: blur(6px);
+  pointer-events: none;
+}
+
+.call-tile-type-badge--screen {
+  background: rgba(6, 78, 59, 0.85);
+  color: #a7f3d0;
+  border: 1px solid rgba(52, 211, 153, 0.35);
+}
+
+.call-tile-type-badge--whiteboard {
+  background: rgba(49, 46, 129, 0.85);
+  color: #c7d2fe;
+  border: 1px solid rgba(129, 140, 248, 0.35);
+}
+
+.call-tile-media-dock {
+  position: absolute;
+  top: 0.5rem;
+  inset-inline-end: 0.5rem;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  background: rgba(13, 21, 39, 0.75);
+  backdrop-filter: blur(6px);
+  padding: 0.2rem;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  pointer-events: auto;
+}
+
+.call-tile-media-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 0.375rem;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid transparent;
+  color: #c6d4e1;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.call-tile-media-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
+.call-tile-media-btn--screen {
+  color: #34d399;
+}
+.call-tile-media-btn--whiteboard {
+  color: #818cf8;
+}
+
+.call-tile-media-btn--active {
+  background: rgba(255, 255, 255, 0.25);
+  border-color: rgba(255, 255, 255, 0.4);
+  color: #fff;
+  box-shadow: 0 0 6px rgba(255, 255, 255, 0.2);
 }
 
 .call-others-title h2 {

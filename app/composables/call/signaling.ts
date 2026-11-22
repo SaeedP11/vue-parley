@@ -8,7 +8,7 @@ import type {
 import { CallMessageType } from "~/types";
 import { createLogger, readDebugFlag } from "~/utils/logger";
 
-export type TrackTypes = { id: string; type: TrackType }[];
+export type TrackTypes = { id: string; trackId?: string; type: TrackType }[];
 
 export interface JoinInfo {
   /** The sender dropped its connection to us and wants to set it up again. */

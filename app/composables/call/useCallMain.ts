@@ -7,6 +7,14 @@ export const whiteboardKey = (id: string) => `whiteboard:${id}`;
 export const isScreenKey = (key: string) => key.startsWith("screen:");
 export const isWhiteboardKey = (key: string) => key.startsWith("whiteboard:");
 
+export interface ActivePresentation {
+  key: string;
+  type: "screen" | "whiteboard";
+  participant: any;
+  stream: MediaStream;
+  isSelf: boolean;
+}
+
 interface MainState {
   key?: string;
   /** Picked by the user: it stays in the main view until they pick something else or it ends. */
@@ -64,9 +72,46 @@ export function useCallMain(session: CallSession, featuredId: () => string | und
     whiteboardPresenters.value.find((person) => whiteboardKey(person.id) === s.key),
   );
   const person = computed(() => participants.value.find((p) => p.id === s.key));
+
+  const activePresentations = computed<ActivePresentation[]>(() => {
+    const list: ActivePresentation[] = [];
+    for (const p of presenters.value) {
+      if (p.screen?.getVideoTracks().length) {
+        list.push({
+          key: screenKey(p.id),
+          type: "screen",
+          participant: p,
+          stream: p.screen,
+          isSelf: p.isSelf,
+        });
+      }
+    }
+    for (const p of whiteboardPresenters.value) {
+      if (p.whiteboard?.getVideoTracks().length) {
+        list.push({
+          key: whiteboardKey(p.id),
+          type: "whiteboard",
+          participant: p,
+          stream: p.whiteboard,
+          isSelf: p.isSelf,
+        });
+      }
+    }
+    return list;
+  });
+
   const pick = (next: string) => {
     s.key = next;
     s.picked = true;
   };
-  return { key, presenters, whiteboardPresenters, screenOwner, whiteboardOwner, person, pick };
+  return {
+    key,
+    presenters,
+    whiteboardPresenters,
+    screenOwner,
+    whiteboardOwner,
+    person,
+    activePresentations,
+    pick,
+  };
 }

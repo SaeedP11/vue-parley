@@ -279,7 +279,7 @@ export function createPeer(opts: PeerOptions) {
       requestedTransceivers.add(transceiver);
       opts.onSignal({
         type: "transceiverRequest",
-        transceiverRequest: { kind: transceiver.sender.track.kind },
+        transceiverRequest: { kind: transceiver.sender.track.kind, init: { direction: "recvonly" } },
       });
     }
   }

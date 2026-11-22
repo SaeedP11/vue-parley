@@ -83,7 +83,7 @@ export function createChat(options: ChatOptions): Plugin {
             break;
           case useCallStore.$id:
             if (options.call) store.setHandlers(options.call);
-            store.canShareScreen = options.screenShare ?? false;
+            store.canShareScreen = options.screenShare ?? true;
             break;
           case useProfileStore.$id:
             if (options.profile) store.setHandlers(options.profile);

@@ -144,7 +144,7 @@ export type CallMessage =
   | { type: "join"; payload: { from: string; name: string } }
   | {
       type: "track_type";
-      payload: { from: string; types: { id: string; type: TrackType }[] };
+      payload: { from: string; types: { id: string; trackId?: string; type: TrackType }[] };
     }
   | {
       type: "call";
@@ -353,7 +353,7 @@ export type CallMessageSchema =
       type: typeof CallMessageType.TrackType;
       payload: {
         from: string;
-        types: { id: string; type: TrackType }[];
+        types: { id: string; trackId?: string; type: TrackType }[];
         /** Whether the sender's microphone and camera are on. Absent from older clients. */
         media?: CallMediaState;
         joinedAt?: number;

@@ -171,6 +171,29 @@ const isUnreachable = (tile?: Participant) =>
 const isDisconnected = (tile?: Participant) =>
   !!tile && !tile.isSelf && tile.status !== "connected" && !isUnreachable(tile);
 
+const selectedMemberStream = reactive<Record<string, "camera" | "screen" | "whiteboard">>({});
+
+const hasTileScreen = (tile: Participant) =>
+  tile.isSelf ? !!callMedia.value?.isScreenSharing.value : !!tile.screen?.getVideoTracks().length;
+
+const hasTileWhiteboard = (tile: Participant) =>
+  tile.isSelf ? !!callMedia.value?.isWhiteboardSharing.value : !!tile.whiteboard?.getVideoTracks().length;
+
+const getMemberStream = (tile: Participant) => {
+  const mode = selectedMemberStream[tile.id] ?? "camera";
+  if (mode === "screen") {
+    return tile.isSelf ? callMedia.value?.screenStream.value : tile.screen;
+  }
+  if (mode === "whiteboard") {
+    return tile.isSelf ? callMedia.value?.whiteboardStream.value : tile.whiteboard;
+  }
+  return streamOf(tile);
+};
+
+const otherWhiteboards = computed(() =>
+  displayParticipants.value.filter((p) => !p.isSelf && !!p.whiteboard?.getVideoTracks().length),
+);
+
 const whiteboardRef = ref<WhiteboardExposed | null>(null);
 
 watch(isVisible, async (open) => {
@@ -305,6 +328,21 @@ defineExpose({
               @toggle-sidebar="toggleSidebar"
               @close="close"
             />
+            <!-- Notice when another member shares whiteboard in parallel -->
+            <div
+              v-if="otherWhiteboards.length > 0"
+              class="absolute top-3 start-1/2 -translate-x-1/2 z-20 pointer-events-auto flex items-center gap-2 px-3 py-1.5 rounded-full bg-indigo-950/80 border border-indigo-500/40 backdrop-blur-md shadow-lg text-indigo-200 text-xs select-none"
+            >
+              <CallIcon name="whiteboard" class="size-3.5 text-indigo-400" />
+              <span>{{ t("chat.call.stage.alsoSharingWhiteboard", { name: nameOf(otherWhiteboards[0]) }) }}</span>
+              <button
+                type="button"
+                class="px-2 py-0.5 rounded bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-[11px] transition-colors cursor-pointer"
+                @click="isSidebarCollapsed = false; selectedMemberStream[otherWhiteboards[0].id] = 'whiteboard'"
+              >
+                {{ t("chat.call.stage.viewWhiteboard") }}
+              </button>
+            </div>
             <!-- Your own camera, while the members list isn't showing it. -->
             <div
               v-if="selfTile"
@@ -371,12 +409,48 @@ defineExpose({
                   'ring-2 ring-emerald-500 shadow-emerald-500/20': micOn(tile) && !tile.isSelf,
                 }"
               >
-                <!-- Video stream when camera is active -->
+                <!-- Video stream when active (camera, screen, or whiteboard) -->
                 <CallStageVideo
-                  v-if="cameraOn(tile)"
-                  :stream="streamOf(tile)"
-                  :mirrored="isMirrored(tile)"
+                  v-if="(selectedMemberStream[tile.id] === 'screen' ? hasTileScreen(tile) : selectedMemberStream[tile.id] === 'whiteboard' ? hasTileWhiteboard(tile) : cameraOn(tile)) && getMemberStream(tile)"
+                  :stream="getMemberStream(tile)"
+                  :mirrored="(selectedMemberStream[tile.id] ?? 'camera') === 'camera' && isMirrored(tile)"
                 />
+
+                <!-- Stream Switcher on card -->
+                <div
+                  v-if="hasTileScreen(tile) || hasTileWhiteboard(tile)"
+                  class="absolute top-1.5 end-1.5 z-20 flex items-center gap-1 bg-black/60 backdrop-blur-xs rounded-lg p-0.5 pointer-events-auto"
+                >
+                  <button
+                    type="button"
+                    class="px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors flex items-center gap-0.5 cursor-pointer"
+                    :class="(selectedMemberStream[tile.id] ?? 'camera') === 'camera' ? 'bg-white/25 text-white' : 'text-gray-400 hover:text-white'"
+                    :title="t('chat.call.stage.viewCamera')"
+                    @click.stop="selectedMemberStream[tile.id] = 'camera'"
+                  >
+                    <CallIcon name="videocam" class="size-3" />
+                  </button>
+                  <button
+                    v-if="hasTileScreen(tile)"
+                    type="button"
+                    class="px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors flex items-center gap-0.5 text-emerald-400 cursor-pointer"
+                    :class="selectedMemberStream[tile.id] === 'screen' ? 'bg-emerald-500/30 text-emerald-300 ring-1 ring-emerald-400' : 'hover:bg-white/10'"
+                    :title="t('chat.call.stage.viewScreen')"
+                    @click.stop="selectedMemberStream[tile.id] = 'screen'"
+                  >
+                    <CallIcon name="presentToAll" class="size-3" />
+                  </button>
+                  <button
+                    v-if="hasTileWhiteboard(tile)"
+                    type="button"
+                    class="px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors flex items-center gap-0.5 text-indigo-400 cursor-pointer"
+                    :class="selectedMemberStream[tile.id] === 'whiteboard' ? 'bg-indigo-500/30 text-indigo-300 ring-1 ring-indigo-400' : 'hover:bg-white/10'"
+                    :title="t('chat.call.stage.viewWhiteboard')"
+                    @click.stop="selectedMemberStream[tile.id] = 'whiteboard'"
+                  >
+                    <CallIcon name="whiteboard" class="size-3" />
+                  </button>
+                </div>
 
                 <!-- Camera Off fallback with avatar -->
                 <div
