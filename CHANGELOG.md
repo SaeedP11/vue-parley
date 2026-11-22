@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [5.7.2] - 2026-11-22
+
+### Added
+
+- Whiteboard:
+  - Auto-share whiteboard stream on open and stop on close.
+  - Only start whiteboard streaming when in dialog or window.
+
+### Changed
+
+- Chat:
+  - Simplify video compression to Do Compress toggle switch.
+
 ## [5.7.0] - 2026-11-21
 
 ### Added
