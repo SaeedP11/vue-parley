@@ -43,6 +43,7 @@ export interface ChatEvent {
 export interface MediaItem {
   url: string;
   kind: "image" | "video";
+  size?: number;
 }
 
 export interface Message {
@@ -62,6 +63,7 @@ export interface Message {
   compressMedia?: boolean;
   fileUrl?: string;
   fileName?: string;
+  fileSize?: number;
   voiceUrl?: string;
   videoUrl?: string;
   isEdited: boolean;

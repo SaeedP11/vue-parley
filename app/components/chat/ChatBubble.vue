@@ -284,6 +284,7 @@ const longPress = useLongPress(handleRightClick);
                     :is-mine="isMine"
                     :url="message.fileUrl ?? ''"
                     :file-name="message.fileName"
+                    :file-size="message.fileSize"
                     :message-id="message.id"
                     :is-sent="message.isSent"
                   />
@@ -312,6 +313,7 @@ const longPress = useLongPress(handleRightClick);
                   <BubbleVideo
                     v-else-if="messageType === 'video'"
                     :video-url="message.videoUrl"
+                    :file-size="message.fileSize"
                     :message-id="message.id"
                     :is-sent="message.isSent"
                     mode="playback"

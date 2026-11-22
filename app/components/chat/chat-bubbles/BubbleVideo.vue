@@ -1,6 +1,8 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useMessagesStore } from "~/stores/messageStores";
+import { useMediaStore } from "~/stores/mediaStore";
+import { formatBytes } from "~/utils/format";
 import useLocalI18n from "~/composables/useLocalI18n";
 import { chatBubble } from "@i18n/locales";
 
@@ -15,6 +17,7 @@ const props = withDefaults(
     isPaused?: boolean;
     recordingTime?: number;
     maxDuration?: number;
+    fileSize?: number;
   }>(),
   {
     videoUrl: "",
@@ -29,6 +32,7 @@ const props = withDefaults(
 );
 
 const messagesStore = useMessagesStore();
+const mediaStore = useMediaStore();
 const { t } = useLocalI18n(chatBubble);
 const videoRef = ref<HTMLVideoElement | null>(null);
 const isPlaying = ref(false);
@@ -41,6 +45,62 @@ const uploadData = computed(() =>
   props.messageId ? messagesStore.uploadProgress.get(props.messageId) : null,
 );
 const isUploading = computed(() => !props.isSent && uploadData.value);
+
+const fetchedSize = ref<number | null>(null);
+const resolvedSize = computed(() => props.fileSize ?? fetchedSize.value);
+
+const formattedSize = computed(() => {
+  const size = resolvedSize.value;
+  if (isUploading.value && uploadData.value) {
+    const realTotal = size || uploadData.value.total;
+    if (realTotal > 0) {
+      const currentUploaded = (uploadData.value.progress / 100) * realTotal;
+      return `${formatBytes(currentUploaded)} / ${formatBytes(realTotal)}`;
+    }
+  }
+  return size !== null && size !== undefined && size > 0
+    ? formatBytes(size)
+    : "";
+});
+
+const getFileSize = async () => {
+  if (props.fileSize !== undefined && props.fileSize !== null) {
+    fetchedSize.value = props.fileSize;
+    return;
+  }
+  if (!props.videoUrl) return;
+  if (props.videoUrl.startsWith("blob:")) {
+    try {
+      const res = await fetch(props.videoUrl);
+      const blob = await res.blob();
+      fetchedSize.value = blob.size;
+    } catch {
+      fetchedSize.value = 0;
+    }
+    return;
+  }
+  try {
+    const size = await mediaStore.fetchFileSize(props.videoUrl);
+    fetchedSize.value = size ?? 0;
+  } catch {
+    fetchedSize.value = 0;
+  }
+};
+
+onMounted(() => {
+  if (props.mode === "playback") {
+    getFileSize();
+  }
+});
+
+watch(
+  () => [props.videoUrl, props.fileSize],
+  () => {
+    if (props.mode === "playback") {
+      getFileSize();
+    }
+  },
+);
 
 const circumference = 2 * Math.PI * 113;
 const dashOffset = computed(() => {
@@ -279,6 +339,16 @@ onBeforeUnmount(() => {
       >
         <div class="w-2 h-2 rounded-full bg-chat-error animate-pulse"></div>
       </div>
+    </div>
+
+    <!-- Video file size badge -->
+    <div
+      v-if="formattedSize && mode === 'playback'"
+      data-testid="bubble-video-size"
+      class="pointer-events-none absolute start-2 bottom-2 z-20 flex select-none items-center gap-x-1 rounded-full bg-black/45 px-2 py-1 text-[11px] leading-none text-white backdrop-blur-sm"
+    >
+      <BIcon icon="PhVideo" class="size-3 text-white/80" />
+      <span>{{ formattedSize }}</span>
     </div>
   </div>
 </template>

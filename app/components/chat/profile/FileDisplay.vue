@@ -10,6 +10,7 @@ const props = withDefaults(
   defineProps<{
     url: string;
     loading?: boolean;
+    fileSize?: number;
   }>(),
   {
     loading: true,
@@ -43,15 +44,19 @@ const fileExt = computed(() => {
   return "FILE";
 });
 
+const resolvedSize = computed(() => props.fileSize ?? fetchedSize.value);
+
 const formattedSize = computed(() => {
-  // FIX: Check `!== null` instead of truthy. If the file size is exactly 0 bytes,
-  // a truthy check would incorrectly show "Calculating..." forever.
-  return fetchedSize.value !== null
-    ? formatBytes(fetchedSize.value)
+  return resolvedSize.value !== null && resolvedSize.value !== undefined
+    ? formatBytes(resolvedSize.value)
     : t("file.calculating");
 });
 
 const getFileSize = async () => {
+  if (props.fileSize !== undefined && props.fileSize !== null) {
+    fetchedSize.value = props.fileSize;
+    return;
+  }
   try {
     const size = await mediaStore.fetchFileSize(props.url);
     fetchedSize.value = size ?? 0;

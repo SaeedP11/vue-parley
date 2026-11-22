@@ -424,6 +424,7 @@ export const useMessagesStore = defineStore("messages-store", () => {
         id: canonical.id,
         isSent: true,
         isFailed: false,
+        ...(canonical.fileSize !== undefined ? { fileSize: canonical.fileSize } : {}),
       });
       if (canonical.imageUrl?.length) {
         profileStore.addMedia(conversationId, ...canonical.imageUrl);

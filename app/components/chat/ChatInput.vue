@@ -234,13 +234,19 @@ const recording = useChatRecording(inputWidth, {
   onCancel: () => {
     if (secondaryMessageType.value === "video") videoDisplayRef.value?.close();
   },
-  onSend: (mediaUrl?: string) => {
+  onSend: (mediaUrl?: string, mediaBlob?: Blob) => {
     const finalUrl = mediaUrl || "placeholder";
     const msg = createBaseMessage();
     console.log(msg);
     msg.type = secondaryMessageType.value as Message["type"];
-    if (msg.type === "voice") msg.voiceUrl = finalUrl;
-    if (msg.type === "video") msg.videoUrl = finalUrl;
+    if (msg.type === "voice") {
+      msg.voiceUrl = finalUrl;
+      if (mediaBlob) msg.fileSize = mediaBlob.size;
+    }
+    if (msg.type === "video") {
+      msg.videoUrl = finalUrl;
+      if (mediaBlob) msg.fileSize = mediaBlob.size;
+    }
 
     messagesStore.sendMessage([msg]);
     messagesStore.clearActions();
@@ -322,9 +328,16 @@ const handleAttachments = (payloads: Message[]) => {
     if (payload.type === "file") {
       msg.fileUrl = payload.fileUrl;
       msg.fileName = payload.fileName;
+      msg.fileSize = payload.fileSize;
     }
-    if (payload.type === "voice") msg.voiceUrl = payload.voiceUrl;
-    if (payload.type === "video") msg.videoUrl = payload.videoUrl;
+    if (payload.type === "voice") {
+      msg.voiceUrl = payload.voiceUrl;
+      msg.fileSize = payload.fileSize;
+    }
+    if (payload.type === "video") {
+      msg.videoUrl = payload.videoUrl;
+      msg.fileSize = payload.fileSize;
+    }
     return msg;
   });
 

@@ -476,7 +476,7 @@ const send = () => {
       compressMedia: canCompress && videoCount.value > 0 ? doCompress.value : false,
       // Hosts that only know photos read `imageUrl`; the rest read the whole album from `media`.
       imageUrl: selectedMedia.value.filter((m) => m.kind === "image").map((m) => m.path),
-      media: selectedMedia.value.map((m) => ({ url: m.path, kind: m.kind })),
+      media: selectedMedia.value.map((m) => ({ url: m.path, kind: m.kind, size: m.file?.size })),
       files: selectedMedia.value.map((m) => m.file),
     });
   }
@@ -488,6 +488,7 @@ const send = () => {
         fileUrl: fileData.path,
         file: fileData.file,
         fileName: fileData.name,
+        fileSize: fileData.size,
       });
     });
   }
