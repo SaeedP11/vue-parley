@@ -18,6 +18,7 @@ const props = withDefaults(
     recordingTime?: number;
     maxDuration?: number;
     fileSize?: number;
+    compress?: number;
   }>(),
   {
     videoUrl: "",
@@ -45,6 +46,7 @@ const uploadData = computed(() =>
   props.messageId ? messagesStore.uploadProgress.get(props.messageId) : null,
 );
 const isUploading = computed(() => !props.isSent && uploadData.value);
+const isCompressing = computed(() => !props.isSent && props.compress !== undefined);
 
 const fetchedSize = ref<number | null>(null);
 const resolvedSize = computed(() => props.fileSize ?? fetchedSize.value);
@@ -94,7 +96,16 @@ onMounted(() => {
 });
 
 watch(
-  () => [props.videoUrl, props.fileSize],
+  () => props.fileSize,
+  (newSize) => {
+    if (typeof newSize === "number") {
+      fetchedSize.value = newSize;
+    }
+  },
+);
+
+watch(
+  () => props.videoUrl,
   () => {
     if (props.mode === "playback") {
       getFileSize();
@@ -104,6 +115,10 @@ watch(
 
 const circumference = 2 * Math.PI * 113;
 const dashOffset = computed(() => {
+  if (isCompressing.value) {
+    return circumference - ((props.compress ?? 0) / 100) * circumference;
+  }
+
   if (isUploading.value && uploadData.value) {
     return circumference - (uploadData.value.progress / 100) * circumference;
   }
@@ -239,7 +254,7 @@ onBeforeUnmount(() => {
         cy="115"
         r="113"
         :class="[
-          isUploading ? 'stroke-white/30' : 'stroke-white dark:stroke-chat-background',
+          isUploading || isCompressing ? 'stroke-white/30' : 'stroke-white dark:stroke-chat-background',
         ]"
         stroke-width="4"
         fill="none"

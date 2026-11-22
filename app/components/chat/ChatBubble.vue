@@ -316,6 +316,7 @@ const longPress = useLongPress(handleRightClick);
                     :file-size="message.fileSize"
                     :message-id="message.id"
                     :is-sent="message.isSent"
+                    :compress="compressData"
                     mode="playback"
                   />
                   <BubbleMeta

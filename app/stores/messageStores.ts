@@ -22,6 +22,7 @@ let compressionQueue: Promise<unknown> = Promise.resolve();
 // A sent media object URL → its compressed copy's, kept until the send goes through so a retry
 // doesn't compress it again.
 const compressedUrls = new Map<string, string>();
+const compressedSizes = new Map<string, number>();
 const activeAbortControllers = new Map<string, AbortController>();
 const cancelledMessageIds = new Set<string>();
 
@@ -325,59 +326,178 @@ export const useMessagesStore = defineStore("messages-store", () => {
    * where possible. The bubble keeps showing what was picked.
    */
   const compressMedia = async (message: Message): Promise<Message> => {
-    const items = (message.media ?? []).filter((item) => item.kind === "image" || (item.kind === "video" && canCompressVideo()));
-    if (message.type !== "image" || !message.compressMedia || !items.length) return message;
+    if (!message.compressMedia) return message;
 
     const { id } = message;
-    compressionProgress.value.set(id, 0);
     const controller = activeAbortControllers.get(id);
     const signal = controller?.signal;
-    const run = compressionQueue.then(async () => {
-      for (const [index, item] of items.entries()) {
+
+    if (message.type === "image" && message.media?.length) {
+      const items = message.media.filter(
+        (item) => item.kind === "image" || (item.kind === "video" && canCompressVideo()),
+      );
+      if (!items.length) return message;
+
+      compressionProgress.value.set(id, 0);
+      const run = compressionQueue.then(async () => {
+        for (const [index, item] of items.entries()) {
+          if (signal?.aborted || cancelledMessageIds.has(id)) return;
+          if (compressedUrls.has(item.url)) continue;
+          const report = (p: number) =>
+            compressionProgress.value.set(id, Math.round(((index + p) / items.length) * 100));
+          report(0);
+          try {
+            const blob = await fetch(item.url).then((r) => r.blob());
+            if (signal?.aborted || cancelledMessageIds.has(id)) return;
+            const file = new File([blob], item.kind === "video" ? "video.mp4" : "photo.jpg", {
+              type: blob.type || (item.kind === "video" ? "video/mp4" : "image/jpeg"),
+            });
+            const smaller = item.kind === "video"
+              ? await compressVideo(file, { onProgress: report, signal })
+              : await compressImage(file);
+            if (smaller && !signal?.aborted && !cancelledMessageIds.has(id)) {
+              compressedUrls.set(item.url, URL.createObjectURL(smaller));
+              compressedSizes.set(item.url, smaller.size);
+            }
+          } catch (error) {
+            if (signal?.aborted || cancelledMessageIds.has(id)) return;
+            console.warn("[vue-parley] media compression failed, sending the original", error);
+          }
+        }
+      });
+      compressionQueue = run;
+      await run;
+      compressionProgress.value.delete(id);
+
+      const compressedMedia = message.media.map((item) => ({
+        ...item,
+        url: compressedUrls.get(item.url) ?? item.url,
+        size: compressedSizes.get(item.url) ?? item.size,
+      }));
+
+      const singleSize =
+        compressedMedia.length === 1 && compressedMedia[0]
+          ? compressedMedia[0].size
+          : undefined;
+
+      return {
+        ...message,
+        imageUrl: message.imageUrl?.map((url) => compressedUrls.get(url) ?? url),
+        media: compressedMedia,
+        fileSize: singleSize ?? message.fileSize,
+      };
+    }
+
+    if (message.type === "video" && message.videoUrl && canCompressVideo()) {
+      const url = message.videoUrl;
+      compressionProgress.value.set(id, 0);
+      const run = compressionQueue.then(async () => {
         if (signal?.aborted || cancelledMessageIds.has(id)) return;
-        if (compressedUrls.has(item.url)) continue;
-        const report = (p: number) =>
-          compressionProgress.value.set(id, Math.round(((index + p) / items.length) * 100));
+        if (compressedUrls.has(url)) return;
+        const report = (p: number) => compressionProgress.value.set(id, Math.round(p * 100));
         report(0);
         try {
-          const blob = await fetch(item.url).then((r) => r.blob());
+          const blob = await fetch(url).then((r) => r.blob());
           if (signal?.aborted || cancelledMessageIds.has(id)) return;
-          const file = new File([blob], item.kind === "video" ? "video.mp4" : "photo.jpg", {
-            type: blob.type || (item.kind === "video" ? "video/mp4" : "image/jpeg"),
+          const file = new File([blob], "video.mp4", {
+            type: blob.type || "video/mp4",
           });
-          const smaller = item.kind === "video"
-            ? await compressVideo(file, { onProgress: report, signal })
-            : await compressImage(file);
+          const smaller = await compressVideo(file, { onProgress: report, signal });
           if (smaller && !signal?.aborted && !cancelledMessageIds.has(id)) {
-            compressedUrls.set(item.url, URL.createObjectURL(smaller));
+            compressedUrls.set(url, URL.createObjectURL(smaller));
+            compressedSizes.set(url, smaller.size);
           }
         } catch (error) {
           if (signal?.aborted || cancelledMessageIds.has(id)) return;
-          console.warn("[vue-parley] media compression failed, sending the original", error);
+          console.warn("[vue-parley] video compression failed, sending the original", error);
         }
-      }
-    });
-    compressionQueue = run;
-    await run;
-    compressionProgress.value.delete(id);
+      });
+      compressionQueue = run;
+      await run;
+      compressionProgress.value.delete(id);
 
-    return {
-      ...message,
-      imageUrl: message.imageUrl?.map((url) => compressedUrls.get(url) ?? url),
-      media: message.media!.map((item) => ({
-        ...item,
-        url: compressedUrls.get(item.url) ?? item.url,
-      })),
-    };
+      const compressedUrl = compressedUrls.get(url);
+      const compressedSize = compressedSizes.get(url);
+
+      return {
+        ...message,
+        videoUrl: compressedUrl ?? message.videoUrl,
+        fileSize: compressedSize ?? message.fileSize,
+      };
+    }
+
+    if (message.type === "file" && message.fileUrl) {
+      const url = message.fileUrl;
+      compressionProgress.value.set(id, 0);
+      const run = compressionQueue.then(async () => {
+        if (signal?.aborted || cancelledMessageIds.has(id)) return;
+        if (compressedUrls.has(url)) return;
+        const report = (p: number) => compressionProgress.value.set(id, Math.round(p * 100));
+        report(0);
+        try {
+          const blob = await fetch(url).then((r) => r.blob());
+          if (signal?.aborted || cancelledMessageIds.has(id)) return;
+          const isVideo = blob.type.startsWith("video/") && canCompressVideo();
+          const isImage = blob.type.startsWith("image/");
+          if (isVideo || isImage) {
+            const file = new File([blob], message.fileName || (isVideo ? "video.mp4" : "photo.jpg"), {
+              type: blob.type,
+            });
+            const smaller = isVideo
+              ? await compressVideo(file, { onProgress: report, signal })
+              : await compressImage(file);
+            if (smaller && !signal?.aborted && !cancelledMessageIds.has(id)) {
+              compressedUrls.set(url, URL.createObjectURL(smaller));
+              compressedSizes.set(url, smaller.size);
+            }
+          }
+        } catch (error) {
+          if (signal?.aborted || cancelledMessageIds.has(id)) return;
+          console.warn("[vue-parley] file compression failed, sending the original", error);
+        }
+      });
+      compressionQueue = run;
+      await run;
+      compressionProgress.value.delete(id);
+
+      const compressedUrl = compressedUrls.get(url);
+      const compressedSize = compressedSizes.get(url);
+
+      return {
+        ...message,
+        fileUrl: compressedUrl ?? message.fileUrl,
+        fileSize: compressedSize ?? message.fileSize,
+      };
+    }
+
+    return message;
   };
 
-  const releaseCompressed = (message: Message) =>
+  const releaseCompressed = (message: Message) => {
     message.media?.forEach((item) => {
       const url = compressedUrls.get(item.url);
       if (!url) return;
       URL.revokeObjectURL(url);
       compressedUrls.delete(item.url);
+      compressedSizes.delete(item.url);
     });
+    if (message.videoUrl) {
+      const url = compressedUrls.get(message.videoUrl);
+      if (url) {
+        URL.revokeObjectURL(url);
+        compressedUrls.delete(message.videoUrl);
+        compressedSizes.delete(message.videoUrl);
+      }
+    }
+    if (message.fileUrl) {
+      const url = compressedUrls.get(message.fileUrl);
+      if (url) {
+        URL.revokeObjectURL(url);
+        compressedUrls.delete(message.fileUrl);
+        compressedSizes.delete(message.fileUrl);
+      }
+    }
+  };
 
   const deliver = async (tempMsg: Message) => {
     const { conversationId } = tempMsg;
@@ -391,8 +511,16 @@ export const useMessagesStore = defineStore("messages-store", () => {
         return;
       }
       // The bubble moves straight from compressing to uploading, before the first upload event.
-      if (outgoing !== tempMsg)
+      if (outgoing !== tempMsg) {
+        applyUpdate(conversationId, tempMsg.id, {
+          ...(outgoing.media ? { media: outgoing.media } : {}),
+          ...(outgoing.imageUrl ? { imageUrl: outgoing.imageUrl } : {}),
+          ...(outgoing.fileSize !== undefined ? { fileSize: outgoing.fileSize } : {}),
+          ...(outgoing.videoUrl ? { videoUrl: outgoing.videoUrl } : {}),
+          ...(outgoing.fileUrl ? { fileUrl: outgoing.fileUrl } : {}),
+        });
         uploadProgress.value.set(tempMsg.id, { progress: 0, uploaded: 0, total: 0 });
+      }
       const canonical = await handlers.sendMessage(outgoing, {
         signal: controller.signal,
         onProgress: tracksProgress
@@ -424,7 +552,19 @@ export const useMessagesStore = defineStore("messages-store", () => {
         id: canonical.id,
         isSent: true,
         isFailed: false,
-        ...(canonical.fileSize !== undefined ? { fileSize: canonical.fileSize } : {}),
+        ...(canonical.fileSize !== undefined
+          ? { fileSize: canonical.fileSize }
+          : outgoing.fileSize !== undefined
+            ? { fileSize: outgoing.fileSize }
+            : {}),
+        ...(canonical.media
+          ? {
+              media: canonical.media.map((item, idx) => ({
+                ...item,
+                size: item.size ?? outgoing.media?.[idx]?.size,
+              })),
+            }
+          : {}),
       });
       if (canonical.imageUrl?.length) {
         profileStore.addMedia(conversationId, ...canonical.imageUrl);

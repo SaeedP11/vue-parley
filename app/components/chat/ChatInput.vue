@@ -324,6 +324,7 @@ const handleAttachments = (payloads: Message[]) => {
       msg.imageUrl = payload.imageUrl;
       msg.media = payload.media;
       msg.compressMedia = payload.compressMedia;
+      msg.fileSize = payload.fileSize;
     }
     if (payload.type === "file") {
       msg.fileUrl = payload.fileUrl;

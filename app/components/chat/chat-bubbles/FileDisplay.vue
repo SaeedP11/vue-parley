@@ -182,7 +182,16 @@ onMounted(() => {
 });
 
 watch(
-  () => [props.url, props.fileSize],
+  () => props.fileSize,
+  (newSize) => {
+    if (typeof newSize === "number") {
+      fetchedSize.value = newSize;
+    }
+  },
+);
+
+watch(
+  () => props.url,
   () => {
     getFileSize();
   },

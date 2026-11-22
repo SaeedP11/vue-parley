@@ -24,13 +24,6 @@ const props = withDefaults(
 
 const loaded = ref(false);
 const duration = ref<number | null>(null);
-watch(
-  () => props.item.url,
-  () => {
-    loaded.value = false;
-    duration.value = null;
-  },
-);
 
 const onMetadata = (event: Event) => {
   const d = (event.target as HTMLVideoElement).duration;
@@ -73,8 +66,19 @@ onMounted(() => {
 });
 
 watch(
-  () => [props.item.url, props.item.size],
+  () => props.item.size,
+  (newSize) => {
+    if (typeof newSize === "number") {
+      fetchedSize.value = newSize;
+    }
+  },
+);
+
+watch(
+  () => props.item.url,
   () => {
+    loaded.value = false;
+    duration.value = null;
     if (props.item.kind === "video") {
       getFileSize();
     }

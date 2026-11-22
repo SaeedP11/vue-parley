@@ -478,6 +478,7 @@ const send = () => {
       imageUrl: selectedMedia.value.filter((m) => m.kind === "image").map((m) => m.path),
       media: selectedMedia.value.map((m) => ({ url: m.path, kind: m.kind, size: m.file?.size })),
       files: selectedMedia.value.map((m) => m.file),
+      fileSize: selectedMedia.value.length === 1 ? selectedMedia.value[0]?.file?.size : undefined,
     });
   }
 
