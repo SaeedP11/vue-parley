@@ -2255,18 +2255,34 @@ function getStream(fps = 10): MediaStream | null {
   return stream;
 }
 
+function startStream(): boolean {
+  if (activeStream && (isStreamActiveInternal.value || props.streamActive)) return true;
+  const stream = getStream();
+  if (stream) {
+    isStreamActiveInternal.value = true;
+    emit("streamStart", stream);
+    emit("update:streamActive", true);
+    return true;
+  }
+  return false;
+}
+
+function stopStream() {
+  stopActiveStream();
+  emit("streamStop");
+  emit("update:streamActive", false);
+}
+
+function handleClose() {
+  stopStream();
+  emit("close");
+}
+
 function toggleStream() {
   if (effectiveStreamActive.value) {
-    stopActiveStream();
-    emit("streamStop");
-    emit("update:streamActive", false);
+    stopStream();
   } else {
-    const stream = getStream();
-    if (stream) {
-      isStreamActiveInternal.value = true;
-      emit("streamStart", stream);
-      emit("update:streamActive", true);
-    }
+    startStream();
   }
 }
 
@@ -2361,16 +2377,22 @@ useEventListener(window, "keyup", (e: KeyboardEvent) => {
   }
 });
 
-onMounted(() => {
-  if (props.streamActive) {
-    isStreamActiveInternal.value = true;
-    const s = getStream();
-    if (s) emit("streamStart", s);
+onMounted(async () => {
+  await nextTick();
+  if (props.allowStream || props.streamActive) {
+    if (!startStream()) {
+      let attempts = 0;
+      const tryStart = () => {
+        if (startStream() || attempts++ >= 5) return;
+        requestAnimationFrame(tryStart);
+      };
+      requestAnimationFrame(tryStart);
+    }
   }
 });
 
 onBeforeUnmount(() => {
-  stopActiveStream();
+  stopStream();
   if (laserTimer) {
     clearInterval(laserTimer);
     laserTimer = null;
@@ -2469,7 +2491,7 @@ const overflowMenuItems = computed<MenuItem[]>(() => {
       label: t("board.close"),
       phIcon: "PhX",
       danger: true,
-      command: () => emit("close"),
+      command: () => handleClose(),
     });
   }
 
@@ -2594,41 +2616,6 @@ defineExpose<WhiteboardExposed>({
           </button>
         </div>
 
-        <!-- Stream / Share to Call Button -->
-        <button
-          v-if="allowStream"
-          v-tooltip.bottom="tt(effectiveStreamActive ? t('board.stopSharing') : t('board.shareToCall'))"
-          type="button"
-          class="group relative inline-flex items-center justify-center gap-1.5 h-8 px-2 sm:px-2.5 lg:px-3 rounded-xl text-xs font-semibold cursor-pointer select-none transition-all duration-200 active:scale-[0.97] focus-visible:outline-2 focus-visible:outline-offset-2 shrink-0"
-          :class="
-            effectiveStreamActive
-              ? 'bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white shadow-xs hover:shadow-md hover:shadow-rose-600/25 border border-rose-500/50 focus-visible:outline-rose-500'
-              : 'bg-chat-primary hover:bg-chat-primary/90 text-white shadow-xs hover:shadow-md hover:shadow-chat-primary/25 border border-white/20 dark:border-white/10 focus-visible:outline-chat-primary'
-          "
-          :aria-label="effectiveStreamActive ? t('board.stopSharing') : t('board.shareToCall')"
-          :aria-pressed="effectiveStreamActive"
-          data-testid="whiteboard-stream-btn"
-          @click="toggleStream"
-        >
-          <!-- Pulsing Live Ping Dot when streaming -->
-          <span v-if="effectiveStreamActive" class="relative flex size-2 shrink-0" aria-hidden="true">
-            <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-75" />
-            <span class="relative inline-flex size-2 rounded-full bg-white" />
-          </span>
-
-          <!-- Broadcast / Stop Icon -->
-          <BIcon
-            :icon="effectiveStreamActive ? 'PhStopCircle' : 'PhBroadcast'"
-            weight="bold"
-            class="size-4 shrink-0 transition-transform duration-200 group-hover:scale-110"
-          />
-
-          <!-- Text Label: Shown on lg+ (1024px+), compact on tablet/mobile -->
-          <span class="hidden lg:inline font-medium tracking-tight">
-            {{ effectiveStreamActive ? t('board.stopSharing') : t('board.shareToCall') }}
-          </span>
-        </button>
-
         <!-- Desktop Quick Actions (2XL+ only): Theme, Grid, Copy, Save, Shortcuts -->
         <div class="hidden 2xl:flex items-center gap-1">
           <IconButton
@@ -2732,7 +2719,7 @@ defineExpose<WhiteboardExposed>({
           :label="t('board.close')"
           icon-class="size-4.5"
           class="shrink-0 hover:bg-red-50 dark:hover:bg-red-950/40 hover:text-red-500"
-          @click="emit('close')"
+          @click="handleClose"
         />
       </div>
     </header>

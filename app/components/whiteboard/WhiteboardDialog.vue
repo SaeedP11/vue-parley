@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, watch, nextTick } from "vue";
+import { ref, computed, watch, nextTick, onBeforeUnmount } from "vue";
 import { useEventListener } from "@vueuse/core";
 import Whiteboard, { type WhiteboardExposed } from "./Whiteboard.vue";
 import type { WhiteboardTool } from "./types";
@@ -180,6 +180,10 @@ watch(isVisible, async (open) => {
     }
     await nextTick();
     window.dispatchEvent(new Event("resize"));
+  } else {
+    session.value?.stopWhiteboardShare();
+    emit("streamStop");
+    emit("update:streamActive", false);
   }
 });
 
@@ -191,9 +195,18 @@ const toggleSidebar = () => {
 };
 
 const close = () => {
+  session.value?.stopWhiteboardShare();
+  emit("streamStop");
+  emit("update:streamActive", false);
   isVisible.value = false;
   emit("close");
 };
+
+onBeforeUnmount(() => {
+  session.value?.stopWhiteboardShare();
+  emit("streamStop");
+  emit("update:streamActive", false);
+});
 
 const onMaskClick = (e: MouseEvent) => {
   if (props.dismissableMask && e.target === e.currentTarget) {

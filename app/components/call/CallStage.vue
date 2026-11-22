@@ -277,6 +277,17 @@ const toggleWhiteboard = () => {
   }
 };
 
+watch(whiteboardVisible, (open) => {
+  if (!open) {
+    session.stopWhiteboardShare();
+  }
+});
+
+const onCloseWhiteboard = () => {
+  internalWhiteboardOpen.value = false;
+  session.stopWhiteboardShare();
+};
+
 const onStartWhiteboardStream = async (stream: MediaStream) => {
   await session.startWhiteboardShare(stream);
 };
@@ -659,7 +670,7 @@ const onExtraClick = (event: MouseEvent) => {
       :participants="participants"
       @stream-start="onStartWhiteboardStream"
       @stream-stop="onStopWhiteboardStream"
-      @close="internalWhiteboardOpen = false"
+      @close="onCloseWhiteboard"
     />
   </section>
 </template>
