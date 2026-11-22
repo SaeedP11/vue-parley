@@ -135,19 +135,26 @@
           </li>
         </ul>
 
-        <fieldset v-if="dialogMode !== 'file'" class="flex flex-col gap-2 text-body-sm" data-testid="chat-attach-compress">
-          <legend class="mb-2 text-chat-on-background">{{ t("compress.question") }}</legend>
-          <label class="flex cursor-pointer items-center gap-2">
-            <input v-model="compressionChoice" type="radio" :value="true" name="media-compression" />
-            {{ t("compress.yes") }}
-          </label>
-          <label class="flex cursor-pointer items-center gap-2">
-            <input v-model="compressionChoice" type="radio" :value="false" name="media-compression" />
-            {{ t("compress.no") }}
-          </label>
-          <p class="text-chat-muted">{{ t("compress.hint") }}</p>
-          <p v-if="videoCount > 0 && !canCompress" class="text-chat-muted">{{ t("compress.unsupported") }}</p>
-        </fieldset>
+        <div
+          v-if="videoCount > 0"
+          class="flex flex-col gap-y-1 text-body-sm"
+          data-testid="chat-attach-compress"
+        >
+          <div v-if="canCompress" class="inline-flex items-center gap-2.5">
+            <ToggleSwitch
+              v-model="doCompress"
+              input-id="chat-attach-compress-switch"
+              data-testid="chat-attach-compress-switch"
+            />
+            <label
+              for="chat-attach-compress-switch"
+              class="cursor-pointer text-body-sm text-chat-on-background select-none"
+            >
+              {{ t("compress.doCompress") }}
+            </label>
+          </div>
+          <p v-else class="text-chat-muted">{{ t("compress.unsupported") }}</p>
+        </div>
 
         <Textarea
           v-model="caption"
@@ -173,7 +180,7 @@
           <Button
             class="flex-1 md:min-w-28 md:flex-none"
             :label="t('send')"
-            :disabled="itemCount === 0 || (dialogMode !== 'file' && compressionChoice === null)"
+            :disabled="itemCount === 0"
             data-testid="chat-attach-send"
             @click="send"
           >
@@ -197,6 +204,7 @@ import { useMediaQuery } from "@vueuse/core";
 import Button from "primevue/button";
 import Popover from "primevue/popover";
 import Textarea from "primevue/textarea";
+import ToggleSwitch from "primevue/toggleswitch";
 import IconButton from "~/components/general/IconButton.vue";
 import MediaThumb from "~/components/general/MediaThumb.vue";
 import ResponsiveDialog from "~/components/general/ResponsiveDialog.vue";
@@ -256,7 +264,7 @@ const isTouch = useMediaQuery("(pointer: coarse)");
 const dialogOpen = ref(false);
 const dialogMode = ref<DialogMode>("file");
 const caption = ref("");
-const compressionChoice = ref<boolean | null>(null);
+const doCompress = ref(true);
 const selectedMedia = ref<PickedMedia[]>([]);
 const selectedFiles = ref<PickedFile[]>([]);
 // Sent object URLs back the optimistic bubbles; only the ones never sent are released.
@@ -337,7 +345,7 @@ const discard = () => {
     selectedFiles.value.forEach((f) => URL.revokeObjectURL(f.path));
   }
   sent = false;
-  compressionChoice.value = null;
+  doCompress.value = true;
   selectedMedia.value = [];
   selectedFiles.value = [];
 };
@@ -452,7 +460,7 @@ const onCaptionEnter = (event: KeyboardEvent) => {
 };
 
 const send = () => {
-  if (itemCount.value === 0 || (dialogMode.value !== "file" && compressionChoice.value === null)) return;
+  if (itemCount.value === 0) return;
   const messagesToEmit: AttachmentData[] = [];
 
   if (caption.value.trim()) {
@@ -465,7 +473,7 @@ const send = () => {
   if (dialogMode.value !== "file" && selectedMedia.value.length > 0) {
     messagesToEmit.push({
       type: "image",
-      compressMedia: compressionChoice.value === true,
+      compressMedia: canCompress && videoCount.value > 0 ? doCompress.value : false,
       // Hosts that only know photos read `imageUrl`; the rest read the whole album from `media`.
       imageUrl: selectedMedia.value.filter((m) => m.kind === "image").map((m) => m.path),
       media: selectedMedia.value.map((m) => ({ url: m.path, kind: m.kind })),

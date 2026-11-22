@@ -646,7 +646,7 @@ test.describe("images", () => {
     await (await chooser).setFiles(["e2e/harness/public/sample.webm"]);
 
     await expect(page.getByText("Send photos and videos")).toBeVisible();
-    await page.getByLabel("Send original quality").check();
+    await page.getByTestId("chat-attach-compress-switch").click();
     await page.getByRole("button", { name: "Send", exact: true }).click();
 
     await expect
@@ -692,8 +692,9 @@ test.describe("images", () => {
 
     const dialog = page.getByTestId("chat-attach-dialog");
     await expect(dialog.getByText("Send video")).toBeVisible();
-    await expect(dialog.getByTestId("chat-attach-send")).toBeDisabled();
-    await dialog.getByLabel("Compress", { exact: true }).check();
+    await expect(dialog.getByTestId("chat-attach-compress-switch")).toBeVisible();
+    await expect(dialog.getByText("Do Compress")).toBeVisible();
+    await expect(dialog.getByTestId("chat-attach-send")).toBeEnabled();
     // Sending doesn't wait: the bubble shows the compression, then the upload.
     await dialog.getByTestId("chat-attach-send").click();
     await expect(dialog).toBeHidden();

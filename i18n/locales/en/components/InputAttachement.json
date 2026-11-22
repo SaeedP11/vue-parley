@@ -21,10 +21,7 @@
     "mediaCount": "{count} of {max}"
   },
   "compress": {
-    "question": "Compress photos and videos before sending?",
-    "yes": "Compress",
-    "no": "Send original quality",
-    "hint": "Compression may reduce quality. Animated or unsupported files are sent unchanged.",
+    "doCompress": "Do Compress",
     "unsupported": "This browser can't compress videos, so videos will be sent unchanged."
   },
   "errors": {
