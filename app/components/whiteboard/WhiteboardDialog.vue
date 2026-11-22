@@ -180,7 +180,11 @@ watch(isVisible, async (open) => {
     }
     await nextTick();
     window.dispatchEvent(new Event("resize"));
+    if (props.allowStream) {
+      whiteboardRef.value?.startStream();
+    }
   } else {
+    whiteboardRef.value?.stopStream();
     session.value?.stopWhiteboardShare();
     emit("streamStop");
     emit("update:streamActive", false);
@@ -195,6 +199,7 @@ const toggleSidebar = () => {
 };
 
 const close = () => {
+  whiteboardRef.value?.stopStream();
   session.value?.stopWhiteboardShare();
   emit("streamStop");
   emit("update:streamActive", false);
@@ -203,6 +208,7 @@ const close = () => {
 };
 
 onBeforeUnmount(() => {
+  whiteboardRef.value?.stopStream();
   session.value?.stopWhiteboardShare();
   emit("streamStop");
   emit("update:streamActive", false);
@@ -228,6 +234,8 @@ useEventListener(window, "keydown", (e: KeyboardEvent) => {
 
 defineExpose({
   getStream: (fps = 10) => whiteboardRef.value?.getStream(fps) ?? null,
+  startStream: () => whiteboardRef.value?.startStream() ?? false,
+  stopStream: () => whiteboardRef.value?.stopStream(),
   downloadImage: (format?: "png" | "jpeg") => whiteboardRef.value?.downloadImage(format),
   copyImageToClipboard: () => whiteboardRef.value?.copyImageToClipboard(),
   clear: () => whiteboardRef.value?.clear(),
@@ -277,6 +285,7 @@ defineExpose({
           >
             <Whiteboard
               ref="whiteboardRef"
+              :visible="isVisible"
               :initial-tool="initialTool"
               :initial-color="initialColor"
               :title="title"

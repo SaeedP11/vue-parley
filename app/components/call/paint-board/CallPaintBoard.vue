@@ -31,8 +31,12 @@ const emit = defineEmits<{
 
 const whiteboardRef = ref<WhiteboardExposed | null>(null);
 
+const isBoardOpen = computed(() => (props.asDialog ? props.isOpen : (props.isOpen ?? true)));
+
 defineExpose({
   getStream: (fps = 10) => whiteboardRef.value?.getStream(fps) ?? null,
+  startStream: () => whiteboardRef.value?.startStream() ?? false,
+  stopStream: () => whiteboardRef.value?.stopStream(),
   downloadImage: (format?: "png" | "jpeg") => whiteboardRef.value?.downloadImage(format),
   clear: () => whiteboardRef.value?.clear(),
   undo: () => whiteboardRef.value?.undo(),
@@ -58,6 +62,7 @@ defineExpose({
   >
     <Whiteboard
       ref="whiteboardRef"
+      :visible="isBoardOpen"
       :initial-tool="initialTool"
       :maximizable="maximizable"
       :stream-active="streamActive"

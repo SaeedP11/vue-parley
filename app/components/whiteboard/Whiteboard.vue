@@ -78,6 +78,8 @@ interface LaserPoint {
 
 export interface WhiteboardExposed {
   getStream: (fps?: number) => MediaStream | null;
+  startStream: () => boolean;
+  stopStream: () => void;
   downloadImage: (format?: "png" | "jpeg") => void;
   copyImageToClipboard: () => Promise<void>;
   clear: () => void;
@@ -91,6 +93,7 @@ export interface WhiteboardExposed {
 
 const props = withDefaults(
   defineProps<{
+    visible?: boolean;
     initialTool?: WhiteboardTool;
     initialColor?: string;
     initialSize?: number;
@@ -106,6 +109,7 @@ const props = withDefaults(
     title?: string;
   }>(),
   {
+    visible: undefined,
     initialTool: "pen",
     initialColor: "#2563eb",
     initialSize: 4,
@@ -2176,6 +2180,11 @@ function stopLoop() {
 const isStreamActiveInternal = ref(false);
 const effectiveStreamActive = computed(() => !!(props.streamActive || isStreamActiveInternal.value));
 
+const isWhiteboardInView = computed(() => {
+  if (props.visible !== undefined) return props.visible;
+  return true;
+});
+
 function stopActiveStream() {
   isStreamActiveInternal.value = false;
   stopLoop();
@@ -2199,7 +2208,7 @@ watch(
     isStreamActiveInternal.value = !!active;
     if (!active) {
       stopActiveStream();
-    } else if (!activeStreamTrack) {
+    } else if (!activeStreamTrack && isWhiteboardInView.value) {
       const stream = getStream();
       if (stream) emit("streamStart", stream);
     }
@@ -2207,6 +2216,7 @@ watch(
 );
 
 function getStream(fps = 10): MediaStream | null {
+  if (!isWhiteboardInView.value) return null;
   const stage = stageRef.value?.getStage();
   if (!stage) return null;
 
@@ -2256,6 +2266,7 @@ function getStream(fps = 10): MediaStream | null {
 }
 
 function startStream(): boolean {
+  if (!isWhiteboardInView.value) return false;
   if (activeStream && (isStreamActiveInternal.value || props.streamActive)) return true;
   const stream = getStream();
   if (stream) {
@@ -2377,13 +2388,34 @@ useEventListener(window, "keyup", (e: KeyboardEvent) => {
   }
 });
 
+watch(isWhiteboardInView, (inView) => {
+  if (inView) {
+    if (props.allowStream || props.streamActive) {
+      nextTick(() => {
+        if (!startStream()) {
+          let attempts = 0;
+          const tryStart = () => {
+            if (!isWhiteboardInView.value) return;
+            if (startStream() || attempts++ >= 10) return;
+            requestAnimationFrame(tryStart);
+          };
+          requestAnimationFrame(tryStart);
+        }
+      });
+    }
+  } else {
+    stopStream();
+  }
+});
+
 onMounted(async () => {
   await nextTick();
-  if (props.allowStream || props.streamActive) {
+  if (isWhiteboardInView.value && (props.allowStream || props.streamActive)) {
     if (!startStream()) {
       let attempts = 0;
       const tryStart = () => {
-        if (startStream() || attempts++ >= 5) return;
+        if (!isWhiteboardInView.value) return;
+        if (startStream() || attempts++ >= 10) return;
         requestAnimationFrame(tryStart);
       };
       requestAnimationFrame(tryStart);
@@ -2500,6 +2532,8 @@ const overflowMenuItems = computed<MenuItem[]>(() => {
 
 defineExpose<WhiteboardExposed>({
   getStream,
+  startStream,
+  stopStream,
   downloadImage,
   copyImageToClipboard,
   clear,
