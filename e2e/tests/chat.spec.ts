@@ -340,6 +340,28 @@ test.describe("messaging", () => {
     await expect(bubble(page, "notes.txt")).toBeVisible();
   });
 
+  test("lets user cancel sending a file attachment", async ({ page }) => {
+    await page.getByTestId("chat-attach").click();
+    const chooser = page.waitForEvent("filechooser");
+    await page.getByText("File", { exact: true }).click();
+    await (
+      await chooser
+    ).setFiles({
+      name: "cancel-doc.txt",
+      mimeType: "text/plain",
+      buffer: Buffer.from("content to cancel"),
+    });
+    await page.getByRole("button", { name: "Send", exact: true }).click();
+
+    // The cancel button is visible on the uploading file bubble
+    const cancelBtn = page.getByRole("button", { name: "Cancel upload" });
+    await expect(cancelBtn).toBeVisible();
+    await cancelBtn.click();
+
+    // The temporary message is removed from the thread
+    await expect(page.getByText("cancel-doc.txt")).toBeHidden();
+  });
+
   test("lets picked files be removed and added to before sending", async ({ page }) => {
     const text = (name: string) => ({ name, mimeType: "text/plain", buffer: Buffer.from(name) });
     await page.getByTestId("chat-attach").click();
@@ -725,6 +747,28 @@ test.describe("images", () => {
       .toBe(2);
     const [, retry] = await handlerCalls(page, "sendMessage");
     expect(retry.args[0].media[0].url).toBe(call.args[0].media[0].url);
+  });
+
+  test("lets user cancel sending a video", async ({ page }) => {
+    await openConversation(page, "c1");
+    await page.getByTestId("chat-attach").click();
+    const chooser = page.waitForEvent("filechooser");
+    await page.getByTestId("chat-attach-video").click();
+    await (await chooser).setFiles(["e2e/harness/public/sample-large.webm"]);
+
+    const dialog = page.getByTestId("chat-attach-dialog");
+    await expect(dialog.getByTestId("chat-attach-send")).toBeEnabled();
+    await dialog.getByTestId("chat-attach-send").click();
+    await expect(dialog).toBeHidden();
+
+    const progress = page.getByTestId("upload-progress");
+    await expect(progress).toBeVisible();
+    const cancelBtn = page.getByTestId("upload-progress-cancel");
+    await expect(cancelBtn).toBeVisible();
+    await cancelBtn.click();
+
+    // The progress overlay and the message vanish from the thread
+    await expect(progress).toBeHidden();
   });
 });
 

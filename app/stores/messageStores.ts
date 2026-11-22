@@ -22,6 +22,8 @@ let compressionQueue: Promise<unknown> = Promise.resolve();
 // A sent media object URL → its compressed copy's, kept until the send goes through so a retry
 // doesn't compress it again.
 const compressedUrls = new Map<string, string>();
+const activeAbortControllers = new Map<string, AbortController>();
+const cancelledMessageIds = new Set<string>();
 
 export const useMessagesStore = defineStore("messages-store", () => {
   const { t } = useStoreI18n(chat);
@@ -328,22 +330,29 @@ export const useMessagesStore = defineStore("messages-store", () => {
 
     const { id } = message;
     compressionProgress.value.set(id, 0);
+    const controller = activeAbortControllers.get(id);
+    const signal = controller?.signal;
     const run = compressionQueue.then(async () => {
       for (const [index, item] of items.entries()) {
+        if (signal?.aborted || cancelledMessageIds.has(id)) return;
         if (compressedUrls.has(item.url)) continue;
         const report = (p: number) =>
           compressionProgress.value.set(id, Math.round(((index + p) / items.length) * 100));
         report(0);
         try {
           const blob = await fetch(item.url).then((r) => r.blob());
+          if (signal?.aborted || cancelledMessageIds.has(id)) return;
           const file = new File([blob], item.kind === "video" ? "video.mp4" : "photo.jpg", {
             type: blob.type || (item.kind === "video" ? "video/mp4" : "image/jpeg"),
           });
           const smaller = item.kind === "video"
-            ? await compressVideo(file, { onProgress: report })
+            ? await compressVideo(file, { onProgress: report, signal })
             : await compressImage(file);
-          if (smaller) compressedUrls.set(item.url, URL.createObjectURL(smaller));
+          if (smaller && !signal?.aborted && !cancelledMessageIds.has(id)) {
+            compressedUrls.set(item.url, URL.createObjectURL(smaller));
+          }
         } catch (error) {
+          if (signal?.aborted || cancelledMessageIds.has(id)) return;
           console.warn("[vue-parley] media compression failed, sending the original", error);
         }
       }
@@ -373,14 +382,25 @@ export const useMessagesStore = defineStore("messages-store", () => {
   const deliver = async (tempMsg: Message) => {
     const { conversationId } = tempMsg;
     const tracksProgress = tempMsg.type !== "text";
+    const controller = new AbortController();
+    activeAbortControllers.set(tempMsg.id, controller);
+
     try {
       const outgoing = await compressMedia(tempMsg);
+      if (controller.signal.aborted || cancelledMessageIds.has(tempMsg.id)) {
+        return;
+      }
       // The bubble moves straight from compressing to uploading, before the first upload event.
       if (outgoing !== tempMsg)
         uploadProgress.value.set(tempMsg.id, { progress: 0, uploaded: 0, total: 0 });
       const canonical = await handlers.sendMessage(outgoing, {
+        signal: controller.signal,
         onProgress: tracksProgress
           ? (e) => {
+              if (controller.signal.aborted || cancelledMessageIds.has(tempMsg.id)) {
+                uploadProgress.value.delete(tempMsg.id);
+                return;
+              }
               if (e.progress >= 100) {
                 uploadProgress.value.delete(tempMsg.id);
               } else {
@@ -393,6 +413,10 @@ export const useMessagesStore = defineStore("messages-store", () => {
             }
           : undefined,
       });
+
+      if (controller.signal.aborted || cancelledMessageIds.has(tempMsg.id)) {
+        return;
+      }
 
       uploadProgress.value.delete(tempMsg.id);
       releaseCompressed(tempMsg);
@@ -420,9 +444,61 @@ export const useMessagesStore = defineStore("messages-store", () => {
         profileStore.addFiles(conversationId, canonical.voiceUrl);
       }
     } catch (error) {
+      if (controller.signal.aborted || cancelledMessageIds.has(tempMsg.id)) {
+        uploadProgress.value.delete(tempMsg.id);
+        compressionProgress.value.delete(tempMsg.id);
+        releaseCompressed(tempMsg);
+        return;
+      }
       logger.error("failed to send message", tempMsg.id, tempMsg.type, error);
       uploadProgress.value.delete(tempMsg.id);
       applyUpdate(conversationId, tempMsg.id, { isSent: false, isFailed: true });
+    } finally {
+      activeAbortControllers.delete(tempMsg.id);
+      cancelledMessageIds.delete(tempMsg.id);
+    }
+  };
+
+  /** Cancels an in-flight send or compression and removes the pending message from the thread. */
+  const cancelSending = (messageId: string) => {
+    cancelledMessageIds.add(messageId);
+    const controller = activeAbortControllers.get(messageId);
+    if (controller) {
+      controller.abort();
+      activeAbortControllers.delete(messageId);
+    }
+    uploadProgress.value.delete(messageId);
+    compressionProgress.value.delete(messageId);
+
+    for (const [convId, msgs] of Object.entries(messagesMap.value)) {
+      const idx = msgs.findIndex((m) => m.id === messageId);
+      if (idx !== -1) {
+        const msg = msgs[idx]!;
+        releaseCompressed(msg);
+        if (msg.fileUrl?.startsWith("blob:")) URL.revokeObjectURL(msg.fileUrl);
+        if (msg.videoUrl?.startsWith("blob:")) URL.revokeObjectURL(msg.videoUrl);
+        if (msg.voiceUrl?.startsWith("blob:")) URL.revokeObjectURL(msg.voiceUrl);
+        msg.media?.forEach((item) => {
+          if (item.url?.startsWith("blob:")) URL.revokeObjectURL(item.url);
+        });
+        msg.imageUrl?.forEach((url) => {
+          if (url?.startsWith("blob:")) URL.revokeObjectURL(url);
+        });
+
+        const updated = msgs.filter((m) => m.id !== messageId);
+        messagesMap.value[convId] = updated;
+
+        const lastMsg = updated.length > 0 ? updated[updated.length - 1] : null;
+        if (lastMsg) {
+          updateLastMessage(convId, lastMsg);
+        } else {
+          patchLastMessage(convId, "-1", {
+            text: "",
+            date: new Date().toISOString(),
+          } as unknown as Message);
+        }
+        break;
+      }
     }
   };
 
@@ -571,6 +647,7 @@ export const useMessagesStore = defineStore("messages-store", () => {
     scrollPositions,
     setDraft,
     sendMessage,
+    cancelSending,
     retryMessage,
     patchMessage,
     restoreMessages,

@@ -65,6 +65,7 @@ const fileName = computed(() => {
 });
 
 const actionLabel = computed(() => {
+  if (isUploading.value) return t("actions.cancelUpload");
   if (status.value === "downloading") return t("actions.cancelDownload");
   return t("actions.download");
 });
@@ -114,8 +115,13 @@ const getFileSize = async () => {
   }
 };
 
-const toggleDownload = async () => {
-  if (isUploading.value) return;
+const handleAction = async () => {
+  if (isUploading.value) {
+    if (props.messageId) {
+      messagesStore.cancelSending(props.messageId);
+    }
+    return;
+  }
 
   if (status.value === "downloaded") {
     const fileBlob = await mediaStore.getCachedBlob(props.url);
@@ -131,7 +137,7 @@ const toggleDownload = async () => {
       setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
     } else {
       status.value = "idle";
-      toggleDownload();
+      handleAction();
     }
     return;
   }
@@ -183,8 +189,7 @@ onMounted(() => {
       rounded
       class="size-11! shrink-0 p-0!"
       :aria-label="actionLabel"
-      :disabled="isUploading"
-      @click="toggleDownload"
+      @click="handleAction"
     >
       <FileFormatDisplay
         v-if="status === 'downloaded' && !isUploading"
@@ -197,6 +202,7 @@ onMounted(() => {
         :progress="displayProgress"
         :is-uploading="isUploading"
         :is-downloading="status === 'downloading'"
+        :icon="isUploading ? 'PhX' : undefined"
       />
     </Button>
   </div>

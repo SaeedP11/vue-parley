@@ -65,7 +65,12 @@ const checkLocalExistence = async () => {
 };
 
 const handleAction = async () => {
-  if (isUploading.value) return;
+  if (isUploading.value) {
+    if (props.messageId) {
+      messagesStore.cancelSending(props.messageId);
+    }
+    return;
+  }
 
   if (status.value === "downloaded" && audioRef.value) {
     if (isPlaying.value) {
@@ -208,8 +213,13 @@ onBeforeUnmount(() => {
       text
       rounded
       class="size-11! shrink-0 p-0!"
-      :aria-label="status === 'downloading' ? t('actions.cancelDownload') : t('actions.download')"
-      :disabled="isUploading"
+      :aria-label="
+        isUploading
+          ? t('actions.cancelUpload')
+          : status === 'downloading'
+            ? t('actions.cancelDownload')
+            : t('actions.download')
+      "
       @click="handleAction"
     >
       <LoadingStatus
@@ -218,6 +228,7 @@ onBeforeUnmount(() => {
         :progress="displayProgress"
         :is-uploading="isUploading"
         :is-downloading="status === 'downloading'"
+        :icon="isUploading ? 'PhX' : undefined"
       />
     </Button>
   </div>

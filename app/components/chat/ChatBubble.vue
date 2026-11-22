@@ -307,10 +307,13 @@ const longPress = useLongPress(handleRightClick);
                     :upload="uploadData"
                     :compress="compressData"
                     @preview="previewImage"
+                    @cancel="messagesStore.cancelSending(message.id)"
                   />
                   <BubbleVideo
                     v-else-if="messageType === 'video'"
                     :video-url="message.videoUrl"
+                    :message-id="message.id"
+                    :is-sent="message.isSent"
                     mode="playback"
                   />
                   <BubbleMeta

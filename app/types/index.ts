@@ -249,6 +249,7 @@ export interface UploadProgressEvent {
 
 export interface SendMessageOptions {
   onProgress?: (e: UploadProgressEvent) => void;
+  signal?: AbortSignal;
 }
 
 export interface FetchMessagesParams {

@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { useMessagesStore } from "~/stores/messageStores";
+import useLocalI18n from "~/composables/useLocalI18n";
+import { chatBubble } from "@i18n/locales";
 
 const props = withDefaults(
   defineProps<{
@@ -27,6 +29,7 @@ const props = withDefaults(
 );
 
 const messagesStore = useMessagesStore();
+const { t } = useLocalI18n(chatBubble);
 const videoRef = ref<HTMLVideoElement | null>(null);
 const isPlaying = ref(false);
 const isMuted = ref(false);
@@ -55,6 +58,12 @@ const dashOffset = computed(() => {
 
   return circumference - (progress.value / 100) * circumference;
 });
+
+const cancelUpload = () => {
+  if (props.messageId) {
+    messagesStore.cancelSending(props.messageId);
+  }
+};
 
 const togglePlay = () => {
   if (props.mode === "recording" || !videoRef.value || isUploading.value)
@@ -253,7 +262,15 @@ onBeforeUnmount(() => {
         v-if="isUploading"
         class="absolute inset-0 flex items-center justify-center bg-black/40 z-20"
       >
-        <BIcon icon="PhUploadSimple" class="w-6 h-6 text-white" />
+        <button
+          type="button"
+          :aria-label="t('actions.cancelUpload')"
+          data-testid="bubble-video-cancel"
+          class="flex items-center justify-center size-12 rounded-full bg-black/55 hover:bg-black/75 active:scale-95 transition-all cursor-pointer text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-chat-primary"
+          @click.stop="cancelUpload"
+        >
+          <BIcon icon="PhX" class="size-6 text-white" />
+        </button>
       </div>
 
       <div

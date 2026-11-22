@@ -110,11 +110,14 @@ export function createFakeBackend(
       log("sendMessage", { ...message, date: undefined });
       if (opts?.onProgress) {
         for (const progress of [25, 50, 100]) {
+          if (opts?.signal?.aborted) throw new DOMException("Aborted", "AbortError");
           await delay(Math.max(latency * 10, 500));
+          if (opts?.signal?.aborted) throw new DOMException("Aborted", "AbortError");
           opts.onProgress({ uploaded: progress, total: 100, progress });
         }
       } else {
         await delay();
+        if (opts?.signal?.aborted) throw new DOMException("Aborted", "AbortError");
       }
       if (consume("failNextSend")) throw new Error("send failed (fake backend)");
 
