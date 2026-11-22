@@ -80,6 +80,8 @@
     "collapseProperties": "Collapse options",
     "expandProperties": "Expand options",
     "moreOptions": "More options",
+    "dragToMove": "Drag to move",
+    "resize": "Resize",
     "typeHere": "Type here..."
   }
 }

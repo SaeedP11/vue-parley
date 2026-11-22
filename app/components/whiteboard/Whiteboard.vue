@@ -107,6 +107,7 @@ const props = withDefaults(
     participantsCount?: number;
     isSidebarOpen?: boolean;
     title?: string;
+    draggableDialog?: boolean;
   }>(),
   {
     visible: undefined,
@@ -123,6 +124,7 @@ const props = withDefaults(
     participantsCount: 0,
     isSidebarOpen: false,
     title: "",
+    draggableDialog: false,
   },
 );
 
@@ -2530,6 +2532,15 @@ const overflowMenuItems = computed<MenuItem[]>(() => {
   return items;
 });
 
+const handleHeaderDblClick = (e: MouseEvent) => {
+  if (!props.maximizable) return;
+  const target = e.target as HTMLElement | null;
+  if (target?.closest("button, a, input, select, textarea, [role='button'], .p-button")) {
+    return;
+  }
+  toggleMaximize();
+};
+
 defineExpose<WhiteboardExposed>({
   getStream,
   startStream,
@@ -2556,13 +2567,26 @@ defineExpose<WhiteboardExposed>({
   >
     <!-- Top Unified Header Bar -->
     <header
-      class="flex items-center justify-between px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 border-b border-gray-200/80 dark:border-gray-800/80 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md z-20 gap-1 sm:gap-2 shrink-0 select-none cursor-default"
+      class="flex items-center justify-between px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 border-b border-gray-200/80 dark:border-gray-800/80 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md z-20 gap-1 sm:gap-2 shrink-0 select-none"
+      :class="[
+        draggableDialog ? 'whiteboard-header-drag cursor-grab active:cursor-grabbing' : 'cursor-default',
+      ]"
+      data-drag-handle="true"
       style="padding-top: max(0.375rem, env(safe-area-inset-top)); padding-inline-start: max(0.5rem, env(safe-area-inset-left)); padding-inline-end: max(0.5rem, env(safe-area-inset-right));"
-      @dblclick.self="maximizable && toggleMaximize()"
+      @dblclick="handleHeaderDblClick"
     >
       <!-- Left: Title, Live Status, Undo, Redo (Safe History) -->
       <div class="flex items-center gap-1 sm:gap-1.5 md:gap-2 min-w-0 shrink">
-        <div class="flex items-center gap-1.5 px-2 sm:px-2.5 py-1 rounded-xl bg-chat-primary/10 text-xs font-bold text-chat-primary shrink-0 select-none min-w-0">
+        <div
+          class="flex items-center gap-1.5 px-2 sm:px-2.5 py-1 rounded-xl bg-chat-primary/10 text-xs font-bold text-chat-primary shrink-0 select-none min-w-0"
+          :class="draggableDialog && 'cursor-grab active:cursor-grabbing'"
+          :title="draggableDialog ? t('board.dragToMove') : undefined"
+        >
+          <BIcon
+            v-if="draggableDialog"
+            icon="PhDotsSixVertical"
+            class="size-3.5 opacity-60 shrink-0 hidden sm:inline"
+          />
           <BIcon icon="PhPaintBrush" class="size-4 shrink-0" />
           <span class="truncate max-w-[100px] md:max-w-[140px] xl:max-w-[180px] hidden sm:inline">{{ title || t("board.title") }}</span>
         </div>

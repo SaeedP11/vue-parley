@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Whiteboard:
+  - Drag, move and resize whiteboard dialog in desktop mode with bounds clamping, smooth cursor indicators, and visual corner grip.
+
 ## [5.7.2] - 2026-11-22
 
 ### Added
