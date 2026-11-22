@@ -35,7 +35,9 @@ export const preloadCompressor = () => {
 const getMediabunny = () => (mbPromise ??= import("mediabunny"));
 
 export const canCompressVideo = () =>
-  typeof VideoEncoder !== "undefined" && typeof VideoDecoder !== "undefined";
+  typeof VideoEncoder !== "undefined" &&
+  typeof VideoDecoder !== "undefined" &&
+  (typeof window === "undefined" || window.isSecureContext !== false);
 
 export async function compressVideo(
   file: File,
@@ -61,58 +63,105 @@ export async function compressVideo(
     const width = even(displayWidth);
     const height = even(displayHeight);
 
-    // Concurrently find the best encodable codec (AVC/HEVC first for widest hardware support)
-    // and measure the frame rate (sampling 30 packets is plenty to detect 60 fps vs 30 fps).
-    const [codec, { averagePacketRate }] = await Promise.all([
-      mb.getFirstEncodableVideoCodec(["avc", "hevc", "vp9", "av1"], {
-        width,
-        height,
-        quality: mb.QUALITY_MEDIUM,
-      }),
-      track.computePacketStats(30),
-    ]);
+    // Fast probe of packet rate to detect 60fps/120fps recordings, racing with a 500ms timeout
+    // to never block startup.
+    const getPacketRate = async (): Promise<number> => {
+      try {
+        const stats = await Promise.race([
+          track.computePacketStats(15),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 500)),
+        ]);
+        return stats?.averagePacketRate ?? 30;
+      } catch {
+        return 30;
+      }
+    };
+
+    // AVC (H.264) is universally supported across browsers, devices, and platforms.
+    const codec = await mb.getFirstEncodableVideoCodec(["avc", "hevc", "vp9"], {
+      width,
+      height,
+      quality: mb.QUALITY_MEDIUM,
+    });
 
     if (!codec) return null;
 
+    // Prefer hardware acceleration if supported for 10x-30x faster encoding
+    const hwSupported = await mb
+      .canEncodeVideo(codec, {
+        width,
+        height,
+        hardwareAcceleration: "prefer-hardware",
+      })
+      .catch(() => false);
+    const hwAccel: "prefer-hardware" | "no-preference" = hwSupported ? "prefer-hardware" : "no-preference";
+
+    const packetRate = await getPacketRate();
     // Phones record at 60 fps; only ever resample down, never add frames.
-    const frameRate = averagePacketRate > MAX_FPS + 2 ? MAX_FPS : undefined;
+    const frameRate = packetRate > MAX_FPS + 2 ? MAX_FPS : undefined;
 
     signal?.throwIfAborted();
 
-    const output = new mb.Output({
-      format: new mb.Mp4OutputFormat({ fastStart: "in-memory" }),
-      target: new mb.BufferTarget(),
-    });
-    const supportedAudioCodecs = output.format.getSupportedAudioCodecs();
+    // Determine audio configuration
+    const inputAudioTracks = await input.getAudioTracks();
+    const hasAudio = inputAudioTracks.length > 0;
 
-    const conversion = await mb.Conversion.init({
-      input,
-      output,
-      tracks: "primary",
-      showWarnings: false,
-      video: {
-        width,
-        height,
-        fit: "fill",
-        frameRate,
-        codec,
-        quality: mb.QUALITY_MEDIUM,
-        hardwareAcceleration: "no-preference",
-        forceTranscode: true,
-      },
-      // Direct packet copy if the source audio codec can be carried by MP4 as-is (e.g. AAC),
-      // re-encoded with medium quality only if transcoding is required.
-      audio: async (audioTrack) => {
-        const audioCodec = await audioTrack.getCodec();
-        if (audioCodec && supportedAudioCodecs.includes(audioCodec)) {
-          return {};
-        }
-        return { quality: mb.QUALITY_MEDIUM };
-      },
-    });
+    // Helper to initialize conversion with fresh Output and target
+    const createConversion = async (accel: "prefer-hardware" | "no-preference") => {
+      const out = new mb.Output({
+        format: new mb.Mp4OutputFormat({ fastStart: "in-memory" }),
+        target: new mb.BufferTarget(),
+      });
+      const supportedAudioCodecs = out.format.getSupportedAudioCodecs();
 
-    // A silent or missing picture is worse than a big file.
-    if (!conversion.isValid || conversion.discardedTracks.length) return null;
+      const conv = await mb.Conversion.init({
+        input,
+        output: out,
+        tracks: "primary",
+        showWarnings: false,
+        video: {
+          width,
+          height,
+          fit: "fill",
+          frameRate,
+          codec,
+          quality: mb.QUALITY_MEDIUM,
+          hardwareAcceleration: accel,
+          forceTranscode: true,
+        },
+        // Direct packet copy if the source audio codec can be carried by MP4 as-is (e.g. AAC),
+        // re-encoded with medium quality only if transcoding is required.
+        audio: async (audioTrack) => {
+          const audioCodec = await audioTrack.getCodec();
+          if (audioCodec && supportedAudioCodecs.includes(audioCodec)) {
+            return {};
+          }
+          // If transcoding audio, pick an encodable audio codec for MP4 (AAC preferred, then Opus)
+          const encodableCodec = await mb.getFirstEncodableAudioCodec(["aac", "opus"]);
+          if (encodableCodec && supportedAudioCodecs.includes(encodableCodec)) {
+            return { codec: encodableCodec, quality: mb.QUALITY_MEDIUM };
+          }
+          return { quality: mb.QUALITY_MEDIUM };
+        },
+      });
+
+      const outputVideoTracks = out.tracks.filter((t) => t.type === "video");
+      const outputAudioTracks = out.tracks.filter((t) => t.type === "audio");
+      const isValid =
+        conv.isValid &&
+        outputVideoTracks.length > 0 &&
+        (!hasAudio || outputAudioTracks.length > 0);
+
+      return { conversion: conv, output: out, isValid };
+    };
+
+    let result = await createConversion(hwAccel);
+    if (!result.isValid && hwAccel === "prefer-hardware") {
+      result = await createConversion("no-preference");
+    }
+
+    if (!result.isValid) return null;
+    const { conversion, output } = result;
 
     const abort = () => void conversion.cancel();
     signal?.addEventListener("abort", abort, { once: true });

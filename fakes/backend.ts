@@ -110,7 +110,7 @@ export function createFakeBackend(
       log("sendMessage", { ...message, date: undefined });
       if (opts?.onProgress) {
         for (const progress of [25, 50, 100]) {
-          await delay(latency / 2);
+          await delay(Math.max(latency * 10, 500));
           opts.onProgress({ uploaded: progress, total: 100, progress });
         }
       } else {

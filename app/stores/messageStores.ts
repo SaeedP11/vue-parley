@@ -336,7 +336,9 @@ export const useMessagesStore = defineStore("messages-store", () => {
         report(0);
         try {
           const blob = await fetch(item.url).then((r) => r.blob());
-          const file = new File([blob], item.kind === "video" ? "video" : "photo", { type: blob.type });
+          const file = new File([blob], item.kind === "video" ? "video.mp4" : "photo.jpg", {
+            type: blob.type || (item.kind === "video" ? "video/mp4" : "image/jpeg"),
+          });
           const smaller = item.kind === "video"
             ? await compressVideo(file, { onProgress: report })
             : await compressImage(file);
