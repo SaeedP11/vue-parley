@@ -4,8 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [5.7.3] - 2026-11-22
+
 ### Added
 
+- Chat / Media:
+  - Add and show sent file sizes on video and document messages.
+  - Use post-compression size for compressed videos and files in real-time.
+  - Allow user to cancel sending a video or document.
 - Whiteboard:
   - Drag, move and resize whiteboard dialog in desktop mode with bounds clamping, smooth cursor indicators, and visual corner grip.
 
