@@ -5,6 +5,7 @@ import BIcon from "../../global/BIcon.vue";
 import { useDate } from "~/composables/useDate";
 import useLocalI18n from "~/composables/useLocalI18n";
 import { chatBubble } from "@i18n/locales";
+import { useProfileStore } from "~/stores/profileStore.js";
 
 const props = defineProps<{
   message: ExtendedMessage;
@@ -12,6 +13,7 @@ const props = defineProps<{
 
 const { t } = useLocalI18n(chatBubble);
 const { formatTime } = useDate();
+const profileStore = useProfileStore();
 
 const event = computed(() => props.message.event);
 const eventType = computed(() => event.value?.type || props.message.type || "");
@@ -53,6 +55,9 @@ const formattedDuration = computed(() => {
 });
 
 const labelText = computed(() => {
+  if (eventType.value === "member_removed" && event.value?.targetId && event.value.targetId === profileStore.userId) {
+    return t("events.youLeft");
+  }
   // If the backend already provided a formatted message string, prefer it.
   if (props.message.text?.trim()) return props.message.text.trim();
 
@@ -74,6 +79,9 @@ const labelText = computed(() => {
       }
       return t("events.memberJoined", { target: ev?.targetName || ev?.actorName || t("events.user") });
     case "member_removed":
+      if (ev?.reason === "membership_expired") {
+        return t("events.memberExpired", { target: ev?.targetName || t("events.user") });
+      }
       if (ev?.actorName && ev?.targetName) {
         return t("events.memberRemoved", { actor: ev.actorName, target: ev.targetName });
       }

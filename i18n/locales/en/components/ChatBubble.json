@@ -11,5 +11,9 @@
   "sending": {
     "compressing": "Compressing… {progress}%",
     "uploading": "Uploading… {progress}%"
+  },
+  "events": {
+    "memberExpired": "{target} left the conversation after the 8-hour membership expired.",
+    "youLeft": "You left the chat."
   }
 }

@@ -36,6 +36,7 @@
       "memberJoined": "{target} به گفتگو پیوست.",
       "memberRemoved": "{actor}، {target} را از گفتگو حذف کرد.",
       "memberLeft": "{target} از گفتگو خارج شد.",
+      "youLeft": "شما از چت رفتین بیرون.",
       "callStarted": "{actor} تماس {callType} را شروع کرد.",
       "callStartedGeneric": "تماس {callType} شروع شد.",
       "callEnded": "تماس {callType} پایان یافت.",
