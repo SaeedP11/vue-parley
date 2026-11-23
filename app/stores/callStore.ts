@@ -32,7 +32,7 @@ export const useCallStore = defineStore("call-modal", () => {
   const isMinimized = ref(false);
   const isActive = ref(false);
   /** Whether the call bar offers screen sharing, from `createChat({ screenShare })`. */
-  const canShareScreen = ref(false);
+  const canShareScreen = ref(true);
   const elapsedTime = ref(0);
   /** Whether the running call was started as a video call rather than a voice call. */
   const isVideoCall = ref(true);

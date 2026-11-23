@@ -19,6 +19,10 @@ const props = withDefaults(
   { phase: "upload", size: "lg" },
 );
 
+const emit = defineEmits<{
+  cancel: [];
+}>();
+
 const { t, locale } = useLocalI18n(chatBubble);
 
 const label = computed(() =>
@@ -37,16 +41,22 @@ const label = computed(() =>
     aria-valuemin="0"
     aria-valuemax="100"
     :aria-valuenow="Math.round(progress)"
-    class="absolute inset-0 flex flex-col items-center justify-center gap-y-2 bg-black/40"
+    class="absolute inset-0 flex flex-col items-center justify-center gap-y-2 bg-black/40 z-10"
   >
-    <div class="rounded-full bg-chat-background/85 p-0.5">
+    <button
+      type="button"
+      :aria-label="t('actions.cancelUpload')"
+      data-testid="upload-progress-cancel"
+      class="group/btn relative rounded-full bg-chat-background/85 p-0.5 transition-transform hover:scale-105 active:scale-95 cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-chat-primary"
+      @click.stop="emit('cancel')"
+    >
       <LoadingStatus
         :progress="progress / 100"
         :size="size === 'lg' ? 44 : 28"
-        :icon="phase === 'compress' ? 'PhArrowsInSimple' : undefined"
+        icon="PhX"
         is-uploading
       />
-    </div>
+    </button>
     <span
       v-if="size === 'lg'"
       aria-hidden="true"

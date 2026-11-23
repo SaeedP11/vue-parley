@@ -1,6 +1,10 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useMessagesStore } from "~/stores/messageStores";
+import { useMediaStore } from "~/stores/mediaStore";
+import { formatBytes } from "~/utils/format";
+import useLocalI18n from "~/composables/useLocalI18n";
+import { chatBubble } from "@i18n/locales";
 
 const props = withDefaults(
   defineProps<{
@@ -13,6 +17,8 @@ const props = withDefaults(
     isPaused?: boolean;
     recordingTime?: number;
     maxDuration?: number;
+    fileSize?: number;
+    compress?: number;
   }>(),
   {
     videoUrl: "",
@@ -27,6 +33,8 @@ const props = withDefaults(
 );
 
 const messagesStore = useMessagesStore();
+const mediaStore = useMediaStore();
+const { t } = useLocalI18n(chatBubble);
 const videoRef = ref<HTMLVideoElement | null>(null);
 const isPlaying = ref(false);
 const isMuted = ref(false);
@@ -38,9 +46,82 @@ const uploadData = computed(() =>
   props.messageId ? messagesStore.uploadProgress.get(props.messageId) : null,
 );
 const isUploading = computed(() => !props.isSent && uploadData.value);
+const isCompressing = computed(() => !props.isSent && props.compress !== undefined);
+
+const fetchedSize = ref<number | null>(null);
+const resolvedSize = computed(() =>
+  isCompressing.value ? null : (props.fileSize ?? fetchedSize.value),
+);
+
+const formattedSize = computed(() => {
+  const size = resolvedSize.value;
+  if (isUploading.value && uploadData.value) {
+    const realTotal = size || uploadData.value.total;
+    if (realTotal > 0) {
+      const currentUploaded = (uploadData.value.progress / 100) * realTotal;
+      return `${formatBytes(currentUploaded)} / ${formatBytes(realTotal)}`;
+    }
+  }
+  return size !== null && size !== undefined && size > 0
+    ? formatBytes(size)
+    : "";
+});
+
+const getFileSize = async () => {
+  if (props.fileSize !== undefined && props.fileSize !== null) {
+    fetchedSize.value = props.fileSize;
+    return;
+  }
+  if (!props.videoUrl) return;
+  if (props.videoUrl.startsWith("blob:")) {
+    if (isCompressing.value) return;
+    try {
+      const res = await fetch(props.videoUrl);
+      const blob = await res.blob();
+      fetchedSize.value = blob.size;
+    } catch {
+      fetchedSize.value = 0;
+    }
+    return;
+  }
+  try {
+    const size = await mediaStore.fetchFileSize(props.videoUrl);
+    fetchedSize.value = size ?? 0;
+  } catch {
+    fetchedSize.value = 0;
+  }
+};
+
+onMounted(() => {
+  if (props.mode === "playback") {
+    getFileSize();
+  }
+});
+
+watch(
+  () => props.fileSize,
+  (newSize) => {
+    if (typeof newSize === "number") {
+      fetchedSize.value = newSize;
+    }
+  },
+);
+
+watch(
+  () => props.videoUrl,
+  () => {
+    if (props.mode === "playback") {
+      getFileSize();
+    }
+  },
+);
 
 const circumference = 2 * Math.PI * 113;
 const dashOffset = computed(() => {
+  if (isCompressing.value) {
+    return circumference - ((props.compress ?? 0) / 100) * circumference;
+  }
+
   if (isUploading.value && uploadData.value) {
     return circumference - (uploadData.value.progress / 100) * circumference;
   }
@@ -55,6 +136,12 @@ const dashOffset = computed(() => {
 
   return circumference - (progress.value / 100) * circumference;
 });
+
+const cancelUpload = () => {
+  if (props.messageId) {
+    messagesStore.cancelSending(props.messageId);
+  }
+};
 
 const togglePlay = () => {
   if (props.mode === "recording" || !videoRef.value || isUploading.value)
@@ -170,7 +257,7 @@ onBeforeUnmount(() => {
         cy="115"
         r="113"
         :class="[
-          isUploading ? 'stroke-white/30' : 'stroke-white dark:stroke-chat-background',
+          isUploading || isCompressing ? 'stroke-white/30' : 'stroke-white dark:stroke-chat-background',
         ]"
         stroke-width="4"
         fill="none"
@@ -253,7 +340,15 @@ onBeforeUnmount(() => {
         v-if="isUploading"
         class="absolute inset-0 flex items-center justify-center bg-black/40 z-20"
       >
-        <BIcon icon="PhUploadSimple" class="w-6 h-6 text-white" />
+        <button
+          type="button"
+          :aria-label="t('actions.cancelUpload')"
+          data-testid="bubble-video-cancel"
+          class="flex items-center justify-center size-12 rounded-full bg-black/55 hover:bg-black/75 active:scale-95 transition-all cursor-pointer text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-chat-primary"
+          @click.stop="cancelUpload"
+        >
+          <BIcon icon="PhX" class="size-6 text-white" />
+        </button>
       </div>
 
       <div
@@ -262,6 +357,16 @@ onBeforeUnmount(() => {
       >
         <div class="w-2 h-2 rounded-full bg-chat-error animate-pulse"></div>
       </div>
+    </div>
+
+    <!-- Video file size badge -->
+    <div
+      v-if="formattedSize && mode === 'playback'"
+      data-testid="bubble-video-size"
+      class="pointer-events-none absolute start-2 bottom-2 z-20 flex select-none items-center gap-x-1 rounded-full bg-black/45 px-2 py-1 text-[11px] leading-none text-white backdrop-blur-sm"
+    >
+      <BIcon icon="PhVideo" class="size-3 text-white/80" />
+      <span>{{ formattedSize }}</span>
     </div>
   </div>
 </template>

@@ -6,6 +6,7 @@ export interface PickedMedia {
   file: File;
   path: string;
   kind: MediaItem["kind"];
+  size?: number;
 }
 
 export interface PickedFile {
@@ -53,6 +54,7 @@ export function useAttachmentPicker(handlers: {
       file,
       path: URL.createObjectURL(file),
       kind: file.type.startsWith("video/") ? ("video" as const) : ("image" as const),
+      size: file.size,
     }));
     if (picked.length) handlers.onMedia(picked);
   });

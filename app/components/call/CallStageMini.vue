@@ -119,18 +119,31 @@ const endCall = async () => {
     </div>
 
     <div
-      v-if="participants.length > 1"
+      v-if="participants.length > 1 || mainView.activePresentations.value.length > 0"
       class="call-mini-people"
       role="group"
       :aria-label="t('chat.call.stage.miniView')"
       data-testid="call-stage-mini-people"
     >
       <button
+        v-for="p in mainView.activePresentations.value"
+        :key="p.key"
+        type="button"
+        class="call-mini-person"
+        :class="p.type === 'screen' ? 'text-emerald-400!' : 'text-indigo-400!'"
+        :aria-pressed="mainView.key.value === p.key"
+        @pointerdown.stop
+        @click="pick(p.key)"
+      >
+        <CallIcon :name="p.type === 'screen' ? 'presentToAll' : 'whiteboard'" class="size-3 inline-block me-1" />
+        {{ p.type === 'screen' ? t("chat.call.stage.screenTile", { name: nameOf(p.participant) }) : t("chat.call.stage.whiteboardTile", { name: nameOf(p.participant) }) }}
+      </button>
+      <button
         v-for="person in participants"
         :key="person.id"
         type="button"
         class="call-mini-person"
-        :aria-pressed="!screenOwner && person.id === main?.id"
+        :aria-pressed="!screenOwner && !whiteboardOwner && person.id === main?.id"
         :aria-label="t('chat.call.stage.showInMini', { name: nameOf(person) })"
         data-testid="call-stage-mini-person"
         @pointerdown.stop

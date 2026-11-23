@@ -6,7 +6,7 @@ import { useMessagesStore } from "~/stores/messageStores";
 import { chatBubblesFileDisplay } from "@i18n/locales";
 import useLocalI18n from "~/composables/useLocalI18n";
 import { useMediaStore } from "~/stores/mediaStore";
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import { formatBytes } from "~/utils/format";
 
 const props = withDefaults(
@@ -16,6 +16,7 @@ const props = withDefaults(
     isSent?: boolean;
     url: string;
     fileName?: string;
+    fileSize?: number;
   }>(),
   {
     isMine: true,
@@ -65,6 +66,7 @@ const fileName = computed(() => {
 });
 
 const actionLabel = computed(() => {
+  if (isUploading.value) return t("actions.cancelUpload");
   if (status.value === "downloading") return t("actions.cancelDownload");
   return t("actions.download");
 });
@@ -80,22 +82,30 @@ const fileExt = computed(() => {
     : "FILE";
 });
 
+const resolvedSize = computed(() => props.fileSize ?? fetchedSize.value);
+
 const formattedSize = computed(() => {
+  const size = resolvedSize.value;
   if (isUploading.value && uploadData.value) {
-    const realTotal = fetchedSize.value || uploadData.value.total;
+    const realTotal = size || uploadData.value.total;
     const currentUploaded = (uploadData.value.progress / 100) * realTotal;
     return `${formatBytes(currentUploaded)} / ${formatBytes(realTotal)}`;
   }
-  if (status.value === "downloading" && fetchedSize.value) {
-    const downloaded = (progress.value / 100) * fetchedSize.value;
-    return `${formatBytes(downloaded)} / ${formatBytes(fetchedSize.value)}`;
+  if (status.value === "downloading" && size) {
+    const downloaded = (progress.value / 100) * size;
+    return `${formatBytes(downloaded)} / ${formatBytes(size)}`;
   }
-  return fetchedSize.value
-    ? formatBytes(fetchedSize.value)
+  return size !== null && size !== undefined
+    ? formatBytes(size)
     : t("file.calculating");
 });
 
 const getFileSize = async () => {
+  if (props.fileSize !== undefined && props.fileSize !== null) {
+    fetchedSize.value = props.fileSize;
+    return;
+  }
+  if (!props.url) return;
   if (props.url.startsWith("blob:")) {
     try {
       const res = await fetch(props.url);
@@ -114,8 +124,13 @@ const getFileSize = async () => {
   }
 };
 
-const toggleDownload = async () => {
-  if (isUploading.value) return;
+const handleAction = async () => {
+  if (isUploading.value) {
+    if (props.messageId) {
+      messagesStore.cancelSending(props.messageId);
+    }
+    return;
+  }
 
   if (status.value === "downloaded") {
     const fileBlob = await mediaStore.getCachedBlob(props.url);
@@ -131,7 +146,7 @@ const toggleDownload = async () => {
       setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
     } else {
       status.value = "idle";
-      toggleDownload();
+      handleAction();
     }
     return;
   }
@@ -165,17 +180,31 @@ onMounted(() => {
   getFileSize();
   checkLocalExistence();
 });
+
+watch(
+  () => props.fileSize,
+  (newSize) => {
+    if (typeof newSize === "number") {
+      fetchedSize.value = newSize;
+    }
+  },
+);
+
+watch(
+  () => props.url,
+  () => {
+    getFileSize();
+  },
+);
 </script>
 <template>
   <div class="px-3 flex gap-x-2 select-none items-center">
     <div dir="ltr" class="flex text-left flex-col gap-y-0.5 flex-1 min-w-0">
       <div class="text-chat-on-background text-label-md truncate">{{ fileName }}</div>
-      <div class="w-20">
-        <div
-          class="text-body-sm text-left text-chat-on-background/70 w-full line-clamp-1 text-ellipsis overflow-hidden"
-        >
-          {{ formattedSize }}
-        </div>
+      <div
+        class="text-body-sm text-left text-chat-on-background/70 truncate"
+      >
+        {{ formattedSize }}
       </div>
     </div>
     <Button
@@ -183,8 +212,7 @@ onMounted(() => {
       rounded
       class="size-11! shrink-0 p-0!"
       :aria-label="actionLabel"
-      :disabled="isUploading"
-      @click="toggleDownload"
+      @click="handleAction"
     >
       <FileFormatDisplay
         v-if="status === 'downloaded' && !isUploading"
@@ -197,6 +225,7 @@ onMounted(() => {
         :progress="displayProgress"
         :is-uploading="isUploading"
         :is-downloading="status === 'downloading'"
+        :icon="isUploading ? 'PhX' : undefined"
       />
     </Button>
   </div>

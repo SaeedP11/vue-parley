@@ -305,12 +305,13 @@ export function useCallMedia({ notify, isMobile, onTrackAdded }: MediaOptions) {
     const hasAudio = stream.getAudioTracks().length > 0;
     const hasVideo = stream.getVideoTracks().length > 0;
     const type = hasAudio && hasVideo ? "webcam_audio" : hasVideo ? "webcam" : "audio";
+    const trackId = stream.getVideoTracks()[0]?.id ?? stream.getTracks()[0]?.id;
     const existingIndex = trackTypes.value.findIndex((t) => t.id === stream.id);
     if (existingIndex >= 0) {
-      trackTypes.value[existingIndex] = { id: stream.id, type };
+      trackTypes.value[existingIndex] = { id: stream.id, trackId, type };
       trackTypes.value = [...trackTypes.value];
     } else {
-      trackTypes.value = [...trackTypes.value, { id: stream.id, type }];
+      trackTypes.value = [...trackTypes.value, { id: stream.id, trackId, type }];
     }
     if (!hasAudio) isAudioOn.value = false;
     if (!hasVideo) isVideoOn.value = false;
@@ -499,7 +500,11 @@ export function useCallMedia({ notify, isMobile, onTrackAdded }: MediaOptions) {
         return null;
       }
       screenStream.value = stream;
-      trackTypes.value = [...trackTypes.value, { id: stream.id, type: "screen" }];
+      const trackId = stream.getVideoTracks()[0]?.id;
+      trackTypes.value = [
+        ...trackTypes.value.filter((t) => t.type !== "screen"),
+        { id: stream.id, trackId, type: "screen" },
+      ];
       stream.getTracks().forEach((track) => (track.onended = onEnded));
       isScreenSharing.value = true;
       return stream;
@@ -533,9 +538,10 @@ export function useCallMedia({ notify, isMobile, onTrackAdded }: MediaOptions) {
       stopWhiteboardShare();
     }
     whiteboardStream.value = stream;
+    const trackId = stream.getVideoTracks()[0]?.id;
     trackTypes.value = [
       ...trackTypes.value.filter((t) => t.type !== "whiteboard"),
-      { id: stream.id, type: "whiteboard" },
+      { id: stream.id, trackId, type: "whiteboard" },
     ];
     stream.getTracks().forEach((track) => {
       track.onended = () => {

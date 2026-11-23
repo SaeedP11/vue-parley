@@ -133,3 +133,54 @@ test("two people share their screens at once: one in the main view, the other as
   await expect(tiles).toHaveCount(0);
   await expect(stage.locator(".call-main-footer")).toContainText("Alice's screen");
 });
+
+test("parallel screen share and whiteboard: dock and media tabs allow switching between streams", async ({ context }) => {
+  await context.addInitScript(() => {
+    navigator.mediaDevices.getDisplayMedia = async () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = 640;
+      canvas.height = 360;
+      const g = canvas.getContext("2d")!;
+      setInterval(() => g.fillRect(0, 0, 640, 360), 100);
+      return canvas.captureStream();
+    };
+  });
+
+  const [alice, bob] = await openCallers(
+    context,
+    [
+      { user: "alice", name: "Alice" },
+      { user: "bob", name: "Bob" },
+    ],
+    "&stage=1&locale=en",
+  );
+  await openConversation(alice!, "c1");
+  await alice!.getByTestId("chat-start-call").click();
+  await openConversation(bob!, "c1");
+  const join = bob!.getByTestId("chat-join-call");
+  await expect(join).toBeEnabled({ timeout: 20_000 });
+  await join.click();
+
+  const stage = alice!.getByTestId("call-stage");
+  await expect(stage.locator(".call-main-footer")).toContainText("Bob", { timeout: 30_000 });
+
+  // Alice shares screen
+  await alice!.getByTestId("call-stage-screen-share").click();
+  await expect(stage.locator(".call-main-footer")).toContainText("Alice's screen", { timeout: 20_000 });
+
+  // Presentation dock should be visible with Alice's screen tab
+  const dock = stage.getByTestId("call-stage-presentation-dock");
+  await expect(dock).toBeVisible();
+
+  // Bob also shares screen in parallel
+  await bob!.getByTestId("call-stage-screen-share").click();
+  await expect(stage.locator(".call-main-footer")).toContainText("Bob's screen", { timeout: 20_000 });
+
+  // Dock now lists both active screen shares
+  const tabs = dock.locator(".call-presentation-tab");
+  await expect(tabs).toHaveCount(3); // Bob's screen, Alice's screen, and Camera tab
+
+  // Switch back to Alice's screen using the dock tab
+  await tabs.filter({ hasText: "Alice" }).click();
+  await expect(stage.locator(".call-main-footer")).toContainText("Alice's screen");
+});

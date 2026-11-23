@@ -3,11 +3,13 @@
  * A still of a photo or video, sized by its class: the photo itself, or a video's first frame with
  * a play badge and, once known, its length. Shows a PrimeVue Skeleton until the frame is ready.
  */
-import { ref, watch } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import Skeleton from "primevue/skeleton";
 import type { MediaItem } from "~/types";
 import MediaImage from "./MediaImage.vue";
 import { formatDuration } from "~/utils/media";
+import { formatBytes } from "~/utils/format";
+import { useMediaStore } from "~/stores/mediaStore";
 
 const props = withDefaults(
   defineProps<{
@@ -22,19 +24,71 @@ const props = withDefaults(
 
 const loaded = ref(false);
 const duration = ref<number | null>(null);
-watch(
-  () => props.item.url,
-  () => {
-    loaded.value = false;
-    duration.value = null;
-  },
-);
 
 const onMetadata = (event: Event) => {
   const d = (event.target as HTMLVideoElement).duration;
   // Recordings without a duration in their header report Infinity until played through.
   duration.value = Number.isFinite(d) ? d : null;
 };
+
+const mediaStore = useMediaStore();
+const fetchedSize = ref<number | null>(null);
+const resolvedSize = computed(() => props.item.size ?? fetchedSize.value);
+
+const getFileSize = async () => {
+  if (props.item.size !== undefined && props.item.size !== null) {
+    fetchedSize.value = props.item.size;
+    return;
+  }
+  if (props.item.kind !== "video" || !props.item.url) return;
+  if (props.item.url.startsWith("blob:")) {
+    // Local blob without explicit size is pending compression; do not show pre-compressed size
+    return;
+  }
+  try {
+    const size = await mediaStore.fetchFileSize(props.item.url);
+    fetchedSize.value = size ?? null;
+  } catch {
+    fetchedSize.value = null;
+  }
+};
+
+onMounted(() => {
+  if (props.item.kind === "video") {
+    getFileSize();
+  }
+});
+
+watch(
+  () => props.item.size,
+  (newSize) => {
+    if (typeof newSize === "number") {
+      fetchedSize.value = newSize;
+    }
+  },
+);
+
+watch(
+  () => props.item.url,
+  () => {
+    loaded.value = false;
+    duration.value = null;
+    if (props.item.kind === "video") {
+      getFileSize();
+    }
+  },
+);
+
+const badgeText = computed(() => {
+  const parts: string[] = [];
+  if (props.showDuration && duration.value !== null) {
+    parts.push(formatDuration(duration.value));
+  }
+  if (resolvedSize.value && resolvedSize.value > 0) {
+    parts.push(formatBytes(resolvedSize.value));
+  }
+  return parts.join(" • ");
+});
 </script>
 
 <template>
@@ -81,10 +135,10 @@ const onMetadata = (event: Event) => {
     </div>
 
     <span
-      v-if="showDuration && duration !== null"
+      v-if="showDuration && badgeText"
       class="pointer-events-none absolute start-1.5 top-1.5 rounded-full bg-black/55 px-1.5 py-0.5 text-[11px] leading-none text-white tabular-nums"
     >
-      {{ formatDuration(duration) }}
+      {{ badgeText }}
     </span>
   </div>
 </template>

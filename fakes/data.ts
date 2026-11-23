@@ -182,7 +182,7 @@ export function demoData(userId: string, count = 40): FakeData {
           media: [
             { url: photo(1), kind: "image" },
             // CC0 sample clip from MDN.
-            { url: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4", kind: "video" },
+            { url: "https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4", kind: "video", size: 1024 * 1024 * 3.8 },
             { url: photo(2), kind: "image" },
           ],
         });
@@ -194,6 +194,7 @@ export function demoData(userId: string, count = 40): FakeData {
           text: "",
           fileName,
           fileUrl: `https://example.com/files/${fileName}`,
+          fileSize: 1024 * 1024 * 2.4,
         });
       } else {
         history.push(base);

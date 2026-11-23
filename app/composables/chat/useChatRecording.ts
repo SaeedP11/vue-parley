@@ -7,7 +7,7 @@ export function useChatRecording(
   callbacks: {
     onStart: () => void;
     onCancel: () => void;
-    onSend?: (mediaUrl?: string) => void;
+    onSend?: (mediaUrl?: string, blob?: Blob) => void;
     requestPermission: () => Promise<boolean>;
     getMode?: () => "video" | "voice";
   },
@@ -100,7 +100,7 @@ export function useChatRecording(
       callbacks.onCancel();
       return;
     }
-    callbacks.onSend?.(URL.createObjectURL(blob));
+    callbacks.onSend?.(URL.createObjectURL(blob), blob);
   };
 
   const toggleCamera = async () => {

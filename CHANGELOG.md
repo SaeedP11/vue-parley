@@ -4,6 +4,40 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [5.7.3] - 2026-11-22
+
+### Added
+
+- Chat / Media:
+  - Add and show sent file sizes on video and document messages.
+  - Use post-compression size for compressed videos and files in real-time.
+  - Allow user to cancel sending a video or document.
+- Whiteboard:
+  - Drag, move and resize whiteboard dialog in desktop mode with bounds clamping, smooth cursor indicators, and visual corner grip.
+
+### Fixed
+
+- Media / Compression:
+  - Optimize video compression performance and device compatibility:
+    - Prefer hardware-accelerated encoding (`prefer-hardware`) with seamless fallback to software encoding for 10x-30x faster processing.
+    - Standardize video codec negotiation to AVC (H.264) for MP4 output to ensure 100% universal playback across all mobile and desktop browsers.
+    - Fix mobile camera recording failures caused by discarding auxiliary tracks (timecode, motion photo metadata) on iOS and Android devices.
+    - Improve audio transcode negotiation (AAC / Opus) for non-AAC source tracks.
+    - Speed up probe packet stats with a 500ms timeout race.
+
+## [5.7.2] - 2026-11-22
+
+### Added
+
+- Whiteboard:
+  - Auto-share whiteboard stream on open and stop on close.
+  - Only start whiteboard streaming when in dialog or window.
+
+### Changed
+
+- Chat:
+  - Simplify video compression to Do Compress toggle switch.
+
 ## [5.7.0] - 2026-11-21
 
 ### Added

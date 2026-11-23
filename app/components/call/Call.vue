@@ -84,6 +84,17 @@ watch(
   },
 );
 
+watch(whiteboardOpen, (open) => {
+  if (!open) {
+    callStore.session?.stopWhiteboardShare();
+  }
+});
+
+const onCloseWhiteboard = () => {
+  whiteboardOpen.value = false;
+  callStore.session?.stopWhiteboardShare();
+};
+
 const onStartWhiteboardStream = async (stream: MediaStream) => {
   await callStore.session?.startWhiteboardShare(stream);
 };
@@ -134,6 +145,6 @@ const onStopWhiteboardStream = () => {
     :participants="participants"
     @stream-start="onStartWhiteboardStream"
     @stream-stop="onStopWhiteboardStream"
-    @close="whiteboardOpen = false"
+    @close="onCloseWhiteboard"
   />
 </template>

@@ -341,6 +341,28 @@ test.describe("messaging", () => {
     await expect(bubble(page, "notes.txt")).toBeVisible();
   });
 
+  test("lets user cancel sending a file attachment", async ({ page }) => {
+    await page.getByTestId("chat-attach").click();
+    const chooser = page.waitForEvent("filechooser");
+    await page.getByText("File", { exact: true }).click();
+    await (
+      await chooser
+    ).setFiles({
+      name: "cancel-doc.txt",
+      mimeType: "text/plain",
+      buffer: Buffer.from("content to cancel"),
+    });
+    await page.getByRole("button", { name: "Send", exact: true }).click();
+
+    // The cancel button is visible on the uploading file bubble
+    const cancelBtn = page.getByRole("button", { name: "Cancel upload" });
+    await expect(cancelBtn).toBeVisible();
+    await cancelBtn.click();
+
+    // The temporary message is removed from the thread
+    await expect(page.getByText("cancel-doc.txt")).toBeHidden();
+  });
+
   test("lets picked files be removed and added to before sending", async ({ page }) => {
     const text = (name: string) => ({ name, mimeType: "text/plain", buffer: Buffer.from(name) });
     await page.getByTestId("chat-attach").click();
@@ -647,7 +669,7 @@ test.describe("images", () => {
     await (await chooser).setFiles(["e2e/harness/public/sample.webm"]);
 
     await expect(page.getByText("Send photos and videos")).toBeVisible();
-    await page.getByLabel("Send original quality").check();
+    await page.getByTestId("chat-attach-compress-switch").click();
     await page.getByRole("button", { name: "Send", exact: true }).click();
 
     await expect
@@ -693,8 +715,9 @@ test.describe("images", () => {
 
     const dialog = page.getByTestId("chat-attach-dialog");
     await expect(dialog.getByText("Send video")).toBeVisible();
-    await expect(dialog.getByTestId("chat-attach-send")).toBeDisabled();
-    await dialog.getByLabel("Compress", { exact: true }).check();
+    await expect(dialog.getByTestId("chat-attach-compress-switch")).toBeVisible();
+    await expect(dialog.getByText("Do Compress")).toBeVisible();
+    await expect(dialog.getByTestId("chat-attach-send")).toBeEnabled();
     // Sending doesn't wait: the bubble shows the compression, then the upload.
     await dialog.getByTestId("chat-attach-send").click();
     await expect(dialog).toBeHidden();
@@ -725,6 +748,38 @@ test.describe("images", () => {
       .toBe(2);
     const [, retry] = await handlerCalls(page, "sendMessage");
     expect(retry.args[0].media[0].url).toBe(call.args[0].media[0].url);
+
+    // The bubble shows the final compressed video and its compressed size (not pre-compressed)
+    await expect(page.getByTestId("upload-progress")).toBeHidden({ timeout: 15_000 });
+    const bubble = page.getByTestId("bubble-image").last();
+    const video = bubble.locator("video");
+    await expect(video).toHaveAttribute("src", new RegExp(`^${call.args[0].media[0].url}`));
+    const badge = bubble.locator(".tabular-nums");
+    await expect(badge).toBeVisible();
+    const badgeText = await badge.innerText();
+    expect(badgeText).not.toContain("1.1 MB");
+  });
+
+  test("lets user cancel sending a video", async ({ page }) => {
+    await openConversation(page, "c1");
+    await page.getByTestId("chat-attach").click();
+    const chooser = page.waitForEvent("filechooser");
+    await page.getByTestId("chat-attach-video").click();
+    await (await chooser).setFiles(["e2e/harness/public/sample-large.webm"]);
+
+    const dialog = page.getByTestId("chat-attach-dialog");
+    await expect(dialog.getByTestId("chat-attach-send")).toBeEnabled();
+    await dialog.getByTestId("chat-attach-send").click();
+    await expect(dialog).toBeHidden();
+
+    const progress = page.getByTestId("upload-progress");
+    await expect(progress).toBeVisible();
+    const cancelBtn = page.getByTestId("upload-progress-cancel");
+    await expect(cancelBtn).toBeVisible();
+    await cancelBtn.click();
+
+    // The progress overlay and the message vanish from the thread
+    await expect(progress).toBeHidden();
   });
 });
 

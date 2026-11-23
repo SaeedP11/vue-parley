@@ -22,7 +22,10 @@ const props = defineProps<{
   compress?: number;
 }>();
 
-const emit = defineEmits<{ preview: [index: number] }>();
+const emit = defineEmits<{
+  preview: [index: number];
+  cancel: [];
+}>();
 
 const { t } = useLocalI18n(chatBubble);
 
@@ -41,7 +44,7 @@ const TILE = "relative block overflow-hidden rounded-xl p-0 cursor-pointer focus
 
 <template>
   <Button
-    v-if="items.length === 1"
+    v-if="items.length === 1 && !sending"
     unstyled
     data-testid="bubble-image"
     :aria-label="label(items[0]!)"
@@ -49,13 +52,21 @@ const TILE = "relative block overflow-hidden rounded-xl p-0 cursor-pointer focus
     @click.stop="emit('preview', 0)"
   >
     <MediaThumb :item="items[0]!" class="size-full" />
-    <UploadProgressOverlay
-        v-if="sending"
-        :progress="sending.progress"
-        :phase="sending.phase"
-        size="lg"
-      />
   </Button>
+
+  <div
+    v-else-if="items.length === 1"
+    data-testid="bubble-image"
+    :class="[TILE, 'h-40.5 w-85 max-w-full md:max-w-85 cursor-default']"
+  >
+    <MediaThumb :item="items[0]!" class="size-full" />
+    <UploadProgressOverlay
+      :progress="sending!.progress"
+      :phase="sending!.phase"
+      size="lg"
+      @cancel="emit('cancel')"
+    />
+  </div>
 
   <div v-else class="flex h-16 max-w-75 items-center gap-x-3">
     <Button
@@ -70,22 +81,35 @@ const TILE = "relative block overflow-hidden rounded-xl p-0 cursor-pointer focus
       </span>
     </Button>
 
-    <Button
-      v-for="(item, index) in displayed"
-      :key="index"
-      unstyled
-      data-testid="bubble-media-item"
-      :aria-label="label(item)"
-      :class="[TILE, 'aspect-square h-full']"
-      @click.stop="emit('preview', index)"
-    >
-      <MediaThumb :item="item" badge="sm" :show-duration="false" class="size-full" />
-      <UploadProgressOverlay
-        v-if="sending"
-        :progress="sending.progress"
-        :phase="sending.phase"
-        size="sm"
-      />
-    </Button>
+    <template v-if="!sending">
+      <Button
+        v-for="(item, index) in displayed"
+        :key="index"
+        unstyled
+        data-testid="bubble-media-item"
+        :aria-label="label(item)"
+        :class="[TILE, 'aspect-square h-full']"
+        @click.stop="emit('preview', index)"
+      >
+        <MediaThumb :item="item" badge="sm" :show-duration="false" class="size-full" />
+      </Button>
+    </template>
+
+    <template v-else>
+      <div
+        v-for="(item, index) in displayed"
+        :key="index"
+        data-testid="bubble-media-item"
+        :class="[TILE, 'aspect-square h-full cursor-default']"
+      >
+        <MediaThumb :item="item" badge="sm" :show-duration="false" class="size-full" />
+        <UploadProgressOverlay
+          :progress="sending!.progress"
+          :phase="sending!.phase"
+          size="sm"
+          @cancel="emit('cancel')"
+        />
+      </div>
+    </template>
   </div>
 </template>

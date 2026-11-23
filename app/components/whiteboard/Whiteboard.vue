@@ -78,6 +78,8 @@ interface LaserPoint {
 
 export interface WhiteboardExposed {
   getStream: (fps?: number) => MediaStream | null;
+  startStream: () => boolean;
+  stopStream: () => void;
   downloadImage: (format?: "png" | "jpeg") => void;
   copyImageToClipboard: () => Promise<void>;
   clear: () => void;
@@ -91,6 +93,7 @@ export interface WhiteboardExposed {
 
 const props = withDefaults(
   defineProps<{
+    visible?: boolean;
     initialTool?: WhiteboardTool;
     initialColor?: string;
     initialSize?: number;
@@ -104,8 +107,10 @@ const props = withDefaults(
     participantsCount?: number;
     isSidebarOpen?: boolean;
     title?: string;
+    draggableDialog?: boolean;
   }>(),
   {
+    visible: undefined,
     initialTool: "pen",
     initialColor: "#2563eb",
     initialSize: 4,
@@ -119,6 +124,7 @@ const props = withDefaults(
     participantsCount: 0,
     isSidebarOpen: false,
     title: "",
+    draggableDialog: false,
   },
 );
 
@@ -2176,6 +2182,11 @@ function stopLoop() {
 const isStreamActiveInternal = ref(false);
 const effectiveStreamActive = computed(() => !!(props.streamActive || isStreamActiveInternal.value));
 
+const isWhiteboardInView = computed(() => {
+  if (props.visible !== undefined) return props.visible;
+  return true;
+});
+
 function stopActiveStream() {
   isStreamActiveInternal.value = false;
   stopLoop();
@@ -2199,7 +2210,7 @@ watch(
     isStreamActiveInternal.value = !!active;
     if (!active) {
       stopActiveStream();
-    } else if (!activeStreamTrack) {
+    } else if (!activeStreamTrack && isWhiteboardInView.value) {
       const stream = getStream();
       if (stream) emit("streamStart", stream);
     }
@@ -2207,6 +2218,7 @@ watch(
 );
 
 function getStream(fps = 10): MediaStream | null {
+  if (!isWhiteboardInView.value) return null;
   const stage = stageRef.value?.getStage();
   if (!stage) return null;
 
@@ -2255,18 +2267,35 @@ function getStream(fps = 10): MediaStream | null {
   return stream;
 }
 
+function startStream(): boolean {
+  if (!isWhiteboardInView.value) return false;
+  if (activeStream && (isStreamActiveInternal.value || props.streamActive)) return true;
+  const stream = getStream();
+  if (stream) {
+    isStreamActiveInternal.value = true;
+    emit("streamStart", stream);
+    emit("update:streamActive", true);
+    return true;
+  }
+  return false;
+}
+
+function stopStream() {
+  stopActiveStream();
+  emit("streamStop");
+  emit("update:streamActive", false);
+}
+
+function handleClose() {
+  stopStream();
+  emit("close");
+}
+
 function toggleStream() {
   if (effectiveStreamActive.value) {
-    stopActiveStream();
-    emit("streamStop");
-    emit("update:streamActive", false);
+    stopStream();
   } else {
-    const stream = getStream();
-    if (stream) {
-      isStreamActiveInternal.value = true;
-      emit("streamStart", stream);
-      emit("update:streamActive", true);
-    }
+    startStream();
   }
 }
 
@@ -2361,16 +2390,43 @@ useEventListener(window, "keyup", (e: KeyboardEvent) => {
   }
 });
 
-onMounted(() => {
-  if (props.streamActive) {
-    isStreamActiveInternal.value = true;
-    const s = getStream();
-    if (s) emit("streamStart", s);
+watch(isWhiteboardInView, (inView) => {
+  if (inView) {
+    if (props.allowStream || props.streamActive) {
+      nextTick(() => {
+        if (!startStream()) {
+          let attempts = 0;
+          const tryStart = () => {
+            if (!isWhiteboardInView.value) return;
+            if (startStream() || attempts++ >= 10) return;
+            requestAnimationFrame(tryStart);
+          };
+          requestAnimationFrame(tryStart);
+        }
+      });
+    }
+  } else {
+    stopStream();
+  }
+});
+
+onMounted(async () => {
+  await nextTick();
+  if (isWhiteboardInView.value && (props.allowStream || props.streamActive)) {
+    if (!startStream()) {
+      let attempts = 0;
+      const tryStart = () => {
+        if (!isWhiteboardInView.value) return;
+        if (startStream() || attempts++ >= 10) return;
+        requestAnimationFrame(tryStart);
+      };
+      requestAnimationFrame(tryStart);
+    }
   }
 });
 
 onBeforeUnmount(() => {
-  stopActiveStream();
+  stopStream();
   if (laserTimer) {
     clearInterval(laserTimer);
     laserTimer = null;
@@ -2469,15 +2525,26 @@ const overflowMenuItems = computed<MenuItem[]>(() => {
       label: t("board.close"),
       phIcon: "PhX",
       danger: true,
-      command: () => emit("close"),
+      command: () => handleClose(),
     });
   }
 
   return items;
 });
 
+const handleHeaderDblClick = (e: MouseEvent) => {
+  if (!props.maximizable) return;
+  const target = e.target as HTMLElement | null;
+  if (target?.closest("button, a, input, select, textarea, [role='button'], .p-button")) {
+    return;
+  }
+  toggleMaximize();
+};
+
 defineExpose<WhiteboardExposed>({
   getStream,
+  startStream,
+  stopStream,
   downloadImage,
   copyImageToClipboard,
   clear,
@@ -2500,13 +2567,26 @@ defineExpose<WhiteboardExposed>({
   >
     <!-- Top Unified Header Bar -->
     <header
-      class="flex items-center justify-between px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 border-b border-gray-200/80 dark:border-gray-800/80 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md z-20 gap-1 sm:gap-2 shrink-0 select-none cursor-default"
+      class="flex items-center justify-between px-2 sm:px-3 md:px-4 py-1.5 sm:py-2 border-b border-gray-200/80 dark:border-gray-800/80 bg-white/95 dark:bg-gray-900/95 backdrop-blur-md z-20 gap-1 sm:gap-2 shrink-0 select-none"
+      :class="[
+        draggableDialog ? 'whiteboard-header-drag cursor-grab active:cursor-grabbing' : 'cursor-default',
+      ]"
+      data-drag-handle="true"
       style="padding-top: max(0.375rem, env(safe-area-inset-top)); padding-inline-start: max(0.5rem, env(safe-area-inset-left)); padding-inline-end: max(0.5rem, env(safe-area-inset-right));"
-      @dblclick.self="maximizable && toggleMaximize()"
+      @dblclick="handleHeaderDblClick"
     >
       <!-- Left: Title, Live Status, Undo, Redo (Safe History) -->
       <div class="flex items-center gap-1 sm:gap-1.5 md:gap-2 min-w-0 shrink">
-        <div class="flex items-center gap-1.5 px-2 sm:px-2.5 py-1 rounded-xl bg-chat-primary/10 text-xs font-bold text-chat-primary shrink-0 select-none min-w-0">
+        <div
+          class="flex items-center gap-1.5 px-2 sm:px-2.5 py-1 rounded-xl bg-chat-primary/10 text-xs font-bold text-chat-primary shrink-0 select-none min-w-0"
+          :class="draggableDialog && 'cursor-grab active:cursor-grabbing'"
+          :title="draggableDialog ? t('board.dragToMove') : undefined"
+        >
+          <BIcon
+            v-if="draggableDialog"
+            icon="PhDotsSixVertical"
+            class="size-3.5 opacity-60 shrink-0 hidden sm:inline"
+          />
           <BIcon icon="PhPaintBrush" class="size-4 shrink-0" />
           <span class="truncate max-w-[100px] md:max-w-[140px] xl:max-w-[180px] hidden sm:inline">{{ title || t("board.title") }}</span>
         </div>
@@ -2593,41 +2673,6 @@ defineExpose<WhiteboardExposed>({
             <BIcon icon="PhFrameCorners" class="size-3.5" />
           </button>
         </div>
-
-        <!-- Stream / Share to Call Button -->
-        <button
-          v-if="allowStream"
-          v-tooltip.bottom="tt(effectiveStreamActive ? t('board.stopSharing') : t('board.shareToCall'))"
-          type="button"
-          class="group relative inline-flex items-center justify-center gap-1.5 h-8 px-2 sm:px-2.5 lg:px-3 rounded-xl text-xs font-semibold cursor-pointer select-none transition-all duration-200 active:scale-[0.97] focus-visible:outline-2 focus-visible:outline-offset-2 shrink-0"
-          :class="
-            effectiveStreamActive
-              ? 'bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white shadow-xs hover:shadow-md hover:shadow-rose-600/25 border border-rose-500/50 focus-visible:outline-rose-500'
-              : 'bg-chat-primary hover:bg-chat-primary/90 text-white shadow-xs hover:shadow-md hover:shadow-chat-primary/25 border border-white/20 dark:border-white/10 focus-visible:outline-chat-primary'
-          "
-          :aria-label="effectiveStreamActive ? t('board.stopSharing') : t('board.shareToCall')"
-          :aria-pressed="effectiveStreamActive"
-          data-testid="whiteboard-stream-btn"
-          @click="toggleStream"
-        >
-          <!-- Pulsing Live Ping Dot when streaming -->
-          <span v-if="effectiveStreamActive" class="relative flex size-2 shrink-0" aria-hidden="true">
-            <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-75" />
-            <span class="relative inline-flex size-2 rounded-full bg-white" />
-          </span>
-
-          <!-- Broadcast / Stop Icon -->
-          <BIcon
-            :icon="effectiveStreamActive ? 'PhStopCircle' : 'PhBroadcast'"
-            weight="bold"
-            class="size-4 shrink-0 transition-transform duration-200 group-hover:scale-110"
-          />
-
-          <!-- Text Label: Shown on lg+ (1024px+), compact on tablet/mobile -->
-          <span class="hidden lg:inline font-medium tracking-tight">
-            {{ effectiveStreamActive ? t('board.stopSharing') : t('board.shareToCall') }}
-          </span>
-        </button>
 
         <!-- Desktop Quick Actions (2XL+ only): Theme, Grid, Copy, Save, Shortcuts -->
         <div class="hidden 2xl:flex items-center gap-1">
@@ -2732,7 +2777,7 @@ defineExpose<WhiteboardExposed>({
           :label="t('board.close')"
           icon-class="size-4.5"
           class="shrink-0 hover:bg-red-50 dark:hover:bg-red-950/40 hover:text-red-500"
-          @click="emit('close')"
+          @click="handleClose"
         />
       </div>
     </header>

@@ -284,6 +284,7 @@ const longPress = useLongPress(handleRightClick);
                     :is-mine="isMine"
                     :url="message.fileUrl ?? ''"
                     :file-name="message.fileName"
+                    :file-size="message.fileSize"
                     :message-id="message.id"
                     :is-sent="message.isSent"
                   />
@@ -307,10 +308,15 @@ const longPress = useLongPress(handleRightClick);
                     :upload="uploadData"
                     :compress="compressData"
                     @preview="previewImage"
+                    @cancel="messagesStore.cancelSending(message.id)"
                   />
                   <BubbleVideo
                     v-else-if="messageType === 'video'"
                     :video-url="message.videoUrl"
+                    :file-size="message.fileSize"
+                    :message-id="message.id"
+                    :is-sent="message.isSent"
+                    :compress="compressData"
                     mode="playback"
                   />
                   <BubbleMeta

@@ -122,19 +122,33 @@ export function usePeers(opts: PeerOptions) {
   /** What kind of media `stream` is (camera, screen share, or whiteboard), from what was announced. */
   function getStreamType(remoteId: string, stream: MediaStream): "camera" | "screen" | "whiteboard" {
     const announced = remoteStreamTypes.value[remoteId] ?? [];
-    const match = announced.find((t) => t.id === stream.id);
+    const match = announced.find(
+      (t) =>
+        t.id === stream.id ||
+        (t.trackId && stream.getTracks().some((tr) => tr.id === t.trackId)) ||
+        stream.getTracks().some((tr) => tr.id === t.id),
+    );
     if (match) {
       if (match.type === "whiteboard") return "whiteboard";
       if (match.type === "screen") return "screen";
       return "camera";
     }
     // Stream ids didn't survive the trip: fall back to types announced
+    if (stream.getAudioTracks().length > 0) {
+      return "camera";
+    }
     if (announced.some((t) => t.type === "whiteboard") && !announced.some((t) => t.type === "screen")) {
       return "whiteboard";
     }
     if (announced.some((t) => t.type === "screen") && !announced.some((t) => t.type === "whiteboard")) {
       return "screen";
     }
+    const otherStreams = (received[remoteId] ?? []).filter((r) => r.stream.id !== stream.id);
+    const hasScreen = otherStreams.some((r) => r.screen);
+    const hasWhiteboard = otherStreams.some((r) => r.whiteboard);
+    if (hasScreen && !hasWhiteboard) return "whiteboard";
+    if (hasWhiteboard && !hasScreen) return "screen";
+
     return "camera";
   }
 

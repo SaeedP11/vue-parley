@@ -80,6 +80,8 @@
     "collapseProperties": "بستن گزینه‌ها",
     "expandProperties": "باز کردن گزینه‌ها",
     "moreOptions": "گزینه‌های بیشتر",
+    "dragToMove": "برای جابجایی بکشید",
+    "resize": "تغییر اندازه",
     "typeHere": "اینجا بنویسید..."
   }
 }

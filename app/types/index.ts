@@ -43,6 +43,7 @@ export interface ChatEvent {
 export interface MediaItem {
   url: string;
   kind: "image" | "video";
+  size?: number;
 }
 
 export interface Message {
@@ -62,6 +63,7 @@ export interface Message {
   compressMedia?: boolean;
   fileUrl?: string;
   fileName?: string;
+  fileSize?: number;
   voiceUrl?: string;
   videoUrl?: string;
   isEdited: boolean;
@@ -144,7 +146,7 @@ export type CallMessage =
   | { type: "join"; payload: { from: string; name: string } }
   | {
       type: "track_type";
-      payload: { from: string; types: { id: string; type: TrackType }[] };
+      payload: { from: string; types: { id: string; trackId?: string; type: TrackType }[] };
     }
   | {
       type: "call";
@@ -249,6 +251,7 @@ export interface UploadProgressEvent {
 
 export interface SendMessageOptions {
   onProgress?: (e: UploadProgressEvent) => void;
+  signal?: AbortSignal;
 }
 
 export interface FetchMessagesParams {
@@ -353,7 +356,7 @@ export type CallMessageSchema =
       type: typeof CallMessageType.TrackType;
       payload: {
         from: string;
-        types: { id: string; type: TrackType }[];
+        types: { id: string; trackId?: string; type: TrackType }[];
         /** Whether the sender's microphone and camera are on. Absent from older clients. */
         media?: CallMediaState;
         joinedAt?: number;

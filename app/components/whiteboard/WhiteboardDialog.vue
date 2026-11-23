@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ref, computed, watch, nextTick } from "vue";
-import { useEventListener } from "@vueuse/core";
+import { ref, computed, watch, nextTick, onBeforeUnmount, onMounted, reactive } from "vue";
+import { useEventListener, useMediaQuery, useWindowSize } from "@vueuse/core";
 import Whiteboard, { type WhiteboardExposed } from "./Whiteboard.vue";
 import type { WhiteboardTool } from "./types";
 import BIcon from "~/components/global/BIcon.vue";
@@ -34,6 +34,8 @@ const props = withDefaults(
     streamActive?: boolean;
     allowStream?: boolean;
     participants?: Participant[];
+    draggable?: boolean;
+    resizable?: boolean;
   }>(),
   {
     visible: undefined,
@@ -48,6 +50,8 @@ const props = withDefaults(
     streamActive: false,
     allowStream: true,
     participants: undefined,
+    draggable: true,
+    resizable: true,
   },
 );
 
@@ -171,15 +175,284 @@ const isUnreachable = (tile?: Participant) =>
 const isDisconnected = (tile?: Participant) =>
   !!tile && !tile.isSelf && tile.status !== "connected" && !isUnreachable(tile);
 
+const selectedMemberStream = reactive<Record<string, "camera" | "screen" | "whiteboard">>({});
+
+const hasTileScreen = (tile: Participant) =>
+  tile.isSelf ? !!callMedia.value?.isScreenSharing.value : !!tile.screen?.getVideoTracks().length;
+
+const hasTileWhiteboard = (tile: Participant) =>
+  tile.isSelf ? !!callMedia.value?.isWhiteboardSharing.value : !!tile.whiteboard?.getVideoTracks().length;
+
+const getMemberStream = (tile: Participant) => {
+  const mode = selectedMemberStream[tile.id] ?? "camera";
+  if (mode === "screen") {
+    return tile.isSelf ? callMedia.value?.screenStream.value : tile.screen;
+  }
+  if (mode === "whiteboard") {
+    return tile.isSelf ? callMedia.value?.whiteboardStream.value : tile.whiteboard;
+  }
+  return streamOf(tile);
+};
+
+const otherWhiteboards = computed(() =>
+  displayParticipants.value.filter((p) => !p.isSelf && !!p.whiteboard?.getVideoTracks().length),
+);
+
 const whiteboardRef = ref<WhiteboardExposed | null>(null);
+
+const isDesktop = useMediaQuery("(min-width: 768px)");
+
+const dialogRef = ref<HTMLDivElement | null>(null);
+const dialogWidth = ref<number | null>(null);
+const dialogHeight = ref<number | null>(null);
+const dialogX = ref<number | null>(null);
+const dialogY = ref<number | null>(null);
+
+const isDragging = ref(false);
+const isResizing = ref(false);
+type ResizeDirection = "n" | "s" | "e" | "w" | "ne" | "nw" | "se" | "sw";
+const resizeDirection = ref<ResizeDirection | null>(null);
+
+const { width: windowWidth, height: windowHeight } = useWindowSize();
+
+const initDialogBounds = () => {
+  if (typeof window === "undefined") return;
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+
+  const targetW = Math.min(1440, Math.max(680, Math.round(vw * 0.92)));
+  const targetH = Math.min(920, Math.max(480, Math.round(vh * 0.88)));
+
+  dialogWidth.value = targetW;
+  dialogHeight.value = targetH;
+  dialogX.value = Math.max(0, Math.round((vw - targetW) / 2));
+  dialogY.value = Math.max(0, Math.round((vh - targetH) / 2));
+};
+
+const clampBounds = () => {
+  if (typeof window === "undefined" || !isDesktop.value) return;
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const minW = Math.min(540, vw);
+  const minH = Math.min(400, vh);
+
+  if (dialogWidth.value === null || dialogHeight.value === null) {
+    initDialogBounds();
+    return;
+  }
+
+  dialogWidth.value = Math.min(vw, Math.max(minW, dialogWidth.value));
+  dialogHeight.value = Math.min(vh, Math.max(minH, dialogHeight.value));
+
+  if (dialogX.value === null || dialogY.value === null) {
+    dialogX.value = Math.max(0, Math.round((vw - dialogWidth.value) / 2));
+    dialogY.value = Math.max(0, Math.round((vh - dialogHeight.value) / 2));
+  } else {
+    dialogX.value = Math.max(0, Math.min(dialogX.value, Math.max(0, vw - 120)));
+    dialogY.value = Math.max(0, Math.min(dialogY.value, Math.max(0, vh - 60)));
+  }
+};
+
+watch([windowWidth, windowHeight], () => {
+  if (isDesktop.value && !isFullWindow.value && isVisible.value) {
+    clampBounds();
+  }
+});
+
+onMounted(() => {
+  if (isDesktop.value) {
+    initDialogBounds();
+  }
+});
+
+const dialogStyle = computed(() => {
+  if (!isDesktop.value || isFullWindow.value) {
+    return undefined;
+  }
+  return {
+    left: `${dialogX.value ?? 0}px`,
+    top: `${dialogY.value ?? 0}px`,
+    width: `${dialogWidth.value ?? 800}px`,
+    height: `${dialogHeight.value ?? 600}px`,
+  };
+});
+
+const startDrag = (e: PointerEvent) => {
+  isDragging.value = true;
+  const startMouseX = e.clientX;
+  const startMouseY = e.clientY;
+  const initDialogX = dialogX.value ?? 0;
+  const initDialogY = dialogY.value ?? 0;
+
+  const onPointerMove = (ev: PointerEvent) => {
+    if (!isDragging.value) return;
+    const dx = ev.clientX - startMouseX;
+    const dy = ev.clientY - startMouseY;
+
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const currentW = dialogWidth.value ?? 800;
+    const currentH = dialogHeight.value ?? 600;
+
+    const minX = -(currentW - 120);
+    const maxX = vw - 120;
+    const minY = 0;
+    const maxY = vh - 60;
+
+    dialogX.value = Math.round(Math.max(minX, Math.min(maxX, initDialogX + dx)));
+    dialogY.value = Math.round(Math.max(minY, Math.min(maxY, initDialogY + dy)));
+  };
+
+  const onPointerUp = () => {
+    isDragging.value = false;
+    window.removeEventListener("pointermove", onPointerMove);
+    window.removeEventListener("pointerup", onPointerUp);
+    window.removeEventListener("pointercancel", onPointerUp);
+  };
+
+  window.addEventListener("pointermove", onPointerMove);
+  window.addEventListener("pointerup", onPointerUp);
+  window.addEventListener("pointercancel", onPointerUp);
+};
+
+const onDialogPointerDown = (e: PointerEvent) => {
+  if (!isDesktop.value || isFullWindow.value || !props.draggable) return;
+  if (e.button !== 0) return;
+
+  const target = e.target as HTMLElement | null;
+  if (!target) return;
+
+  const dragHandle = target.closest(".whiteboard-header-drag, [data-drag-handle]");
+  if (!dragHandle) return;
+
+  if (target.closest("button, a, input, select, textarea, [role='button'], .p-button, .no-drag")) {
+    return;
+  }
+
+  startDrag(e);
+};
+
+const startResize = (direction: ResizeDirection, e: PointerEvent) => {
+  if (!isDesktop.value || isFullWindow.value || !props.resizable) return;
+  if (e.button !== 0) return;
+  e.preventDefault();
+  e.stopPropagation();
+
+  isResizing.value = true;
+  resizeDirection.value = direction;
+
+  const startMouseX = e.clientX;
+  const startMouseY = e.clientY;
+  const initX = dialogX.value ?? 0;
+  const initY = dialogY.value ?? 0;
+  const initW = dialogWidth.value ?? 800;
+  const initH = dialogHeight.value ?? 600;
+
+  const minW = 540;
+  const minH = 400;
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+
+  const onPointerMove = (ev: PointerEvent) => {
+    if (!isResizing.value) return;
+    const dx = ev.clientX - startMouseX;
+    const dy = ev.clientY - startMouseY;
+
+    let newX = initX;
+    let newY = initY;
+    let newW = initW;
+    let newH = initH;
+
+    if (direction.includes("e")) {
+      newW = Math.max(minW, Math.min(vw - initX, initW + dx));
+    } else if (direction.includes("w")) {
+      const targetW = initW - dx;
+      if (targetW < minW) {
+        newW = minW;
+        newX = initX + (initW - minW);
+      } else if (initX + dx < 0) {
+        newW = initX + initW;
+        newX = 0;
+      } else {
+        newW = targetW;
+        newX = initX + dx;
+      }
+    }
+
+    if (direction.includes("s")) {
+      newH = Math.max(minH, Math.min(vh - initY, initH + dy));
+    } else if (direction.includes("n")) {
+      const targetH = initH - dy;
+      if (targetH < minH) {
+        newH = minH;
+        newY = initY + (initH - minH);
+      } else if (initY + dy < 0) {
+        newH = initY + initH;
+        newY = 0;
+      } else {
+        newH = targetH;
+        newY = initY + dy;
+      }
+    }
+
+    dialogX.value = Math.round(newX);
+    dialogY.value = Math.round(newY);
+    dialogWidth.value = Math.round(newW);
+    dialogHeight.value = Math.round(newH);
+  };
+
+  const onPointerUp = () => {
+    isResizing.value = false;
+    resizeDirection.value = null;
+    window.removeEventListener("pointermove", onPointerMove);
+    window.removeEventListener("pointerup", onPointerUp);
+    window.removeEventListener("pointercancel", onPointerUp);
+    window.dispatchEvent(new Event("resize"));
+  };
+
+  window.addEventListener("pointermove", onPointerMove);
+  window.addEventListener("pointerup", onPointerUp);
+  window.addEventListener("pointercancel", onPointerUp);
+};
+
+const activeOverlayCursorClass = computed(() => {
+  if (isDragging.value) return "cursor-grabbing";
+  switch (resizeDirection.value) {
+    case "n":
+    case "s":
+      return "cursor-ns-resize";
+    case "e":
+    case "w":
+      return "cursor-ew-resize";
+    case "nw":
+    case "se":
+      return "cursor-nwse-resize";
+    case "ne":
+    case "sw":
+      return "cursor-nesw-resize";
+    default:
+      return "cursor-default";
+  }
+});
 
 watch(isVisible, async (open) => {
   if (open) {
     if (typeof window !== "undefined" && window.innerWidth < 1024) {
       isSidebarCollapsed.value = true;
     }
+    if (isDesktop.value) {
+      clampBounds();
+    }
     await nextTick();
     window.dispatchEvent(new Event("resize"));
+    if (props.allowStream) {
+      whiteboardRef.value?.startStream();
+    }
+  } else {
+    whiteboardRef.value?.stopStream();
+    session.value?.stopWhiteboardShare();
+    emit("streamStop");
+    emit("update:streamActive", false);
   }
 });
 
@@ -191,9 +464,20 @@ const toggleSidebar = () => {
 };
 
 const close = () => {
+  whiteboardRef.value?.stopStream();
+  session.value?.stopWhiteboardShare();
+  emit("streamStop");
+  emit("update:streamActive", false);
   isVisible.value = false;
   emit("close");
 };
+
+onBeforeUnmount(() => {
+  whiteboardRef.value?.stopStream();
+  session.value?.stopWhiteboardShare();
+  emit("streamStop");
+  emit("update:streamActive", false);
+});
 
 const onMaskClick = (e: MouseEvent) => {
   if (props.dismissableMask && e.target === e.currentTarget) {
@@ -215,6 +499,8 @@ useEventListener(window, "keydown", (e: KeyboardEvent) => {
 
 defineExpose({
   getStream: (fps = 10) => whiteboardRef.value?.getStream(fps) ?? null,
+  startStream: () => whiteboardRef.value?.startStream() ?? false,
+  stopStream: () => whiteboardRef.value?.stopStream(),
   downloadImage: (format?: "png" | "jpeg") => whiteboardRef.value?.downloadImage(format),
   copyImageToClipboard: () => whiteboardRef.value?.copyImageToClipboard(),
   clear: () => whiteboardRef.value?.clear(),
@@ -230,32 +516,116 @@ defineExpose({
   toggleFullWindow,
   toggleMaximize,
   whiteboard: whiteboardRef,
+  resetPosition: initDialogBounds,
+  isDragging,
+  isResizing,
 });
 </script>
 
 <template>
   <Teleport to="body">
     <div
-      class="vue-chat font-chat-family whiteboard-dialog-mask fixed inset-0 flex items-center justify-center transition-all duration-200"
+      class="vue-chat font-chat-family whiteboard-dialog-mask fixed inset-0 transition-opacity duration-200"
       :class="[
         isVisible
           ? 'z-[100] opacity-100 pointer-events-auto backdrop-blur-xs'
           : '-z-10 opacity-0 pointer-events-none invisible',
-        isFullWindow ? 'p-0' : 'p-0 sm:p-3 md:p-5',
       ]"
       :style="{ zIndex: isVisible ? 100 : -1 }"
       :dir="dir"
       :aria-hidden="!isVisible"
       @click="onMaskClick"
     >
+      <!-- Full-screen transparent overlay while dragging/resizing to retain cursor & catch all pointer events -->
       <div
-        class="whiteboard-dialog-root overflow-hidden bg-white dark:bg-gray-900 flex flex-col transition-all duration-200"
+        v-if="isDragging || isResizing"
+        class="fixed inset-0 z-[110] select-none touch-none"
+        :class="activeOverlayCursorClass"
+      />
+
+      <div
+        ref="dialogRef"
+        class="whiteboard-dialog-root overflow-hidden bg-white dark:bg-gray-900 flex flex-col group"
         :class="[
           isFullWindow
-            ? 'w-full h-full max-w-none rounded-none border-none shadow-none'
-            : 'w-full h-[100dvh] sm:w-[96vw] sm:max-w-[1440px] sm:h-[92vh] rounded-none sm:rounded-2xl md:rounded-3xl shadow-none sm:shadow-2xl border-none sm:border border-gray-200 dark:border-gray-800',
+            ? 'fixed inset-0 w-full h-full max-w-none rounded-none border-none shadow-none z-10'
+            : isDesktop
+              ? 'fixed rounded-2xl md:rounded-3xl shadow-2xl border border-gray-200 dark:border-gray-800 z-10'
+              : 'fixed inset-0 w-full h-[100dvh] rounded-none border-none shadow-none z-10',
+          (isDragging || isResizing)
+            ? 'select-none pointer-events-auto transition-none'
+            : 'transition-[opacity,transform] duration-150',
         ]"
+        :style="dialogStyle"
+        @click.stop
+        @pointerdown="onDialogPointerDown"
       >
+        <!-- Resize Handles: Active on desktop when not in full window -->
+        <template v-if="isDesktop && !isFullWindow && resizable">
+          <!-- Edge handles -->
+          <div
+            class="absolute top-0 inset-x-3 h-2 cursor-ns-resize z-30 select-none touch-none hover:bg-chat-primary/20 transition-colors"
+            :title="t('board.resize')"
+            @pointerdown="startResize('n', $event)"
+          />
+          <div
+            class="absolute bottom-0 inset-x-3 h-2 cursor-ns-resize z-30 select-none touch-none hover:bg-chat-primary/20 transition-colors"
+            :title="t('board.resize')"
+            @pointerdown="startResize('s', $event)"
+          />
+          <div
+            class="absolute left-0 inset-y-3 w-2 cursor-ew-resize z-30 select-none touch-none hover:bg-chat-primary/20 transition-colors"
+            :title="t('board.resize')"
+            @pointerdown="startResize('w', $event)"
+          />
+          <div
+            class="absolute right-0 inset-y-3 w-2 cursor-ew-resize z-30 select-none touch-none hover:bg-chat-primary/20 transition-colors"
+            :title="t('board.resize')"
+            @pointerdown="startResize('e', $event)"
+          />
+
+          <!-- Corner handles -->
+          <div
+            class="absolute top-0 left-0 size-4 cursor-nwse-resize z-30 select-none touch-none"
+            :title="t('board.resize')"
+            @pointerdown="startResize('nw', $event)"
+          />
+          <div
+            class="absolute top-0 right-0 size-4 cursor-nesw-resize z-30 select-none touch-none"
+            :title="t('board.resize')"
+            @pointerdown="startResize('ne', $event)"
+          />
+          <div
+            class="absolute bottom-0 left-0 size-4 cursor-nesw-resize z-30 select-none touch-none"
+            :title="t('board.resize')"
+            @pointerdown="startResize('sw', $event)"
+          />
+          <div
+            class="absolute bottom-0 right-0 size-4 cursor-nwse-resize z-30 select-none touch-none"
+            :title="t('board.resize')"
+            @pointerdown="startResize('se', $event)"
+          />
+
+          <!-- Visual Corner Grip Affordance at bottom-end corner -->
+          <div
+            class="absolute bottom-1 end-1 z-30 p-1 flex items-end justify-end pointer-events-none select-none text-gray-400 dark:text-gray-500 opacity-40 group-hover:opacity-90 transition-opacity"
+            aria-hidden="true"
+          >
+            <svg
+              class="size-2.5"
+              viewBox="0 0 10 10"
+              fill="currentColor"
+            >
+              <circle cx="8.5" cy="8.5" r="1" />
+              <circle cx="5" cy="8.5" r="1" />
+              <circle cx="8.5" cy="5" r="1" />
+              <circle cx="1.5" cy="8.5" r="1" />
+              <circle cx="5" cy="5" r="1" />
+              <circle cx="8.5" cy="1.5" r="1" />
+            </svg>
+          </div>
+        </template>
+
         <!-- Body Area: Unified Whiteboard Toolbar & Canvas, with Dockable Members Sidebar -->
         <div :dir="dir" class="flex-1 w-full h-full min-h-0 relative overflow-hidden flex flex-row">
           <!-- Whiteboard Container with Unified Top Header -->
@@ -264,6 +634,7 @@ defineExpose({
           >
             <Whiteboard
               ref="whiteboardRef"
+              :visible="isVisible"
               :initial-tool="initialTool"
               :initial-color="initialColor"
               :title="title"
@@ -275,6 +646,7 @@ defineExpose({
               :has-participants="displayParticipants.length > 0"
               :participants-count="displayParticipants.length"
               :is-sidebar-open="!isSidebarCollapsed && displayParticipants.length > 0"
+              :draggable-dialog="isDesktop && !isFullWindow && props.draggable"
               @stream-start="emit('streamStart', $event)"
               @stream-stop="emit('streamStop')"
               @update:stream-active="emit('update:streamActive', $event)"
@@ -283,6 +655,21 @@ defineExpose({
               @toggle-sidebar="toggleSidebar"
               @close="close"
             />
+            <!-- Notice when another member shares whiteboard in parallel -->
+            <div
+              v-if="otherWhiteboards.length > 0"
+              class="absolute top-3 start-1/2 -translate-x-1/2 z-20 pointer-events-auto flex items-center gap-2 px-3 py-1.5 rounded-full bg-indigo-950/80 border border-indigo-500/40 backdrop-blur-md shadow-lg text-indigo-200 text-xs select-none"
+            >
+              <CallIcon name="whiteboard" class="size-3.5 text-indigo-400" />
+              <span>{{ t("chat.call.stage.alsoSharingWhiteboard", { name: nameOf(otherWhiteboards[0]) }) }}</span>
+              <button
+                type="button"
+                class="px-2 py-0.5 rounded bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-[11px] transition-colors cursor-pointer"
+                @click="isSidebarCollapsed = false; selectedMemberStream[otherWhiteboards[0].id] = 'whiteboard'"
+              >
+                {{ t("chat.call.stage.viewWhiteboard") }}
+              </button>
+            </div>
             <!-- Your own camera, while the members list isn't showing it. -->
             <div
               v-if="selfTile"
@@ -349,12 +736,48 @@ defineExpose({
                   'ring-2 ring-emerald-500 shadow-emerald-500/20': micOn(tile) && !tile.isSelf,
                 }"
               >
-                <!-- Video stream when camera is active -->
+                <!-- Video stream when active (camera, screen, or whiteboard) -->
                 <CallStageVideo
-                  v-if="cameraOn(tile)"
-                  :stream="streamOf(tile)"
-                  :mirrored="isMirrored(tile)"
+                  v-if="(selectedMemberStream[tile.id] === 'screen' ? hasTileScreen(tile) : selectedMemberStream[tile.id] === 'whiteboard' ? hasTileWhiteboard(tile) : cameraOn(tile)) && getMemberStream(tile)"
+                  :stream="getMemberStream(tile)"
+                  :mirrored="(selectedMemberStream[tile.id] ?? 'camera') === 'camera' && isMirrored(tile)"
                 />
+
+                <!-- Stream Switcher on card -->
+                <div
+                  v-if="hasTileScreen(tile) || hasTileWhiteboard(tile)"
+                  class="absolute top-1.5 end-1.5 z-20 flex items-center gap-1 bg-black/60 backdrop-blur-xs rounded-lg p-0.5 pointer-events-auto"
+                >
+                  <button
+                    type="button"
+                    class="px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors flex items-center gap-0.5 cursor-pointer"
+                    :class="(selectedMemberStream[tile.id] ?? 'camera') === 'camera' ? 'bg-white/25 text-white' : 'text-gray-400 hover:text-white'"
+                    :title="t('chat.call.stage.viewCamera')"
+                    @click.stop="selectedMemberStream[tile.id] = 'camera'"
+                  >
+                    <CallIcon name="videocam" class="size-3" />
+                  </button>
+                  <button
+                    v-if="hasTileScreen(tile)"
+                    type="button"
+                    class="px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors flex items-center gap-0.5 text-emerald-400 cursor-pointer"
+                    :class="selectedMemberStream[tile.id] === 'screen' ? 'bg-emerald-500/30 text-emerald-300 ring-1 ring-emerald-400' : 'hover:bg-white/10'"
+                    :title="t('chat.call.stage.viewScreen')"
+                    @click.stop="selectedMemberStream[tile.id] = 'screen'"
+                  >
+                    <CallIcon name="presentToAll" class="size-3" />
+                  </button>
+                  <button
+                    v-if="hasTileWhiteboard(tile)"
+                    type="button"
+                    class="px-1.5 py-0.5 rounded text-[10px] font-medium transition-colors flex items-center gap-0.5 text-indigo-400 cursor-pointer"
+                    :class="selectedMemberStream[tile.id] === 'whiteboard' ? 'bg-indigo-500/30 text-indigo-300 ring-1 ring-indigo-400' : 'hover:bg-white/10'"
+                    :title="t('chat.call.stage.viewWhiteboard')"
+                    @click.stop="selectedMemberStream[tile.id] = 'whiteboard'"
+                  >
+                    <CallIcon name="whiteboard" class="size-3" />
+                  </button>
+                </div>
 
                 <!-- Camera Off fallback with avatar -->
                 <div
