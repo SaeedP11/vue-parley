@@ -14,7 +14,14 @@
     "seek": "Seek",
     "resetZoom": "Reset zoom",
     "zoomIn": "Zoom in",
-    "zoomOut": "Zoom out"
+    "zoomOut": "Zoom out",
+    "rewind": "Rewind 5s",
+    "forward": "Forward 5s",
+    "speed": "Playback speed",
+    "pip": "Picture in Picture",
+    "volume": "Volume",
+    "replay": "Replay",
+    "remainingTime": "Toggle remaining time"
   },
   "cantPlay": "This video can't be played here. Download it to watch.",
   "sentOn": "{day}, {time}",

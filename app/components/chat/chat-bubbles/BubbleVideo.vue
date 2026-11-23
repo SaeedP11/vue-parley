@@ -150,7 +150,7 @@ const togglePlay = () => {
   if (isPlaying.value) {
     videoRef.value.pause();
   } else {
-    videoRef.value.play();
+    videoRef.value.play().catch(() => {});
   }
 };
 

@@ -30,7 +30,15 @@ import { formatDuration } from "~/utils/media";
 import { useMediaStore } from "~/stores/mediaStore";
 import { mediaViewer } from "@i18n/locales";
 
-const props = defineProps<{ src: string }>();
+const props = withDefaults(
+  defineProps<{
+    src: string;
+    hasMultipleItems?: boolean;
+  }>(),
+  {
+    hasMultipleItems: false,
+  },
+);
 
 const emit = defineEmits<{ swipe: [direction: "left" | "right"] }>();
 
@@ -261,7 +269,7 @@ const onWheel = (e: WheelEvent) => {
   resetControlsTimeout();
 };
 
-// Source setup and Range fallback
+// Source setup and playback initialization
 const releaseObjectUrl = () => {
   abortController?.abort();
   abortController = null;
@@ -282,7 +290,7 @@ const setupSource = async (url: string) => {
 
   if (!url) {
     playbackSrc.value = "";
-    isSeekable.value = false;
+    isSeekable.value = true;
     bufferedRanges.value = [];
     bufferedPercent.value = 0;
     return;
@@ -312,70 +320,9 @@ const setupSource = async (url: string) => {
     // Best-effort cache check
   }
 
-  // Start with streaming URL so playback can start without waiting for download.
+  // Direct native playback - browser handles streaming & ranges natively
   playbackSrc.value = url;
-
-  const ac = new AbortController();
-  abortController = ac;
-
-  try {
-    // Probe HTTP Range support: a 206 Partial Content means server supports byte-range seeking.
-    const probe = await fetch(url, {
-      headers: { Range: "bytes=0-" },
-      signal: ac.signal,
-    });
-
-    if (probe.status === 206) {
-      isSeekable.value = true;
-      return;
-    }
-
-    // Server ignores range requests (returns 200). Fetch the full blob in background.
-    isDownloadingBlob.value = true;
-    const blob = await mediaStore.download(url, {
-      signal: ac.signal,
-      onProgress: (pct) => {
-        if (abortController === ac) {
-          downloadProgress.value = pct;
-        }
-      },
-    });
-    if (abortController !== ac) return;
-
-    isDownloadingBlob.value = false;
-    downloadProgress.value = 100;
-    objectUrl = URL.createObjectURL(blob);
-    const media = video.value;
-    const at = pendingSeek.value !== null ? pendingSeek.value : (media?.currentTime ?? 0);
-    const wasPlaying = isPlaying.value;
-
-    playbackSrc.value = objectUrl;
-    isSeekable.value = true;
-    bufferedRanges.value = [{ startPct: 0, widthPct: 100 }];
-    bufferedPercent.value = 100;
-
-    if (media) {
-      media.addEventListener(
-        "loadedmetadata",
-        () => {
-          media.currentTime = at;
-          media.playbackRate = playbackRate.value;
-          pendingSeek.value = null;
-          isWaiting.value = false;
-          isSeeking.value = false;
-          if (wasPlaying) media.play().catch(() => {});
-        },
-        { once: true },
-      );
-    } else {
-      pendingSeek.value = null;
-    }
-  } catch (error: any) {
-    if (error?.name !== "AbortError") {
-      isSeekable.value = false;
-      isDownloadingBlob.value = false;
-    }
-  }
+  isSeekable.value = true;
 };
 
 watch(() => props.src, setupSource, { immediate: true });
@@ -437,21 +384,48 @@ const togglePiP = async () => {
   }
 };
 
+let seekRaf: number | null = null;
+let pendingSeekTime: number | null = null;
+
+const applySeekTime = (time: number) => {
+  if (video.value) {
+    if (!isTimeBuffered(time)) {
+      isWaiting.value = true;
+    }
+    isSeeking.value = true;
+    video.value.currentTime = time;
+  }
+};
+
 const seek = (value: number | number[]) => {
   const time = Array.isArray(value) ? value[0]! : value;
   current.value = time;
-  if (video.value) {
-    if (isSeekable.value) {
-      if (!isTimeBuffered(time)) {
-        isWaiting.value = true;
-      }
-      isSeeking.value = true;
-      video.value.currentTime = time;
-    } else {
-      pendingSeek.value = time;
-      isWaiting.value = true;
+  pendingSeekTime = time;
+
+  if (seekRaf !== null) return;
+  seekRaf = requestAnimationFrame(() => {
+    seekRaf = null;
+    if (pendingSeekTime !== null) {
+      applySeekTime(pendingSeekTime);
+      pendingSeekTime = null;
     }
+  });
+};
+
+const onSlideEnd = (event?: any) => {
+  scrubbing.value = false;
+  if (seekRaf !== null) {
+    cancelAnimationFrame(seekRaf);
+    seekRaf = null;
   }
+  const rawValue = event && typeof event === "object" && "value" in event ? event.value : event;
+  const time =
+    typeof rawValue === "number"
+      ? rawValue
+      : Array.isArray(rawValue)
+        ? rawValue[0]!
+        : current.value;
+  applySeekTime(time);
 };
 
 const onTimeUpdate = () => {
@@ -533,9 +507,14 @@ const onVideoClick = (e: MouseEvent) => {
   } else {
     lastClickTime = now;
     clickTimer = setTimeout(() => {
+      // If video is playing and controls are currently hidden, first click reveals controls without pausing
+      if (isPlaying.value && !showControls.value) {
+        resetControlsTimeout();
+        return;
+      }
       togglePlay();
       resetControlsTimeout();
-    }, 250);
+    }, 220);
   }
 };
 
@@ -543,11 +522,15 @@ useEventListener(document, "fullscreenchange", () => {
   isFullscreen.value = !!document.fullscreenElement && document.fullscreenElement === frame.value;
 });
 
-// Keyboard shortcuts: Space/K (play/pause), Left/Right/J/L (seek ±5s), Up/Down (volume ±10%), M (mute), F (fullscreen)
+// Keyboard shortcuts: Space/K (play/pause), J/L or Shift+Arrows (seek ±5s), Up/Down (volume ±10%), M (mute), F (fullscreen)
+// In fullscreen mode or single-item viewer, plain ArrowLeft/ArrowRight also seek ±5s.
 useEventListener(window, "keydown", (event: KeyboardEvent) => {
   if (event.defaultPrevented) return;
   const target = event.target as HTMLElement | null;
   if (target?.closest("input, textarea, [contenteditable='true']")) return;
+
+  const isFullscreenMode = isFullscreen.value;
+  const canSeekWithArrows = !props.hasMultipleItems || isFullscreenMode;
 
   switch (event.key) {
     case " ":
@@ -557,17 +540,27 @@ useEventListener(window, "keydown", (event: KeyboardEvent) => {
       togglePlay();
       resetControlsTimeout();
       break;
-    case "ArrowLeft":
     case "j":
     case "J":
       event.preventDefault();
       skip(-5);
       break;
-    case "ArrowRight":
     case "l":
     case "L":
       event.preventDefault();
       skip(5);
+      break;
+    case "ArrowLeft":
+      if (event.shiftKey || canSeekWithArrows) {
+        event.preventDefault();
+        skip(-5);
+      }
+      break;
+    case "ArrowRight":
+      if (event.shiftKey || canSeekWithArrows) {
+        event.preventDefault();
+        skip(5);
+      }
       break;
     case "ArrowUp":
       event.preventDefault();
@@ -618,6 +611,7 @@ onBeforeUnmount(() => {
   if (clickTimer) clearTimeout(clickTimer);
   if (feedbackTimer) clearTimeout(feedbackTimer);
   if (hideControlsTimer) clearTimeout(hideControlsTimer);
+  if (seekRaf !== null) cancelAnimationFrame(seekRaf);
   releaseObjectUrl();
   if (document.fullscreenElement === frame.value) document.exitFullscreen().catch(() => {});
 });
@@ -690,12 +684,25 @@ onBeforeUnmount(() => {
         </div>
       </Transition>
 
+      <!-- Center Play Button Overlay when Paused -->
+      <Transition name="feedback-fade">
+        <button
+          v-if="!isPlaying && !showLoading && !isEnded"
+          type="button"
+          class="absolute top-1/2 left-1/2 -translate-1/2 z-30 flex size-16 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur-md shadow-2xl transition-all duration-200 hover:scale-110 hover:bg-black/80 cursor-pointer focus-visible:outline-2 focus-visible:outline-white"
+          :aria-label="t('actions.play')"
+          @click.stop="togglePlay"
+        >
+          <BIcon icon="PhPlay" weight="fill" class="size-8 translate-x-0.5" />
+        </button>
+      </Transition>
+
       <!-- Replay Button Overlay on Ended -->
       <button
         v-if="isEnded && !showLoading"
         type="button"
-        class="absolute top-1/2 left-1/2 -translate-1/2 z-30 flex size-16 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur-md shadow-2xl transition-all duration-200 hover:scale-110 hover:bg-black/80 cursor-pointer"
-        aria-label="Replay"
+        class="absolute top-1/2 left-1/2 -translate-1/2 z-30 flex size-16 items-center justify-center rounded-full bg-black/60 text-white backdrop-blur-md shadow-2xl transition-all duration-200 hover:scale-110 hover:bg-black/80 cursor-pointer focus-visible:outline-2 focus-visible:outline-white"
+        :aria-label="t('actions.replay')"
         @click.stop="replay"
       >
         <BIcon icon="PhArrowsClockwise" weight="bold" class="size-8" />
@@ -797,7 +804,7 @@ onBeforeUnmount(() => {
             :dt="{ track: { background: 'transparent' } }"
             @update:model-value="seek"
             @slidestart="scrubbing = true"
-            @slideend="scrubbing = false"
+            @slideend="onSlideEnd"
           />
         </div>
 
@@ -815,13 +822,13 @@ onBeforeUnmount(() => {
             />
             <IconButton
               icon="PhArrowUUpLeft"
-              label="Rewind 5s"
+              :label="t('actions.rewind')"
               class="text-white/85! hover:bg-white/15! hover:text-white!"
               @click="skip(-5)"
             />
             <IconButton
               icon="PhArrowUUpRight"
-              label="Forward 5s"
+              :label="t('actions.forward')"
               class="text-white/85! hover:bg-white/15! hover:text-white!"
               @click="skip(5)"
             />
@@ -833,7 +840,7 @@ onBeforeUnmount(() => {
               <button
                 type="button"
                 class="cursor-pointer text-white/70 hover:text-white transition-colors"
-                title="Click to toggle remaining time"
+                :title="t('actions.remainingTime')"
                 @click="showRemainingTime = !showRemainingTime"
               >
                 {{ displayedDuration }}
@@ -847,7 +854,8 @@ onBeforeUnmount(() => {
             <button
               type="button"
               class="flex h-8 min-w-8 items-center justify-center rounded-md px-1.5 text-label-sm font-semibold text-white/85 transition hover:bg-white/15 hover:text-white cursor-pointer"
-              title="Playback Speed"
+              :title="t('actions.speed')"
+              :aria-label="t('actions.speed')"
               @click="cycleSpeed"
             >
               {{ playbackRate }}x
@@ -880,7 +888,7 @@ onBeforeUnmount(() => {
                   step="0.05"
                   :value="isMuted ? 0 : volume"
                   class="h-1 w-16 cursor-pointer accent-white"
-                  aria-label="Volume"
+                  :aria-label="t('actions.volume')"
                   @input="setVolume(Number(($event.target as HTMLInputElement).value))"
                 />
               </div>
@@ -890,8 +898,8 @@ onBeforeUnmount(() => {
             <IconButton
               v-if="supportsPiP"
               icon="PhMonitorArrowUp"
-              label="Picture-in-Picture"
-              class="hidden! text-white/85! hover:bg-white/15! hover:text-white! md:inline-flex!"
+              :label="t('actions.pip')"
+              class="hidden! text-white/85! hover:bg-white/15! hover:text-white! sm:inline-flex!"
               @click="togglePiP"
             />
 
@@ -899,7 +907,7 @@ onBeforeUnmount(() => {
             <IconButton
               :icon="isFullscreen ? 'PhCornersIn' : 'PhFrameCorners'"
               :label="isFullscreen ? t('actions.exitFullscreen') : t('actions.fullscreen')"
-              class="hidden! text-white! hover:bg-white/15! md:inline-flex!"
+              class="text-white! hover:bg-white/15!"
               @click="toggleFullscreen"
             />
           </div>

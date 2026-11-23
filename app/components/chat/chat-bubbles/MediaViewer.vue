@@ -71,11 +71,13 @@ const goToward = (direction: "left" | "right") =>
 
 useEventListener(window, "keydown", (event: KeyboardEvent) => {
   if (!isOpen.value || event.defaultPrevented) return;
-  // Let ViewerVideo handle arrow keys for seeking and volume
-  if (active.value?.kind === "video") return;
+  if ((event.target as HTMLElement | null)?.closest("input, textarea, [contenteditable='true']")) return;
   if ((event.target as HTMLElement | null)?.closest("[role='slider']")) return;
-  if (event.key === "ArrowLeft") goToward("right");
-  else if (event.key === "ArrowRight") goToward("left");
+  // If in fullscreen video, let the video player handle arrow keys
+  if (document.fullscreenElement) return;
+
+  if (event.key === "ArrowLeft" && !event.shiftKey) goToward("right");
+  else if (event.key === "ArrowRight" && !event.shiftKey) goToward("left");
   else if (event.key === "+" || event.key === "=") imageStage.value?.zoomStep(1);
   else if (event.key === "-") imageStage.value?.zoomStep(-1);
   else return;
@@ -247,7 +249,13 @@ const pt = computed(() => ({
           @zoomed="scale = $event"
           @dismiss="isOpen = false"
         />
-        <ViewerVideo v-else :key="item.url" :src="item.url" @swipe="goToward" />
+        <ViewerVideo
+          v-else
+          :key="item.url"
+          :src="item.url"
+          :has-multiple-items="hasMany"
+          @swipe="goToward"
+        />
       </div>
     </template>
 
