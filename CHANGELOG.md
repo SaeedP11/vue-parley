@@ -4,6 +4,17 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [5.7.5] - 2026-11-23
+
+### Fixed
+
+- Video Player:
+  - Fix video seeking lockup caused by failing CORS byte-range probe.
+  - Fix album keyboard navigation conflict between media items and video seek keys.
+  - Improve mobile UX: tap-to-reveal controls without pausing, prominent center play button, accessible fullscreen and volume controls.
+  - Add missing Persian and English i18n translations for player actions.
+  - Catch unhandled promise rejections on bubble video note play.
+
 ## [5.7.4] - 2026-11-23
 
 ### Added
