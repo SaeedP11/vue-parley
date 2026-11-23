@@ -17,11 +17,11 @@ test.beforeEach(async ({ page }) => {
 test.describe("conversation list", () => {
   test("loads conversations sorted by latest message", async ({ page }) => {
     const names = await page.getByTestId("chat-contact").allInnerTexts();
-    expect(names).toHaveLength(3);
-    // c1's last message is newest, c3's oldest.
+    expect(names).toHaveLength(2);
+    // c1's last message is the newest active conversation.
     expect(names[0]).toContain("Sara Ahmadi");
-    expect(names[2]).toContain("Leila Moradi");
-    expect(await handlerCalls(page, "fetchConversations")).not.toHaveLength(0);
+    expect((await handlerCalls(page, "fetchConversations"))[0]?.args[0]).toMatchObject({ state: "active" });
+    await expect(page.getByRole("button", { name: "Active", pressed: true })).toBeVisible();
   });
 
   test("shows a formatted time, not a raw date", async ({ page }) => {
@@ -65,10 +65,11 @@ test.describe("conversation list", () => {
     await expect(page.getByTestId("chat-contact")).toHaveCount(1);
     await expect(contactItem(page, "c3")).toBeVisible();
 
-    await page.reload();
     await page.getByText("Active", { exact: true }).first().click();
     await expect(page.getByTestId("chat-contact")).toHaveCount(2);
     await expect(contactItem(page, "c3")).toHaveCount(0);
+    await page.getByRole("button", { name: "Active" }).click();
+    await expect(page.getByRole("button", { name: "Active", pressed: true })).toBeVisible();
   });
 
   test("searches by name", async ({ page }) => {
@@ -78,7 +79,7 @@ test.describe("conversation list", () => {
 
     await page.getByTestId("chat-search-clear").click();
     await expect(page.getByTestId("chat-search")).toHaveValue("");
-    await expect(page.getByTestId("chat-contact")).toHaveCount(3);
+    await expect(page.getByTestId("chat-contact")).toHaveCount(2);
   });
 
   test("says when a search finds nothing", async ({ page }) => {
@@ -86,7 +87,7 @@ test.describe("conversation list", () => {
     await expect(page.getByTestId("chat-search-empty")).toContainText("zzz");
 
     await page.getByRole("button", { name: "Clear search" }).last().click();
-    await expect(page.getByTestId("chat-contact")).toHaveCount(3);
+    await expect(page.getByTestId("chat-contact")).toHaveCount(2);
   });
 });
 

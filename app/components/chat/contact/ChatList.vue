@@ -17,7 +17,7 @@ const { t } = useLocalI18n(chatList);
 const { dir } = useDirection();
 const chatStore = useChatStore();
 
-const activeFilter = ref<StateKeys>("");
+const activeFilter = ref<StateKeys>("active");
 const searchText = ref("");
 const listRef = ref<HTMLElement | null>(null);
 
@@ -99,10 +99,11 @@ onBeforeUnmount(() => {
           :options="filters"
           option-label="label"
           option-value="key"
+          :allow-empty="false"
           :aria-label="t('filters.label')"
           class="w-full"
           :pt="{ root: { class: 'rounded-xl! bg-chat-surface! p-1!' }, pcToggleButton: { root: { class: 'flex-1 h-9! rounded-lg! border-0!' } } }"
-          @update:model-value="(key) => setFilter(key ?? '')"
+          @update:model-value="(key) => setFilter(key)"
         />
       </div>
 
