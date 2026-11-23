@@ -471,14 +471,24 @@ const send = () => {
   }
 
   if (dialogMode.value !== "file" && selectedMedia.value.length > 0) {
+    const willCompress = canCompress && videoCount.value > 0 ? doCompress.value : false;
     messagesToEmit.push({
       type: "image",
-      compressMedia: canCompress && videoCount.value > 0 ? doCompress.value : false,
+      compressMedia: willCompress,
       // Hosts that only know photos read `imageUrl`; the rest read the whole album from `media`.
       imageUrl: selectedMedia.value.filter((m) => m.kind === "image").map((m) => m.path),
-      media: selectedMedia.value.map((m) => ({ url: m.path, kind: m.kind, size: m.file?.size })),
+      media: selectedMedia.value.map((m) => ({
+        url: m.path,
+        kind: m.kind,
+        size: willCompress && m.kind === "video" ? undefined : m.file?.size,
+      })),
       files: selectedMedia.value.map((m) => m.file),
-      fileSize: selectedMedia.value.length === 1 ? selectedMedia.value[0]?.file?.size : undefined,
+      fileSize:
+        selectedMedia.value.length === 1
+          ? willCompress && selectedMedia.value[0]?.kind === "video"
+            ? undefined
+            : selectedMedia.value[0]?.file?.size
+          : undefined,
     });
   }
 

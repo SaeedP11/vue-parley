@@ -747,6 +747,16 @@ test.describe("images", () => {
       .toBe(2);
     const [, retry] = await handlerCalls(page, "sendMessage");
     expect(retry.args[0].media[0].url).toBe(call.args[0].media[0].url);
+
+    // The bubble shows the final compressed video and its compressed size (not pre-compressed)
+    await expect(page.getByTestId("upload-progress")).toBeHidden({ timeout: 15_000 });
+    const bubble = page.getByTestId("bubble-image").last();
+    const video = bubble.locator("video");
+    await expect(video).toHaveAttribute("src", new RegExp(`^${call.args[0].media[0].url}`));
+    const badge = bubble.locator(".tabular-nums");
+    await expect(badge).toBeVisible();
+    const badgeText = await badge.innerText();
+    expect(badgeText).not.toContain("1.1 MB");
   });
 
   test("lets user cancel sending a video", async ({ page }) => {

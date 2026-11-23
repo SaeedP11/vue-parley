@@ -42,13 +42,7 @@ const getFileSize = async () => {
   }
   if (props.item.kind !== "video" || !props.item.url) return;
   if (props.item.url.startsWith("blob:")) {
-    try {
-      const res = await fetch(props.item.url);
-      const blob = await res.blob();
-      fetchedSize.value = blob.size;
-    } catch {
-      fetchedSize.value = null;
-    }
+    // Local blob without explicit size is pending compression; do not show pre-compressed size
     return;
   }
   try {

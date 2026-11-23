@@ -49,7 +49,9 @@ const isUploading = computed(() => !props.isSent && uploadData.value);
 const isCompressing = computed(() => !props.isSent && props.compress !== undefined);
 
 const fetchedSize = ref<number | null>(null);
-const resolvedSize = computed(() => props.fileSize ?? fetchedSize.value);
+const resolvedSize = computed(() =>
+  isCompressing.value ? null : (props.fileSize ?? fetchedSize.value),
+);
 
 const formattedSize = computed(() => {
   const size = resolvedSize.value;
@@ -72,6 +74,7 @@ const getFileSize = async () => {
   }
   if (!props.videoUrl) return;
   if (props.videoUrl.startsWith("blob:")) {
+    if (isCompressing.value) return;
     try {
       const res = await fetch(props.videoUrl);
       const blob = await res.blob();

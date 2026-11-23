@@ -23,6 +23,7 @@ let compressionQueue: Promise<unknown> = Promise.resolve();
 // doesn't compress it again.
 const compressedUrls = new Map<string, string>();
 const compressedSizes = new Map<string, number>();
+const compressedFiles = new Map<string, File>();
 const activeAbortControllers = new Map<string, AbortController>();
 const cancelledMessageIds = new Set<string>();
 
@@ -323,7 +324,7 @@ export const useMessagesStore = defineStore("messages-store", () => {
 
   /**
    * The album as it should leave the device: selected media is replaced with smaller copies
-   * where possible. The bubble keeps showing what was picked.
+   * where possible. The bubble and viewer use and show the final compressed media.
    */
   const compressMedia = async (message: Message): Promise<Message> => {
     if (!message.compressMedia) return message;
@@ -356,8 +357,16 @@ export const useMessagesStore = defineStore("messages-store", () => {
               ? await compressVideo(file, { onProgress: report, signal })
               : await compressImage(file);
             if (smaller && !signal?.aborted && !cancelledMessageIds.has(id)) {
-              compressedUrls.set(item.url, URL.createObjectURL(smaller));
+              const compUrl = URL.createObjectURL(smaller);
+              compressedUrls.set(item.url, compUrl);
+              compressedUrls.set(compUrl, compUrl);
               compressedSizes.set(item.url, smaller.size);
+              compressedSizes.set(compUrl, smaller.size);
+              compressedFiles.set(item.url, smaller);
+              compressedFiles.set(compUrl, smaller);
+              if (item.url.startsWith("blob:") && compUrl !== item.url) {
+                URL.revokeObjectURL(item.url);
+              }
             }
           } catch (error) {
             if (signal?.aborted || cancelledMessageIds.has(id)) return;
@@ -404,8 +413,16 @@ export const useMessagesStore = defineStore("messages-store", () => {
           });
           const smaller = await compressVideo(file, { onProgress: report, signal });
           if (smaller && !signal?.aborted && !cancelledMessageIds.has(id)) {
-            compressedUrls.set(url, URL.createObjectURL(smaller));
+            const compUrl = URL.createObjectURL(smaller);
+            compressedUrls.set(url, compUrl);
+            compressedUrls.set(compUrl, compUrl);
             compressedSizes.set(url, smaller.size);
+            compressedSizes.set(compUrl, smaller.size);
+            compressedFiles.set(url, smaller);
+            compressedFiles.set(compUrl, smaller);
+            if (url.startsWith("blob:") && compUrl !== url) {
+              URL.revokeObjectURL(url);
+            }
           }
         } catch (error) {
           if (signal?.aborted || cancelledMessageIds.has(id)) return;
@@ -447,8 +464,16 @@ export const useMessagesStore = defineStore("messages-store", () => {
               ? await compressVideo(file, { onProgress: report, signal })
               : await compressImage(file);
             if (smaller && !signal?.aborted && !cancelledMessageIds.has(id)) {
-              compressedUrls.set(url, URL.createObjectURL(smaller));
+              const compUrl = URL.createObjectURL(smaller);
+              compressedUrls.set(url, compUrl);
+              compressedUrls.set(compUrl, compUrl);
               compressedSizes.set(url, smaller.size);
+              compressedSizes.set(compUrl, smaller.size);
+              compressedFiles.set(url, smaller);
+              compressedFiles.set(compUrl, smaller);
+              if (url.startsWith("blob:") && compUrl !== url) {
+                URL.revokeObjectURL(url);
+              }
             }
           }
         } catch (error) {
@@ -475,27 +500,19 @@ export const useMessagesStore = defineStore("messages-store", () => {
 
   const releaseCompressed = (message: Message) => {
     message.media?.forEach((item) => {
-      const url = compressedUrls.get(item.url);
-      if (!url) return;
-      URL.revokeObjectURL(url);
       compressedUrls.delete(item.url);
       compressedSizes.delete(item.url);
+      compressedFiles.delete(item.url);
     });
     if (message.videoUrl) {
-      const url = compressedUrls.get(message.videoUrl);
-      if (url) {
-        URL.revokeObjectURL(url);
-        compressedUrls.delete(message.videoUrl);
-        compressedSizes.delete(message.videoUrl);
-      }
+      compressedUrls.delete(message.videoUrl);
+      compressedSizes.delete(message.videoUrl);
+      compressedFiles.delete(message.videoUrl);
     }
     if (message.fileUrl) {
-      const url = compressedUrls.get(message.fileUrl);
-      if (url) {
-        URL.revokeObjectURL(url);
-        compressedUrls.delete(message.fileUrl);
-        compressedSizes.delete(message.fileUrl);
-      }
+      compressedUrls.delete(message.fileUrl);
+      compressedSizes.delete(message.fileUrl);
+      compressedFiles.delete(message.fileUrl);
     }
   };
 
@@ -561,10 +578,23 @@ export const useMessagesStore = defineStore("messages-store", () => {
           ? {
               media: canonical.media.map((item, idx) => ({
                 ...item,
+                url: item.url || outgoing.media?.[idx]?.url || "",
                 size: item.size ?? outgoing.media?.[idx]?.size,
               })),
             }
-          : {}),
+          : outgoing.media
+            ? { media: outgoing.media }
+            : {}),
+        ...(canonical.videoUrl
+          ? { videoUrl: canonical.videoUrl }
+          : outgoing.videoUrl
+            ? { videoUrl: outgoing.videoUrl }
+            : {}),
+        ...(canonical.fileUrl
+          ? { fileUrl: canonical.fileUrl }
+          : outgoing.fileUrl
+            ? { fileUrl: outgoing.fileUrl }
+            : {}),
       });
       if (canonical.imageUrl?.length) {
         profileStore.addMedia(conversationId, ...canonical.imageUrl);
