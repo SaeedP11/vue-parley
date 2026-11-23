@@ -11,5 +11,9 @@
   "sending": {
     "compressing": "در حال فشرده‌سازی… {progress}٪",
     "uploading": "در حال ارسال… {progress}٪"
+  },
+  "events": {
+    "memberExpired": "{target} پس از پایان مهلت ۸ ساعته از گفتگو خارج شد.",
+    "youLeft": "شما از چت رفتین بیرون."
   }
 }

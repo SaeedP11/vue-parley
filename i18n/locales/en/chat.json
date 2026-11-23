@@ -36,6 +36,7 @@
       "memberJoined": "{target} joined the chat.",
       "memberRemoved": "{actor} removed {target} from the chat.",
       "memberLeft": "{target} left the chat.",
+      "youLeft": "You left the chat.",
       "callStarted": "{actor} started a {callType} call.",
       "callStartedGeneric": "{callType} call started.",
       "callEnded": "{callType} call ended.",
