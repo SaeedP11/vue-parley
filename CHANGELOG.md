@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [5.7.4] - 2026-11-23
+
+### Added
+
+- Chat / Media:
+  - Use and show final video and compressed size for compressed videos.
+
 ## [5.7.3] - 2026-11-22
 
 ### Added
