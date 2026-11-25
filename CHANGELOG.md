@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Performance
+
+- **Video Player**: Optimize video player responsiveness and eliminate buffering lag during media playback.
+
 ## [5.7.5] - 2026-11-23
 
 ### Fixed
